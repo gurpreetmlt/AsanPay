@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -13,13 +13,19 @@ import {
   Copy,
   Eye,
   KeyRound,
+  Mail,
   MessageSquareText,
+  MoreHorizontal,
+  Pencil,
+  Phone,
   Plus,
   RefreshCw,
   Send,
   ShieldAlert,
   ShieldCheck,
   Trash2,
+  UserRound,
+  Webhook,
 } from "lucide-react";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -32,10 +38,18 @@ import { SECURITY_PAGE, onlyDigits, type AdminTotpStatus } from "@/lib/adminTotp
 
 type Provider = "noble" | "vyaparapi" | "telegram" | "whatsapp";
 
+type Environment = "dev" | "live";
+
 interface WebhookKey {
   id: string;
   provider: Provider;
   name: string;
+  vendorName: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  environment: Environment;
+  rotatedFromId: string | null;
   notes: string | null;
   services: string[];
   last4: string;
@@ -77,12 +91,81 @@ interface Delivery {
   createdAt: string;
 }
 
-interface RejectionSummary {
+type HealthStatus = "not_set" | "alert" | "quiet" | "ok";
+
+interface ProviderHealth {
   provider: Provider;
-  rejectedLastHour: number;
+  label: string;
+  status: HealthStatus;
+  activeKeys: number;
+  usingServerSecret: boolean;
+  acceptedLast24h: number;
   rejectedLast24h: number;
+  rejectedLastHour: number;
+  lastAcceptedAt: string | null;
   lastRejectedAt: string | null;
-  alert: boolean;
+  lastRejectReason: string | null;
+}
+
+interface Overview {
+  environment: Environment;
+  providers: ProviderHealth[];
+}
+
+interface DetailsForm {
+  vendorName: string;
+  name: string;
+  environment: Environment;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  notes: string;
+}
+
+const GRACE_OPTIONS = [
+  { hours: 1, label: "1 hour" },
+  { hours: 6, label: "6 hours" },
+  { hours: 24, label: "24 hours" },
+  { hours: 72, label: "3 days" },
+] as const;
+
+const ROTATE_AFTER_DAYS = 90;
+
+const HEALTH_PILL: Record<HealthStatus, { label: string; bg: string; fg: string; dot: string }> = {
+  ok: { label: "Healthy", bg: "rgba(18,183,106,0.12)", fg: "#0F9E5C", dot: "#12B76A" },
+  quiet: { label: "Quiet", bg: "rgba(217,119,6,0.12)", fg: "#B45309", dot: "#F59E0B" },
+  alert: { label: "Alert", bg: "rgba(220,38,38,0.12)", fg: "#B91C1C", dot: "#EF4444" },
+  not_set: { label: "Not set", bg: "rgba(100,116,139,0.12)", fg: "#64748B", dot: "#94A3B8" },
+};
+
+const PROVIDER_TONE: Record<Provider, string> = {
+  noble: "#0F766E",
+  vyaparapi: "#C2410C",
+  telegram: "#0284C7",
+  whatsapp: "#15803D",
+};
+
+function ago(iso: string | null, now: number): string {
+  if (!iso) return "Never";
+  const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RE = /^\+?[\d\s-]{10,16}$/;
+
+/** Field-level problems in the vendor / contact form. */
+function detailsErrors(f: DetailsForm): Partial<Record<keyof DetailsForm, string>> {
+  const out: Partial<Record<keyof DetailsForm, string>> = {};
+  if (f.name.trim().length < 2) out.name = "Name / purpose must be at least 2 characters";
+  if (f.contactEmail.trim() && !EMAIL_RE.test(f.contactEmail.trim())) out.contactEmail = "Enter a valid email like ops@vendor.com";
+  if (f.contactPhone.trim() && !PHONE_RE.test(f.contactPhone.trim())) out.contactPhone = "Enter a valid phone (10 digits, + and spaces allowed)";
+  return out;
 }
 
 interface TestResult {
@@ -129,7 +212,6 @@ function suggestName(provider: Provider, services: string[]): string {
 const REVEAL_SECONDS = 30;
 const TOTP_OFF_MESSAGE = "Turn on two-factor login in Admin → Security before managing keys.";
 const fieldClass = "w-full rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2";
-const neutralBtn = "rounded-xl border px-3 py-1.5 text-xs font-semibold";
 const cardBg = "linear-gradient(180deg, #F7F9FF 0%, transparent 100%)";
 
 type ApiErr = {
@@ -212,7 +294,7 @@ const STEP_UP_COPY: Record<
   },
   rotate: {
     title: "Verify to regenerate key",
-    subtitle: "Enter the current 6-digit code. The old key keeps working for 24 hours.",
+    subtitle: "Enter the current 6-digit code. The old key keeps working for the time you picked.",
     confirm: "Verify & regenerate",
     busy: "Regenerating…",
     tone: "amber",
@@ -420,6 +502,157 @@ function DeliveryTable({ rows }: { rows: Delivery[] }) {
   );
 }
 
+function EnvBadge({ env, server = false }: { env: Environment; server?: boolean }) {
+  const live = env === "live";
+  return (
+    <span
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+      style={live ? { background: "rgba(18,183,106,0.14)", color: "#0F9E5C" } : { background: "rgba(217,119,6,0.14)", color: "#B45309" }}
+      title={server ? "Which server this admin is connected to" : "Where this key is used"}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: live ? "#12B76A" : "#F59E0B" }} />
+      {server ? (live ? "Live server" : "Dev server") : live ? "Live" : "Dev"}
+    </span>
+  );
+}
+
+function DetailsFields({
+  form,
+  onChange,
+  errors,
+  showName = true,
+}: {
+  form: DetailsForm;
+  onChange: (patch: Partial<DetailsForm>) => void;
+  errors: Partial<Record<keyof DetailsForm, string>>;
+  showName?: boolean;
+}) {
+  const input = (key: keyof DetailsForm, label: string, opts: { placeholder?: string; max: number; type?: string; required?: boolean }) => (
+    <label className="block space-y-1.5">
+      <span className="text-xs font-semibold" style={{ color: B.muted }}>
+        {label} {opts.required ? <span style={{ color: B.danger }}>*</span> : null}
+      </span>
+      <input
+        type={opts.type ?? "text"}
+        value={form[key]}
+        maxLength={opts.max}
+        placeholder={opts.placeholder}
+        onChange={(e) => onChange({ [key]: e.target.value })}
+        aria-invalid={Boolean(errors[key])}
+        className={fieldClass}
+        style={{ borderColor: errors[key] ? B.danger : B.border, background: B.card, color: B.blue }}
+      />
+      {errors[key] ? (
+        <span className="block text-xs font-semibold" style={{ color: B.danger }}>
+          {errors[key]}
+        </span>
+      ) : null}
+    </label>
+  );
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {input("vendorName", "Vendor / company", { placeholder: "e.g. Noble Web Studio", max: 120 })}
+        <div className="space-y-1.5">
+          <span className="block text-xs font-semibold" style={{ color: B.muted }}>
+            Environment
+          </span>
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Environment">
+            {(["dev", "live"] as const).map((e) => {
+              const on = form.environment === e;
+              return (
+                <button
+                  key={e}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => onChange({ environment: e })}
+                  className="rounded-xl border-2 py-2.5 text-sm font-bold transition"
+                  style={{
+                    borderColor: on ? (e === "live" ? "#12B76A" : "#F59E0B") : B.border,
+                    background: on ? (e === "live" ? "rgba(18,183,106,0.08)" : "rgba(217,119,6,0.08)") : B.card,
+                    color: on ? (e === "live" ? "#0F9E5C" : "#B45309") : B.muted,
+                  }}
+                >
+                  {e === "live" ? "Live" : "Dev"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {showName ? input("name", "Name / purpose", { max: 120, required: true }) : null}
+      <div className="rounded-2xl border p-3" style={{ borderColor: B.border, background: B.card }}>
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
+          Vendor contact · optional
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {input("contactName", "Name", { placeholder: "Tech contact", max: 80 })}
+          {input("contactEmail", "Email", { placeholder: "ops@vendor.com", max: 150, type: "email" })}
+          {input("contactPhone", "Phone", { placeholder: "98765 43210", max: 20, type: "tel" })}
+        </div>
+      </div>
+      {input("notes", "Notes", { placeholder: "e.g. Set in the provider portal on 29 Oct", max: 300 })}
+    </div>
+  );
+}
+
+type MenuItem = { label: string; icon: typeof Plus; tone?: "danger"; onClick: () => void };
+
+function ActionMenu({ items, label }: { items: MenuItem[]; label: string }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+  if (items.length === 0) return null;
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-9 items-center justify-center rounded-xl border transition hover:bg-[rgba(42,92,221,0.06)]"
+        style={{ borderColor: B.border, color: B.blue, background: B.card }}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open ? (
+        <div
+          className="absolute right-0 z-20 mt-1.5 w-52 overflow-hidden rounded-2xl border py-1 shadow-xl"
+          style={{ borderColor: B.border, background: B.card }}
+          role="menu"
+        >
+          {items.map((it) => {
+            const Icon = it.icon;
+            return (
+              <button
+                key={it.label}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  it.onClick();
+                }}
+                className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm font-semibold transition ${
+                  it.tone === "danger" ? "hover:bg-[#FEF2F2]" : "hover:bg-[rgba(42,92,221,0.06)]"
+                }`}
+                style={{ color: it.tone === "danger" ? B.danger : B.blue }}
+              >
+                <Icon size={15} />
+                {it.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function WebhookKeysPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
@@ -429,15 +662,27 @@ export default function WebhookKeysPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [totp, setTotp] = useState<AdminTotpStatus | null>(null);
-  const [summary, setSummary] = useState<RejectionSummary[]>([]);
+  const [overview, setOverview] = useState<Overview | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const serverEnv: Environment = overview?.environment ?? "dev";
+  const emptyDetails = (): DetailsForm => ({
+    vendorName: "",
+    name: "",
+    environment: serverEnv,
+    contactName: "",
+    contactEmail: "",
+    contactPhone: "",
+    notes: "",
+  });
+  const [createDetails, setCreateDetails] = useState<DetailsForm>(emptyDetails);
+  const [edit, setEdit] = useState<{ key: WebhookKey; form: DetailsForm; busy: boolean; error: string | null } | null>(null);
+  const [graceHours, setGraceHours] = useState<number>(24);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [provider, setProvider] = useState<Provider>("noble");
   const [services, setServices] = useState<string[]>(SERVICES.noble);
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
-  const [notes, setNotes] = useState("");
   const [mode, setMode] = useState<"generate" | "paste">("generate");
   const [pasted, setPasted] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -469,14 +714,14 @@ export default function WebhookKeysPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [list, status, rejections] = await Promise.all([
+      const [list, status, health] = await Promise.all([
         fetchApi<WebhookKey[]>("/admin/webhook-keys"),
         fetchApi<AdminTotpStatus>("/auth/admin/totp/status").catch(() => null),
-        fetchApi<RejectionSummary[]>("/admin/webhook-keys/deliveries/summary").catch(() => []),
+        fetchApi<Overview>("/admin/webhook-keys/overview").catch(() => null),
       ]);
       setKeys(list);
       setTotp(status);
-      setSummary(rejections);
+      setOverview(health);
     } catch (err) {
       setLoadError(errMsg(err, "Could not load webhook keys. Refresh the page to try again."));
     } finally {
@@ -529,7 +774,7 @@ export default function WebhookKeysPage() {
     setServices(SERVICES.noble);
     setName(suggestName("noble", SERVICES.noble));
     setNameTouched(false);
-    setNotes("");
+    setCreateDetails({ ...emptyDetails(), vendorName: "Noble Web Studio" });
     setMode("generate");
     setPasted("");
     setCreateError(null);
@@ -545,7 +790,52 @@ export default function WebhookKeysPage() {
     setProvider(p);
     setServices(SERVICES[p]);
     if (!nameTouched) setName(suggestName(p, SERVICES[p]));
+    setCreateDetails((d) => {
+      const known = ["", "Noble Web Studio", ...PROVIDERS.map((x) => x.label)];
+      return known.includes(d.vendorName) ? { ...d, vendorName: p === "noble" ? "Noble Web Studio" : providerLabel(p) } : d;
+    });
     setCreateError(null);
+  }
+
+  function openEdit(k: WebhookKey) {
+    setEdit({
+      key: k,
+      busy: false,
+      error: null,
+      form: {
+        vendorName: k.vendorName,
+        name: k.name,
+        environment: k.environment,
+        contactName: k.contactName ?? "",
+        contactEmail: k.contactEmail ?? "",
+        contactPhone: k.contactPhone ?? "",
+        notes: k.notes ?? "",
+      },
+    });
+  }
+
+  async function saveEdit() {
+    if (!edit) return;
+    if (Object.keys(detailsErrors(edit.form)).length > 0) return;
+    setEdit({ ...edit, busy: true, error: null });
+    const f = edit.form;
+    try {
+      const { data } = await api.patch<ApiResponse<WebhookKey>>(`/admin/webhook-keys/${edit.key.id}`, {
+        name: f.name.trim(),
+        vendorName: f.vendorName.trim() || null,
+        environment: f.environment,
+        contactName: f.contactName.trim() || null,
+        contactEmail: f.contactEmail.trim() || null,
+        contactPhone: f.contactPhone.trim() || null,
+        notes: f.notes.trim() || null,
+      });
+      if (!data.success) throw new Error(data.message);
+      setKeys((list) => list.map((k) => (k.id === data.data.id ? data.data : k)));
+      toast.success("Key details saved");
+      setEdit(null);
+    } catch (err) {
+      setEdit((e) => (e ? { ...e, busy: false, error: errMsg(err, "Key details were not saved. Try again.") } : e));
+    }
   }
 
   function toggleService(s: string) {
@@ -567,6 +857,11 @@ export default function WebhookKeysPage() {
     }
     if (mode === "paste" && (pasted.trim().length < 16 || pasted.trim().length > 200)) {
       setCreateError("Pasted key must be 16 to 200 characters");
+      return;
+    }
+    const detailProblem = Object.values(detailsErrors({ ...createDetails, name }))[0];
+    if (detailProblem) {
+      setCreateError(detailProblem);
       return;
     }
     if (!totpReady()) return;
@@ -617,7 +912,12 @@ export default function WebhookKeysPage() {
         const { data } = await api.post<ApiResponse<{ key: WebhookKey } & KeySecret>>("/admin/webhook-keys", {
           provider,
           name: name.trim(),
-          notes: notes.trim() || null,
+          notes: createDetails.notes.trim() || null,
+          vendorName: createDetails.vendorName.trim() || null,
+          environment: createDetails.environment,
+          contactName: createDetails.contactName.trim() || null,
+          contactEmail: createDetails.contactEmail.trim() || null,
+          contactPhone: createDetails.contactPhone.trim() || null,
           services,
           totpCode: code,
           ...(mode === "paste" ? { secret: pasted.trim() } : {}),
@@ -636,7 +936,7 @@ export default function WebhookKeysPage() {
       } else if (action === "rotate" && key) {
         const { data } = await api.post<ApiResponse<{ key: WebhookKey } & KeySecret>>(
           `/admin/webhook-keys/${key.id}/rotate`,
-          { totpCode: code },
+          { totpCode: code, graceHours },
         );
         if (!data.success) throw new Error(data.message);
         const { key: newKey, ...secret } = data.data;
@@ -725,7 +1025,7 @@ export default function WebhookKeysPage() {
   if (!hydrated || !accessToken) return null;
 
   const urlUnlocked = (k: WebhookKey) => revealed?.keyId === k.id && Boolean(revealed.callbackUrl);
-  const alerts = summary.filter((s) => s.alert);
+  const alerts = (overview?.providers ?? []).filter((h) => h.status === "alert");
   const stepUpEyebrow = stepUp
     ? stepUp.key
       ? `${providerLabel(stepUp.key.provider)} · ${stepUp.key.name}`
@@ -735,24 +1035,40 @@ export default function WebhookKeysPage() {
   return (
     <AdminShell>
       <div className="w-full space-y-5 p-4 md:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
-              Webhooks & callback keys
-            </h1>
-            <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              Keys providers send with every callback. Server keys (JWT, encryption, database) stay in the server
-              settings.
-            </p>
+        <div
+          className="relative overflow-hidden rounded-3xl border p-5 md:p-6"
+          style={{ borderColor: B.border, background: "linear-gradient(135deg, #F3F6FF 0%, var(--admin-card) 60%)" }}
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <span
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
+                style={{ background: B.badgeGrad }}
+              >
+                <Webhook size={22} />
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
+                    Webhooks &amp; callback keys
+                  </h1>
+                  {overview ? <EnvBadge env={serverEnv} server /> : null}
+                </div>
+                <p className="mt-1 max-w-2xl text-sm" style={{ color: B.muted }}>
+                  The key each vendor sends with its callbacks, so we know it is really them. Server keys (JWT, encryption,
+                  database) stay in the server settings.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={openCreate}
+              className="admin-btn-success inline-flex shrink-0 items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm"
+            >
+              <Plus size={16} />
+              Generate callback key
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="admin-btn-success inline-flex shrink-0 items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold"
-          >
-            <Plus size={16} />
-            Generate callback key
-          </button>
         </div>
 
         {alerts.length > 0 ? (
@@ -765,9 +1081,8 @@ export default function WebhookKeysPage() {
             <div className="text-sm" style={{ color: B.blue }}>
               <p className="font-semibold">Many rejected callbacks in the last hour</p>
               <p className="mt-0.5" style={{ color: B.muted }}>
-                {alerts.map((a) => `${providerLabel(a.provider)}: ${a.rejectedLastHour}`).join(" · ")} attempts with a
-                wrong or missing key. A provider may still be using an old key, or someone is guessing. Open Rejected
-                attempts below to see the IPs.
+                {alerts.map((a) => `${a.label}: ${a.rejectedLastHour}`).join(" · ")} attempts with a wrong or missing key.
+                A vendor may still be using an old key, or someone is guessing. Open Rejected attempts to see the IPs.
               </p>
             </div>
           </div>
@@ -793,295 +1108,443 @@ export default function WebhookKeysPage() {
           </div>
         ) : null}
 
-        {summary.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {summary.map((s) => (
-              <div
-                key={s.provider}
-                className="flex flex-col gap-1 rounded-2xl border p-3"
-                style={{ borderColor: s.alert ? "rgba(220,38,38,0.4)" : B.border, background: B.card }}
-              >
-                <p className="text-[11px] uppercase tracking-wide" style={{ color: B.muted }}>
-                  {providerLabel(s.provider)} · Rejected attempts
-                </p>
-                <p className="text-lg font-bold" style={{ color: s.rejectedLast24h > 0 ? B.danger : B.blue }}>
-                  {s.rejectedLast24h}
-                  <span className="ml-1 text-xs font-medium" style={{ color: B.muted }}>
-                    in 24h · {s.rejectedLastHour} in 1h
-                  </span>
-                </p>
-                <button
-                  type="button"
-                  disabled={s.rejectedLast24h === 0}
-                  onClick={() => void openRejected(s.provider)}
-                  className={`${neutralBtn} mt-auto self-start disabled:cursor-not-allowed disabled:opacity-50`}
-                  style={{ borderColor: B.border, color: B.blue }}
+        {overview ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {overview.providers.map((h) => {
+              const pill = HEALTH_PILL[h.status];
+              const tone = PROVIDER_TONE[h.provider];
+              return (
+                <div
+                  key={h.provider}
+                  className="flex flex-col gap-3 rounded-2xl border p-4 transition hover:shadow-md"
+                  style={{
+                    borderColor: h.status === "alert" ? "rgba(220,38,38,0.45)" : B.border,
+                    background: B.card,
+                    boxShadow: `inset 3px 0 0 ${tone}`,
+                  }}
                 >
-                  View attempts
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-extrabold"
+                        style={{ background: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
+                      >
+                        {h.label.slice(0, 1)}
+                      </span>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: B.blue }}>
+                          {h.label}
+                        </p>
+                        <p className="text-[11px]" style={{ color: B.muted }}>
+                          {h.activeKeys > 0
+                            ? `${h.activeKeys} active key${h.activeKeys === 1 ? "" : "s"}`
+                            : h.usingServerSecret
+                              ? "Using the server secret"
+                              : "No key yet"}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                      style={{ background: pill.bg, color: pill.fg }}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: pill.dot }} />
+                      {pill.label}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                      Last callback
+                    </p>
+                    <p className="text-lg font-bold" style={{ color: h.status === "quiet" ? "#B45309" : B.blue }}>
+                      {ago(h.lastAcceptedAt, now)}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="rounded-xl px-2.5 py-1.5" style={{ background: "rgba(18,183,106,0.08)" }}>
+                      <p style={{ color: B.muted }}>Accepted 24h</p>
+                      <p className="text-sm font-bold" style={{ color: B.greenDark }}>
+                        {h.acceptedLast24h}
+                      </p>
+                    </div>
+                    <div
+                      className="rounded-xl px-2.5 py-1.5"
+                      style={{ background: h.rejectedLast24h > 0 ? "rgba(220,38,38,0.08)" : B.secondary }}
+                    >
+                      <p style={{ color: B.muted }}>Rejected 24h</p>
+                      <p className="text-sm font-bold" style={{ color: h.rejectedLast24h > 0 ? B.danger : B.blue }}>
+                        {h.rejectedLast24h}
+                        {h.rejectedLastHour > 0 ? (
+                          <span className="ml-1 text-[10px] font-semibold">({h.rejectedLastHour} in 1h)</span>
+                        ) : null}
+                      </p>
+                    </div>
+                  </div>
+                  {h.rejectedLast24h > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => void openRejected(h.provider)}
+                      className="mt-auto flex items-center justify-between rounded-xl border px-3 py-1.5 text-xs font-semibold transition hover:bg-[#FEF2F2]"
+                      style={{ borderColor: "#FCA5A5", color: B.danger }}
+                    >
+                      <span>{h.lastRejectReason ?? "Rejected"} · {ago(h.lastRejectedAt, now)}</span>
+                      <span>View →</span>
+                    </button>
+                  ) : (
+                    <p className="mt-auto text-[11px]" style={{ color: B.muted }}>
+                      {h.status === "not_set"
+                        ? "Generate a key and send it to the vendor."
+                        : h.status === "quiet"
+                          ? "No accepted callback for over a day."
+                          : "No rejected attempts."}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : null}
 
-        <section className="overflow-hidden rounded-2xl border" style={{ borderColor: B.border, background: B.card }}>
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-base font-bold" style={{ color: B.blue }}>
+              Callback keys
+            </h2>
+            {keys.length > 0 ? (
+              <p className="text-xs" style={{ color: B.muted }}>
+                {keys.filter((k) => isLive(k, now)).length} working · {keys.length} total
+              </p>
+            ) : null}
+          </div>
+
           {loading && keys.length === 0 ? (
-            <p className="p-5 text-sm" style={{ color: B.muted }}>
+            <p className="rounded-2xl border p-5 text-sm" style={{ borderColor: B.border, color: B.muted }}>
               Loading…
             </p>
           ) : loadError ? (
-            <p className="p-5 text-sm" style={{ color: B.danger }}>
+            <p className="rounded-2xl border p-5 text-sm" style={{ borderColor: B.border, color: B.danger }}>
               {loadError}
             </p>
           ) : keys.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 p-10 text-center">
+            <div
+              className="flex flex-col items-center gap-2 rounded-2xl border border-dashed p-10 text-center"
+              style={{ borderColor: B.border, background: B.card }}
+            >
               <KeyRound size={28} style={{ color: B.muted }} />
               <p className="text-sm font-semibold" style={{ color: B.blue }}>
                 No callback keys yet
               </p>
               <p className="max-w-md text-xs" style={{ color: B.muted }}>
-                Until you add one, callbacks use the secret set in the server settings (if any). Generate a key and send
-                the callback URL to the provider.
+                Until you add one, callbacks use the secret set in the server settings (if any). Generate a key and send the
+                callback URL to the vendor.
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1040px] text-left text-sm">
-                <thead>
-                  <tr className="text-[11px] uppercase tracking-wide" style={{ color: B.muted, background: B.bg }}>
-                    <th className="px-4 py-3 font-semibold">Name / purpose</th>
-                    <th className="px-4 py-3 font-semibold">Provider</th>
-                    <th className="px-4 py-3 font-semibold">Callback URL</th>
-                    <th className="px-4 py-3 font-semibold">Secret</th>
-                    <th className="px-4 py-3 font-semibold">Created</th>
-                    <th className="px-4 py-3 font-semibold">Last used</th>
-                    <th className="px-4 py-3 font-semibold">Status</th>
-                    <th className="px-4 py-3 text-right font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {keys.map((k) => {
-                    const pill = statusPill(k, now);
-                    const live = isLive(k, now);
-                    const panel = expanded[k.id];
-                    const test = tests[k.id];
-                    return (
-                      <Fragment key={k.id}>
-                        <tr className="border-t align-top" style={{ borderColor: B.border }}>
-                          <td className="px-4 py-3">
-                            <p className="font-semibold" style={{ color: B.blue }}>
-                              {k.name}
-                            </p>
-                            {k.services.length > 0 ? (
-                              <div className="mt-1 flex max-w-[240px] flex-wrap gap-1">
-                                {k.services.map((s) => (
-                                  <span
-                                    key={s}
-                                    className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                                    style={{ background: "rgba(42,92,221,0.10)", color: B.blueLight }}
-                                  >
-                                    {s}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : null}
-                            {k.notes ? (
-                              <p className="mt-0.5 max-w-[220px] text-xs" style={{ color: B.muted }}>
-                                {k.notes}
-                              </p>
-                            ) : null}
-                            <p className="mt-0.5 text-[11px]" style={{ color: B.muted }}>
-                              {k.source === "pasted" ? "Pasted key" : "Generated key"}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3" style={{ color: B.blue }}>
-                            {providerLabel(k.provider)}
-                          </td>
-                          <td className="px-4 py-3">
-                            {k.callbackUrl ? (
-                              <div className="flex items-start gap-2">
-                                <code className="max-w-[240px] break-all text-[11px]" style={{ color: B.blue }}>
-                                  {k.callbackUrl}
-                                </code>
-                                <button
-                                  type="button"
-                                  disabled={!urlUnlocked(k)}
-                                  onClick={() => revealed?.callbackUrl && void copyText(revealed.callbackUrl)}
-                                  title={
-                                    urlUnlocked(k)
-                                      ? `Copy full callback URL (${secondsLeft}s left)`
-                                      : "Click the eye to view the key first"
-                                  }
-                                  aria-label="Copy callback URL"
-                                  className="shrink-0 disabled:cursor-not-allowed disabled:opacity-40"
-                                  style={{ color: B.blueLight }}
-                                >
-                                  <Copy size={14} />
-                                </button>
-                              </div>
-                            ) : (
-                              <p className="max-w-[240px] text-xs" style={{ color: B.muted }}>
-                                {k.callbackNote}
-                              </p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <code className="text-xs" style={{ color: B.blue }}>
-                                {k.maskedSecret}
-                              </code>
-                              <button
-                                type="button"
-                                onClick={() => openReveal(k)}
-                                aria-label="View key"
-                                title="View key"
-                                style={{ color: B.blueLight }}
-                              >
-                                <Eye size={15} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => openReveal(k)}
-                                aria-label="Copy key"
-                                title="Copy key"
-                                style={{ color: B.blueLight }}
-                              >
-                                <Copy size={14} />
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-xs" style={{ color: B.blue }}>
-                            {fmtDate(k.createdAt)}
-                            <p style={{ color: B.muted }}>by {k.createdByName ?? "—"}</p>
-                          </td>
-                          <td className="px-4 py-3 text-xs" style={{ color: B.blue }}>
-                            {k.lastUsedAt ? fmtDate(k.lastUsedAt) : "Never"}
-                            {k.useCount > 0 ? <p style={{ color: B.muted }}>{k.useCount} callbacks</p> : null}
-                          </td>
-                          <td className="px-4 py-3">
+            keys.map((k, idx) => {
+              const pill = statusPill(k, now);
+              const live = isLive(k, now);
+              const panel = expanded[k.id];
+              const test = tests[k.id];
+              const tone = PROVIDER_TONE[k.provider];
+              const ageDays = Math.floor((now - new Date(k.createdAt).getTime()) / 86_400_000);
+              const replaced = k.rotatedFromId ? keys.find((x) => x.id === k.rotatedFromId) : null;
+              const menu: MenuItem[] = [
+                { label: "Edit details", icon: Pencil, onClick: () => openEdit(k) },
+                ...(live && !k.expiresAt
+                  ? [
+                      {
+                        label: "Regenerate key",
+                        icon: RefreshCw,
+                        onClick: () => {
+                          setGraceHours(24);
+                          setConfirm({ kind: "rotate", key: k });
+                        },
+                      },
+                    ]
+                  : []),
+                ...(live
+                  ? [
+                      {
+                        label: "Revoke key",
+                        icon: Ban,
+                        tone: "danger" as const,
+                        onClick: () => {
+                          setReason("");
+                          setReasonError(null);
+                          setConfirm({ kind: "disable", key: k });
+                        },
+                      },
+                    ]
+                  : [
+                      {
+                        label: "Delete permanently",
+                        icon: Trash2,
+                        tone: "danger" as const,
+                        onClick: () => {
+                          setReason("");
+                          setReasonError(null);
+                          setConfirm({ kind: "delete", key: k });
+                        },
+                      },
+                    ]),
+              ];
+              return (
+                <article
+                  key={k.id}
+                  className="la-check-row overflow-hidden rounded-2xl border transition hover:shadow-md"
+                  style={{
+                    borderColor: B.border,
+                    background: B.card,
+                    boxShadow: `inset 3px 0 0 ${live ? tone : "#CBD5E1"}`,
+                    opacity: live ? 1 : 0.78,
+                    animationDelay: `${Math.min(idx, 8) * 60}ms`,
+                  }}
+                >
+                  <div className="flex flex-col gap-3 p-4 md:flex-row md:items-start md:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-base font-extrabold"
+                        style={{ background: `color-mix(in srgb, ${tone} 14%, transparent)`, color: tone }}
+                      >
+                        {k.vendorName.slice(0, 1).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-base font-bold" style={{ color: B.blue }}>
+                            {k.vendorName}
+                          </p>
+                          <EnvBadge env={k.environment} />
+                          <span
+                            className="whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
+                            style={{ background: pill.bg, color: pill.fg }}
+                          >
+                            {pill.label}
+                          </span>
+                          {live && !k.expiresAt && ageDays >= ROTATE_AFTER_DAYS ? (
                             <span
-                              className="inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                              style={{ background: pill.bg, color: pill.fg }}
+                              className="whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold"
+                              style={{ background: "rgba(217,119,6,0.12)", color: "#B45309" }}
+                              title="Regenerate keys every 90 days"
                             >
-                              {pill.label}
+                              {ageDays} days old · rotate soon
                             </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => toggleDeliveries(k.id)}
-                                aria-expanded={Boolean(panel)}
-                                className={`${neutralBtn} inline-flex items-center gap-1`}
-                                style={{ borderColor: B.border, color: B.blue }}
-                              >
-                                {panel ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                Recent callbacks
-                              </button>
-                              {live ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    disabled={test?.busy}
-                                    onClick={() => void sendTest(k)}
-                                    className="admin-btn-primary inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
-                                  >
-                                    <Send size={12} />
-                                    {test?.busy ? "Sending…" : "Send test"}
-                                  </button>
-                                  {!k.expiresAt ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setConfirm({ kind: "rotate", key: k })}
-                                      className={`${neutralBtn} inline-flex items-center gap-1`}
-                                      style={{ borderColor: B.border, color: B.blue }}
-                                    >
-                                      <RefreshCw size={12} />
-                                      Regenerate
-                                    </button>
-                                  ) : null}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setReason("");
-                                      setReasonError(null);
-                                      setConfirm({ kind: "disable", key: k });
-                                    }}
-                                    className="admin-btn-danger rounded-xl px-3 py-1.5 text-xs font-semibold"
-                                  >
-                                    Revoke
-                                  </button>
-                                </>
-                              ) : null}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setReason("");
-                                  setReasonError(null);
-                                  setConfirm({ kind: "delete", key: k });
-                                }}
-                                title="Delete this key permanently"
-                                aria-label={`Delete key ${k.name}`}
-                                className="inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold transition hover:bg-[#FEF2F2]"
-                                style={{ borderColor: "#FCA5A5", color: B.danger }}
-                              >
-                                <Trash2 size={12} />
-                                Delete
-                              </button>
-                            </div>
-                            {test?.result ? (
-                              <p
-                                className="mt-2 max-w-[260px] text-right text-xs font-semibold ml-auto"
-                                style={{ color: test.result.ok ? B.greenDark : B.danger }}
-                                role="status"
-                              >
-                                {test.result.message}
-                                {!test.result.ok && test.result.httpStatus ? ` (HTTP ${test.result.httpStatus})` : ""}
-                              </p>
-                            ) : null}
-                          </td>
-                        </tr>
-                        {panel ? (
-                          <tr style={{ background: B.bg }}>
-                            <td colSpan={8} className="px-4 py-3">
-                              <div className="mb-2 flex items-center justify-between">
-                                <p className="text-xs font-semibold" style={{ color: B.blue }}>
-                                  Recent callbacks · {k.maskedSecret}
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={() => void loadDeliveries(k.id)}
-                                  className="inline-flex items-center gap-1 text-xs font-semibold"
-                                  style={{ color: B.blueLight }}
-                                >
-                                  <RefreshCw size={12} />
-                                  Refresh
-                                </button>
-                              </div>
-                              {panel.loading ? (
-                                <p className="text-xs" style={{ color: B.muted }}>
-                                  Loading…
-                                </p>
-                              ) : panel.error ? (
-                                <p className="text-xs" style={{ color: B.danger }}>
-                                  {panel.error}
-                                </p>
-                              ) : panel.rows.length === 0 ? (
-                                <p className="text-xs" style={{ color: B.muted }}>
-                                  No callbacks with this key yet. Use Send test to check the setup.
-                                </p>
-                              ) : (
-                                <DeliveryTable rows={panel.rows} />
-                              )}
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 text-sm" style={{ color: B.muted }}>
+                          {providerLabel(k.provider)} · {k.name}
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {k.services.map((s) => (
+                            <span
+                              key={s}
+                              className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                              style={{ background: "rgba(42,92,221,0.10)", color: B.blueLight }}
+                            >
+                              {s}
+                            </span>
+                          ))}
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                            style={{ background: B.secondary, color: B.muted }}
+                          >
+                            {k.source === "pasted" ? "Pasted key" : "Generated key"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleDeliveries(k.id)}
+                        aria-expanded={Boolean(panel)}
+                        className="inline-flex h-9 items-center gap-1 rounded-xl border px-3 text-xs font-semibold transition hover:bg-[rgba(42,92,221,0.06)]"
+                        style={{ borderColor: B.border, color: B.blue, background: B.card }}
+                      >
+                        {panel ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        Recent callbacks
+                      </button>
+                      {live ? (
+                        <button
+                          type="button"
+                          disabled={test?.busy}
+                          onClick={() => void sendTest(k)}
+                          className="admin-btn-primary inline-flex h-9 items-center gap-1.5 rounded-xl px-3.5 text-xs font-semibold disabled:opacity-60"
+                        >
+                          <Send size={13} />
+                          {test?.busy ? "Sending…" : "Send test"}
+                        </button>
+                      ) : null}
+                      <ActionMenu items={menu} label={`More actions for ${k.vendorName}`} />
+                    </div>
+                  </div>
+
+                  {test?.result ? (
+                    <div
+                      className="mx-4 mb-3 flex items-start gap-2 rounded-xl px-3 py-2 text-xs font-semibold"
+                      style={
+                        test.result.ok
+                          ? { background: "rgba(18,183,106,0.08)", color: B.greenDark }
+                          : { background: "rgba(220,38,38,0.08)", color: B.danger }
+                      }
+                      role="status"
+                    >
+                      {test.result.ok ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
+                      <span>
+                        {test.result.message}
+                        {!test.result.ok && test.result.httpStatus ? ` (HTTP ${test.result.httpStatus})` : ""}
+                      </span>
+                    </div>
+                  ) : null}
+
+                  <div
+                    className="grid gap-px border-t sm:grid-cols-2 xl:grid-cols-4"
+                    style={{ borderColor: B.border, background: B.border }}
+                  >
+                    <div className="p-3.5" style={{ background: B.card }}>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                        {k.callbackUrl ? "Callback URL" : "Where to use it"}
+                      </p>
+                      {k.callbackUrl ? (
+                        <>
+                          <code className="mt-1 block break-all text-[11px]" style={{ color: B.blue }}>
+                            {k.callbackUrl}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              urlUnlocked(k) && revealed?.callbackUrl
+                                ? void copyText(revealed.callbackUrl, "Callback URL copied — paste it in the vendor portal")
+                                : openReveal(k)
+                            }
+                            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold"
+                            style={{ color: B.blueLight }}
+                          >
+                            <Copy size={12} />
+                            {urlUnlocked(k) ? `Copy for vendor portal (${secondsLeft}s)` : "Unlock to copy for vendor portal"}
+                          </button>
+                        </>
+                      ) : (
+                        <p className="mt-1 text-xs" style={{ color: B.blue }}>
+                          {k.callbackNote}
+                        </p>
+                      )}
+                    </div>
+                    <div className="p-3.5" style={{ background: B.card }}>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                        Secret
+                      </p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <code className="text-sm font-semibold" style={{ color: B.blue }}>
+                          {k.maskedSecret}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => openReveal(k)}
+                          aria-label="View key"
+                          title="View key (needs 2FA)"
+                          className="rounded-lg p-1 transition hover:bg-[rgba(42,92,221,0.08)]"
+                          style={{ color: B.blueLight }}
+                        >
+                          <Eye size={15} />
+                        </button>
+                      </div>
+                      {replaced ? (
+                        <p className="mt-1 text-[11px]" style={{ color: B.muted }}>
+                          Replaces {replaced.maskedSecret}
+                          {replaced.expiresAt && new Date(replaced.expiresAt).getTime() > now
+                            ? ` · old key works until ${fmtDate(replaced.expiresAt)}`
+                            : ""}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="p-3.5" style={{ background: B.card }}>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                        Usage
+                      </p>
+                      <p className="mt-1 text-sm font-semibold" style={{ color: B.blue }}>
+                        Last used {ago(k.lastUsedAt, now).toLowerCase()}
+                      </p>
+                      <p className="text-[11px]" style={{ color: B.muted }}>
+                        {k.useCount} callback{k.useCount === 1 ? "" : "s"} · created {fmtDate(k.createdAt)}
+                        {k.createdByName ? ` by ${k.createdByName}` : ""}
+                      </p>
+                    </div>
+                    <div className="p-3.5" style={{ background: B.card }}>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: B.muted }}>
+                        Vendor contact
+                      </p>
+                      {k.contactName || k.contactEmail || k.contactPhone ? (
+                        <div className="mt-1 space-y-0.5 text-xs" style={{ color: B.blue }}>
+                          {k.contactName ? (
+                            <p className="flex items-center gap-1.5 font-semibold">
+                              <UserRound size={12} style={{ color: B.muted }} /> {k.contactName}
+                            </p>
+                          ) : null}
+                          {k.contactEmail ? (
+                            <a href={`mailto:${k.contactEmail}`} className="flex items-center gap-1.5 hover:underline">
+                              <Mail size={12} style={{ color: B.muted }} /> {k.contactEmail}
+                            </a>
+                          ) : null}
+                          {k.contactPhone ? (
+                            <a href={`tel:${k.contactPhone.replace(/\s/g, "")}`} className="flex items-center gap-1.5 hover:underline">
+                              <Phone size={12} style={{ color: B.muted }} /> {k.contactPhone}
+                            </a>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openEdit(k)}
+                          className="mt-1 inline-flex items-center gap-1 text-xs font-bold"
+                          style={{ color: B.greenDark }}
+                        >
+                          <Plus size={12} /> Add contact
+                        </button>
+                      )}
+                      {k.notes ? (
+                        <p className="mt-1 text-[11px]" style={{ color: B.muted }} title={k.notes}>
+                          {k.notes}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {panel ? (
+                    <div className="border-t px-4 py-3" style={{ borderColor: B.border, background: B.bg }}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-xs font-semibold" style={{ color: B.blue }}>
+                          Recent callbacks · {k.maskedSecret}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void loadDeliveries(k.id)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold"
+                          style={{ color: B.blueLight }}
+                        >
+                          <RefreshCw size={12} />
+                          Refresh
+                        </button>
+                      </div>
+                      {panel.loading ? (
+                        <p className="text-xs" style={{ color: B.muted }}>
+                          Loading…
+                        </p>
+                      ) : panel.error ? (
+                        <p className="text-xs" style={{ color: B.danger }}>
+                          {panel.error}
+                        </p>
+                      ) : panel.rows.length === 0 ? (
+                        <p className="text-xs" style={{ color: B.muted }}>
+                          No callbacks with this key yet. Use Send test to check the setup.
+                        </p>
+                      ) : (
+                        <DeliveryTable rows={panel.rows} />
+                      )}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })
           )}
         </section>
       </div>
@@ -1090,9 +1553,10 @@ export default function WebhookKeysPage() {
         <Modal
           title="Generate callback key"
           eyebrow="Step 1 of 2"
-          subtitle="The provider sends this key with every callback so we know it is really them."
+          subtitle="The vendor sends this key with every callback so we know it is really them."
           icon={<KeyRound size={22} />}
           iconTone="green"
+          wide
           onClose={closeCreate}
         >
           <form onSubmit={onCreate} className="space-y-4">
@@ -1163,18 +1627,15 @@ export default function WebhookKeysPage() {
                   {nameTouched ? `Suggested: ${suggestName(provider, services)}` : "Filled in from the provider and services."}
                 </span>
               </label>
-              <label className="block space-y-1.5">
-                <span className="text-xs font-semibold" style={{ color: B.muted }}>
-                  Notes
-                </span>
-                <input
-                  value={notes}
-                  maxLength={300}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className={fieldClass}
-                  style={{ borderColor: B.border, background: B.card, color: B.blue }}
-                />
-              </label>
+              <DetailsFields
+                form={createDetails}
+                showName={false}
+                errors={detailsErrors({ ...createDetails, name })}
+                onChange={(patch) => {
+                  setCreateDetails((d) => ({ ...d, ...patch }));
+                  setCreateError(null);
+                }}
+              />
               <div className="space-y-2">
                 {(
                   [
@@ -1254,7 +1715,7 @@ export default function WebhookKeysPage() {
           subtitle={
             shownOnce.kind === "create"
               ? "Send the callback details to the provider over a private channel."
-              : "Send the new key to the provider. The old key keeps working for 24 hours."
+              : `Send the new key to ${shownOnce.key.vendorName}. The old key keeps working for ${GRACE_OPTIONS.find((g) => g.hours === graceHours)?.label ?? "24 hours"}.`
           }
           icon={<CheckCircle2 size={22} />}
           iconTone="green"
@@ -1334,7 +1795,7 @@ export default function WebhookKeysPage() {
           eyebrow={`${providerLabel(confirm.key.provider)} · ${confirm.key.name}`}
           subtitle={
             confirm.kind === "rotate"
-              ? "A new key is generated. The old key keeps working for 24 hours, then stops. Send the new key to the provider."
+              ? "A new key is generated. The old key keeps working for the time you pick, then stops."
               : confirm.kind === "delete"
                 ? "The key is removed permanently and callbacks using it stop immediately. The audit log keeps the record."
                 : "Callbacks using this key stop working immediately."
@@ -1393,9 +1854,36 @@ export default function WebhookKeysPage() {
                   </span>
                 </label>
               ) : (
-                <p className="col-span-2 text-xs" style={{ color: B.muted }}>
-                  You will need a 6-digit authenticator code. The new key is shown once after regenerating.
-                </p>
+                <div className="col-span-2 space-y-1.5">
+                  <span className="block text-xs font-semibold" style={{ color: B.muted }}>
+                    Old key keeps working for
+                  </span>
+                  <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Grace period">
+                    {GRACE_OPTIONS.map((g) => {
+                      const on = graceHours === g.hours;
+                      return (
+                        <button
+                          key={g.hours}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          onClick={() => setGraceHours(g.hours)}
+                          className="rounded-xl border-2 py-2 text-xs font-bold transition"
+                          style={{
+                            borderColor: on ? B.blueLight : B.border,
+                            background: on ? "rgba(42,92,221,0.08)" : B.card,
+                            color: on ? B.blueLight : B.blue,
+                          }}
+                        >
+                          {g.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="block text-xs" style={{ color: B.muted }}>
+                    Time for the vendor to put the new key in their portal. Needs a 6-digit code; the new key is shown once.
+                  </span>
+                </div>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1418,6 +1906,53 @@ export default function WebhookKeysPage() {
                 className={`${confirm.kind === "rotate" ? "admin-btn-primary" : "admin-btn-danger"} rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60`}
               >
                 {confirm.kind === "rotate" ? "Regenerate key" : confirm.kind === "delete" ? "Delete key" : "Revoke key"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {edit ? (
+        <Modal
+          title="Edit key details"
+          eyebrow={`${providerLabel(edit.key.provider)} · ${edit.key.maskedSecret}`}
+          subtitle="Who holds this key and how to reach them. The key itself does not change, so no 2FA is needed."
+          icon={<Pencil size={22} />}
+          iconTone="blue"
+          wide
+          onClose={() => {
+            if (!edit.busy) setEdit(null);
+          }}
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl border p-4" style={{ borderColor: B.border, background: cardBg }}>
+              <DetailsFields
+                form={edit.form}
+                errors={detailsErrors(edit.form)}
+                onChange={(patch) => setEdit((e) => (e ? { ...e, error: null, form: { ...e.form, ...patch } } : e))}
+              />
+              {edit.error ? (
+                <p className="mt-3 text-xs font-semibold" style={{ color: B.danger }} role="alert">
+                  {edit.error}
+                </p>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={edit.busy}
+                onClick={() => setEdit(null)}
+                className="admin-btn-danger rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={edit.busy || Object.keys(detailsErrors(edit.form)).length > 0}
+                onClick={() => void saveEdit()}
+                className="admin-btn-primary rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"
+              >
+                {edit.busy ? "Saving…" : "Save details"}
               </button>
             </div>
           </div>

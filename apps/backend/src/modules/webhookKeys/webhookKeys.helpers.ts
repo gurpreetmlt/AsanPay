@@ -9,6 +9,36 @@ export const WEBHOOK_KEY_SOURCES = ["generated", "pasted"] as const;
 export type WebhookKeySource = (typeof WEBHOOK_KEY_SOURCES)[number];
 
 export const ROTATION_GRACE_MS = 24 * 60 * 60 * 1000;
+/** How long the old key keeps working after Regenerate. */
+export const ROTATION_GRACE_HOURS = [1, 6, 24, 72] as const;
+export type RotationGraceHours = (typeof ROTATION_GRACE_HOURS)[number];
+
+export const WEBHOOK_ENVIRONMENTS = ["dev", "live"] as const;
+export type WebhookEnvironment = (typeof WEBHOOK_ENVIRONMENTS)[number];
+
+/** This server is dev unless it runs in production with a non-dev agent portal address. */
+export function serverEnvironment(nodeEnv: string, agentPortalUrl: string | undefined): WebhookEnvironment {
+  if (nodeEnv !== "production") return "dev";
+  return !agentPortalUrl?.trim() || /\/\/dev\./i.test(agentPortalUrl) ? "dev" : "live";
+}
+
+/** Callbacks are expected at least this often once a provider is live; quieter = "quiet". */
+export const QUIET_AFTER_MS = 24 * 60 * 60 * 1000;
+
+export type ProviderHealthStatus = "not_set" | "alert" | "quiet" | "ok";
+
+export function providerHealthStatus(input: {
+  hasKey: boolean;
+  rejectedLastHour: number;
+  lastAcceptedAt: Date | null;
+  now?: Date;
+}): ProviderHealthStatus {
+  if (!input.hasKey) return "not_set";
+  if (input.rejectedLastHour >= REJECT_ALERT_THRESHOLD) return "alert";
+  const now = (input.now ?? new Date()).getTime();
+  if (!input.lastAcceptedAt || now - input.lastAcceptedAt.getTime() > QUIET_AFTER_MS) return "quiet";
+  return "ok";
+}
 export const DEFAULT_PUBLIC_API_URL = "https://api.asanpay.in";
 export const PASTED_SECRET_MIN = 16;
 export const PASTED_SECRET_MAX = 200;

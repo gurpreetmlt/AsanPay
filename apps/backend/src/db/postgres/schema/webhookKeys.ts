@@ -12,6 +12,13 @@ export const webhookKeys = pgTable(
     /** noble | vyaparapi | telegram | whatsapp */
     provider: varchar("provider", { length: 30 }).notNull(),
     name: varchar("name", { length: 120 }).notNull(),
+    /** Company that holds this key (e.g. "Noble Web Studio"). Null = the provider label. */
+    vendorName: varchar("vendor_name", { length: 120 }),
+    contactName: varchar("contact_name", { length: 80 }),
+    contactEmail: varchar("contact_email", { length: 150 }),
+    contactPhone: varchar("contact_phone", { length: 20 }),
+    /** dev | live. Null = whatever this server is. */
+    environment: varchar("environment", { length: 8 }),
     notes: varchar("notes", { length: 300 }),
     /** Services this key is used for, from the provider's allowed list (e.g. ["UPI QR","CMS"]). */
     services: jsonb("services").$type<string[]>().notNull().default([]),

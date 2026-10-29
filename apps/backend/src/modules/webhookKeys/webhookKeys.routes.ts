@@ -6,7 +6,14 @@ import { clientIp } from "../../middleware/rateLimiter";
 import { requireRole } from "../../middleware/rbac.middleware";
 import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
-import { PASTED_SECRET_MAX, PASTED_SECRET_MIN, WEBHOOK_PROVIDERS } from "./webhookKeys.helpers";
+import {
+  PASTED_SECRET_MAX,
+  PASTED_SECRET_MIN,
+  ROTATION_GRACE_HOURS,
+  WEBHOOK_ENVIRONMENTS,
+  WEBHOOK_PROVIDERS,
+  type RotationGraceHours,
+} from "./webhookKeys.helpers";
 import {
   createWebhookKey,
   deleteWebhookKey,
@@ -18,6 +25,8 @@ import {
   revealWebhookKey,
   rotateWebhookKey,
   sendTestCallback,
+  updateWebhookKeyDetails,
+  webhookOverview,
   type AdminContext,
 } from "./webhookKeys.service";
 
@@ -75,7 +84,27 @@ const providerSchema = z.enum(WEBHOOK_PROVIDERS, {
   message: "Select a provider: Noble, VyaparAPI, Telegram or WhatsApp",
 });
 
+const detailFields = {
+  vendorName: z.string().trim().max(120, "Vendor name must be at most 120 characters").optional().nullable(),
+  contactName: z.string().trim().max(80, "Contact name must be at most 80 characters").optional().nullable(),
+  contactEmail: z
+    .string()
+    .trim()
+    .max(150, "Contact email must be at most 150 characters")
+    .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid contact email like ops@vendor.com")
+    .optional()
+    .nullable(),
+  contactPhone: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || /^\+?[\d\s-]{10,16}$/.test(v), "Enter a valid contact phone (10 digits, + and spaces allowed)")
+    .optional()
+    .nullable(),
+  environment: z.enum(WEBHOOK_ENVIRONMENTS, { message: "Environment must be Dev or Live" }).optional().nullable(),
+};
+
 const createSchema = z.object({
+  ...detailFields,
   provider: providerSchema,
   name: z
     .string({ message: "Enter a name / purpose for this key" })
@@ -119,6 +148,27 @@ webhookKeysAdminRouter.get("/deliveries/summary", async (_req, res) => {
   sendSuccess(res, await rejectionSummary());
 });
 
+webhookKeysAdminRouter.get("/overview", async (_req, res) => {
+  sendSuccess(res, await webhookOverview());
+});
+
+webhookKeysAdminRouter.patch("/:id", manageLimiter, async (req, res) => {
+  const id = keyIdSchema.parse(req.params.id);
+  const body = z
+    .object({
+      ...detailFields,
+      name: z
+        .string({ message: "Enter a name / purpose for this key" })
+        .trim()
+        .min(2, "Name / purpose must be at least 2 characters")
+        .max(120, "Name / purpose must be at most 120 characters")
+        .optional(),
+      notes: z.string().trim().max(300, "Notes must be at most 300 characters").optional().nullable(),
+    })
+    .parse(req.body ?? {});
+  sendSuccess(res, await updateWebhookKeyDetails(adminId(req), id, body, context(req)), "Key details saved");
+});
+
 webhookKeysAdminRouter.post("/", manageLimiter, async (req, res) => {
   const body = createSchema.parse(req.body ?? {});
   sendSuccess(res, await createWebhookKey(adminId(req), body, context(req)), "Callback key created");
@@ -138,11 +188,22 @@ webhookKeysAdminRouter.post("/:id/reveal", revealLimiter, async (req, res) => {
 
 webhookKeysAdminRouter.post("/:id/rotate", manageLimiter, async (req, res) => {
   const id = keyIdSchema.parse(req.params.id);
-  const { totpCode } = z.object({ totpCode: totpCodeSchema }).parse(req.body ?? {});
+  const { totpCode, graceHours } = z
+    .object({
+      totpCode: totpCodeSchema,
+      graceHours: z
+        .number()
+        .refine((h): h is RotationGraceHours => (ROTATION_GRACE_HOURS as readonly number[]).includes(h), {
+          message: "Pick how long the old key keeps working: 1, 6, 24 or 72 hours",
+        })
+        .optional(),
+    })
+    .parse(req.body ?? {});
+  const hours = (graceHours ?? 24) as RotationGraceHours;
   sendSuccess(
     res,
-    await rotateWebhookKey(adminId(req), id, totpCode, context(req)),
-    "New key created. The old key works for 24 hours.",
+    await rotateWebhookKey(adminId(req), id, totpCode, context(req), hours),
+    `New key created. The old key works for ${hours === 72 ? "3 days" : `${hours} hour${hours === 1 ? "" : "s"}`}.`,
   );
 });
 

@@ -7,7 +7,8 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-32 | Admin "Webhooks & callback keys" (payment-gateway style): generate / paste a callback secret with name + purpose, server verifies provider callbacks against it (env as fallback), eye + copy behind admin 2FA, auto-hide, rotate with 24 h overlap, disable, last used, audit log. Server keys (JWT / AES / DB) stay in Coolify only. Also: Noble login token shared in DB (5 tokens/day limit) | Backend, admin | M | built — 29 Oct (migrations `0095` + `0096`, `/admin/webhook-keys`, `/admin/providers/noble/session`, page `/settings/webhooks`); upgrades built 29 Oct (migration `0097`: service chips, show-once, provider message, callback log, test callback, wrong-key alert, 2FA on every action); deploy + live test pending | — | — |
+| PL-33 | Webhooks page, next steps: provider IP allowlist per key, signature (HMAC header) instead of token in the URL, re-process a failed callback from the log, alert when a provider goes quiet, "Customer webhooks" tab (we send events to B2B customers: URL, events, signing secret, retries, delivery log) | Backend, admin | L | planned | — | — |
+| PL-32 | Admin "Webhooks & callback keys" (payment-gateway style): generate / paste a callback secret with name + purpose, server verifies provider callbacks against it (env as fallback), eye + copy behind admin 2FA, auto-hide, rotate with 24 h overlap, disable, last used, audit log. Server keys (JWT / AES / DB) stay in Coolify only. Also: Noble login token shared in DB (5 tokens/day limit) | Backend, admin | M | built — 29 Oct (migrations `0095` + `0096`, `/admin/webhook-keys`, `/admin/providers/noble/session`, page `/settings/webhooks`); upgrades built 29 Oct (migration `0097`: service chips, show-once, provider message, callback log, test callback, wrong-key alert, 2FA on every action); deploy + live test pending; vendor + contact + Dev/Live, edit details, grace choice (1 h / 6 h / 24 h / 3 days), delete only after revoke, provider health tiles, page redesign — 29 Oct (migration `0099`) | — | — |
 | PL-31 | Agent controls — every per-agent control on the admin agent page, by tab: service on/off, limits, role change, account close, security (logout all, PIN reset, unlock, devices, location), wallet hold, fund limits, commission hold, activity timeline, notes, tags | Backend, admin | XL | building — phase 1 of 4 shipped 29 Oct | — | [agent-controls-queue.md](TASKS/agent-controls-queue.md) |
 | PL-30 | Agent profile photo — agent sets / changes / removes it in Settings (web) and Account (app); shown in header menu and on the admin agent page (falls back to KYC selfie, then initials) | Backend, agent web, mobile, admin | M | built — 28 Oct (migration 0091 `user_photos`, `/api/account/photo`, `/admin/users/:id/photo`) | — | — |
 | PL-29 | Agent custom commission like the rate card — per-slab Flat ₹ / Share % (of provider pays) for one agent, live calc vs default; modern admin agent page with tabs | Backend, admin | L | built — 28 Oct (migration 0090, `/admin/users/:id/commission-slabs`, `AgentRateCard` in agent Commission tab) | — | — |
@@ -41,6 +42,22 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-33 — Webhooks page, next steps
+
+**Problem:** Callback keys are protected by a token and 2FA, but a stolen token still works from any IP, the token sits in the URL (proxy logs), a callback that failed on our side cannot be replayed, and there is no place for B2B customers who need events from us.
+
+**Plan**
+- Per-key IP allowlist (vendor server IPs); callbacks from other IPs are rejected and logged as "IP not allowed".
+- Optional signature mode: vendor signs the body (HMAC header); token-in-URL stays for vendors that cannot sign.
+- Callback log: payload (masked), linked transaction, "Re-process" for callbacks that failed on our side.
+- Alert (Slack / Telegram) when a live provider sends no accepted callback for X hours while transactions are pending.
+- "Customer webhooks" tab: B2B customer name, URL, events (txn success / failed, wallet credit), signing secret, retries with backoff, delivery log.
+
+**Open decisions**
+- [ ] Which vendors support HMAC signatures?
+- [ ] Quiet-alert threshold per provider (hours)
+- [ ] Customer webhooks: wait for the first B2B customer?
 
 ## PL-31 — Agent controls (all per-agent levers on the agent page)
 

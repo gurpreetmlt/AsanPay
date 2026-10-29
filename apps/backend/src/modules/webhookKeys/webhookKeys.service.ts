@@ -29,10 +29,15 @@ import {
   maskedCallbackUrl,
   matchWebhookToken,
   normalizeBaseUrl,
+  providerHealthStatus,
   secretLast4,
+  serverEnvironment,
   validateServices,
   type DeliveryResult,
+  type ProviderHealthStatus,
   type RejectEvent,
+  type RotationGraceHours,
+  type WebhookEnvironment,
   type WebhookKeyCandidate,
   type WebhookKeySource,
   type WebhookProvider,
@@ -250,6 +255,12 @@ export interface WebhookKeyView {
   id: string;
   provider: string;
   name: string;
+  vendorName: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  environment: WebhookEnvironment;
+  rotatedFromId: string | null;
   notes: string | null;
   services: string[];
   last4: string;
@@ -278,6 +289,10 @@ function publicApiUrl(): string | undefined {
   return process.env.API_PUBLIC_URL;
 }
 
+export function thisServerEnvironment(): WebhookEnvironment {
+  return serverEnvironment(env.NODE_ENV, process.env.AGENT_PORTAL_URL);
+}
+
 type KeyRow = typeof webhookKeys.$inferSelect;
 
 function toView(row: KeyRow, createdByName: string | null): WebhookKeyView {
@@ -286,6 +301,12 @@ function toView(row: KeyRow, createdByName: string | null): WebhookKeyView {
     id: row.id,
     provider: row.provider,
     name: row.name,
+    vendorName: row.vendorName?.trim() || PROVIDER_LABELS[provider] || row.provider,
+    contactName: row.contactName,
+    contactEmail: row.contactEmail,
+    contactPhone: row.contactPhone,
+    environment: (row.environment as WebhookEnvironment | null) ?? thisServerEnvironment(),
+    rotatedFromId: row.rotatedFromId,
     notes: row.notes,
     services: Array.isArray(row.services) ? row.services : [],
     last4: row.secretLast4,
@@ -376,6 +397,44 @@ function servicesOrThrow(provider: WebhookProvider, services: readonly string[] 
   return check.services;
 }
 
+/** Who holds a key and how to reach them — never part of the secret, so no 2FA. */
+export interface KeyDetailsInput {
+  name?: string;
+  vendorName?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  environment?: WebhookEnvironment | null;
+  notes?: string | null;
+}
+
+const clean = (v: string | null | undefined) => (v == null ? null : v.trim() || null);
+
+function detailColumns(input: KeyDetailsInput) {
+  const out: Partial<typeof webhookKeys.$inferInsert> = {};
+  if (input.name !== undefined) out.name = input.name.trim();
+  if (input.vendorName !== undefined) out.vendorName = clean(input.vendorName);
+  if (input.contactName !== undefined) out.contactName = clean(input.contactName);
+  if (input.contactEmail !== undefined) out.contactEmail = clean(input.contactEmail)?.toLowerCase() ?? null;
+  if (input.contactPhone !== undefined) out.contactPhone = clean(input.contactPhone);
+  if (input.environment !== undefined) out.environment = input.environment;
+  if (input.notes !== undefined) out.notes = clean(input.notes);
+  return out;
+}
+
+export async function updateWebhookKeyDetails(adminId: string, id: string, input: KeyDetailsInput, ctx: AdminContext) {
+  const row = await loadKey(id);
+  const set = detailColumns(input);
+  if (Object.keys(set).length === 0) throw new HttpError(422, "Change at least one field before saving", "NOTHING_TO_SAVE");
+  const [updated] = await db.update(webhookKeys).set(set).where(eq(webhookKeys.id, id)).returning();
+  const before = Object.fromEntries(Object.keys(set).map((k) => [k, row[k as keyof KeyRow] ?? null]));
+  await audit(adminId, "admin.webhook_key_details", row, ctx, { before, after: set });
+  const [creator] = updated!.createdBy
+    ? await db.select({ name: users.name }).from(users).where(eq(users.id, updated!.createdBy)).limit(1)
+    : [];
+  return toView(updated!, creator?.name ?? null);
+}
+
 export async function createWebhookKey(
   adminId: string,
   input: {
@@ -385,7 +444,7 @@ export async function createWebhookKey(
     secret?: string | null;
     services?: string[] | null;
     totpCode: string;
-  },
+  } & KeyDetailsInput,
   ctx: AdminContext,
 ): Promise<{ key: WebhookKeyView } & WebhookKeySecret> {
   const services = servicesOrThrow(input.provider, input.services);
@@ -400,8 +459,10 @@ export async function createWebhookKey(
     .insert(webhookKeys)
     .values({
       provider: input.provider,
+      ...detailColumns(input),
       name: input.name.trim(),
       notes: input.notes?.trim() || null,
+      environment: input.environment ?? thisServerEnvironment(),
       services,
       secretEncrypted: encryptPII(secret),
       secretLast4: secretLast4(secret),
@@ -432,6 +493,7 @@ export async function rotateWebhookKey(
   id: string,
   totpCode: string,
   ctx: AdminContext,
+  graceHours: RotationGraceHours = 24,
 ): Promise<{ key: WebhookKeyView } & WebhookKeySecret> {
   const current = await loadKey(id);
   await requireStepUp(adminId, totpCode, ctx, { action: "admin.webhook_key_rotate_failed", target: current });
@@ -451,13 +513,18 @@ export async function rotateWebhookKey(
     }
     await tx
       .update(webhookKeys)
-      .set({ expiresAt: new Date(Date.now() + ROTATION_GRACE_MS) })
+      .set({ expiresAt: new Date(Date.now() + (graceHours * ROTATION_GRACE_MS) / 24) })
       .where(eq(webhookKeys.id, old.id));
     const [row] = await tx
       .insert(webhookKeys)
       .values({
         provider: old.provider,
         name: old.name,
+        vendorName: old.vendorName,
+        contactName: old.contactName,
+        contactEmail: old.contactEmail,
+        contactPhone: old.contactPhone,
+        environment: old.environment,
         notes: old.notes,
         services: old.services,
         secretEncrypted: encryptPII(secret),
@@ -473,6 +540,7 @@ export async function rotateWebhookKey(
   await audit(adminId, "admin.webhook_key_rotate", created.row, ctx, {
     rotatedFromId: created.old.id,
     oldLast4: created.old.secretLast4,
+    graceHours,
   });
   return { key: toView(created.row, null), ...secretDetails(created.row, secret) };
 }
@@ -509,6 +577,13 @@ export async function deleteWebhookKey(
   ctx: AdminContext,
 ): Promise<{ id: string }> {
   const row = await loadKey(id);
+  if (isKeyUsable(row)) {
+    throw new HttpError(
+      409,
+      "Revoke this key before deleting it. Revoke stops callbacks at once; delete then removes the record.",
+      "WEBHOOK_KEY_STILL_ACTIVE",
+    );
+  }
   await requireStepUp(adminId, input.totpCode, ctx, { action: "admin.webhook_key_delete_failed", target: row });
   await db.delete(webhookKeys).where(eq(webhookKeys.id, id));
   invalidateWebhookKeyCache();
@@ -649,6 +724,75 @@ export async function listRejectedDeliveries(provider: WebhookProvider, limit: n
     .orderBy(desc(webhookDeliveries.createdAt))
     .limit(limit);
   return rows.map(toDeliveryView);
+}
+
+export interface ProviderHealth {
+  provider: WebhookProvider;
+  label: string;
+  status: ProviderHealthStatus;
+  activeKeys: number;
+  /** No key in the DB, but the server settings hold a secret. */
+  usingServerSecret: boolean;
+  acceptedLast24h: number;
+  rejectedLast24h: number;
+  rejectedLastHour: number;
+  lastAcceptedAt: string | null;
+  lastRejectedAt: string | null;
+  lastRejectReason: string | null;
+}
+
+const REJECT_REASON: Record<string, string> = {
+  bad_token: "Wrong key",
+  no_token: "No key sent",
+};
+
+/** GET /admin/webhook-keys/overview — server environment + one health line per provider. */
+export async function webhookOverview(): Promise<{ environment: WebhookEnvironment; providers: ProviderHealth[] }> {
+  const [stats, lastRejects, keyRows] = await Promise.all([
+    db
+      .select({
+        provider: webhookDeliveries.provider,
+        accepted24h: sql<number>`count(*) filter (where ${webhookDeliveries.result} = 'ok' and ${webhookDeliveries.createdAt} > now() - interval '24 hours')::int`,
+        rejected24h: sql<number>`count(*) filter (where ${inArray(webhookDeliveries.result, REJECTED_RESULTS)} and ${webhookDeliveries.createdAt} > now() - interval '24 hours')::int`,
+        rejected1h: sql<number>`count(*) filter (where ${inArray(webhookDeliveries.result, REJECTED_RESULTS)} and ${webhookDeliveries.createdAt} > now() - interval '1 hour')::int`,
+        lastOk: sql<string | null>`max(${webhookDeliveries.createdAt}) filter (where ${webhookDeliveries.result} = 'ok')`,
+        lastRejected: sql<string | null>`max(${webhookDeliveries.createdAt}) filter (where ${inArray(webhookDeliveries.result, REJECTED_RESULTS)})`,
+      })
+      .from(webhookDeliveries)
+      .groupBy(webhookDeliveries.provider),
+    db
+      .selectDistinctOn([webhookDeliveries.provider], { provider: webhookDeliveries.provider, result: webhookDeliveries.result })
+      .from(webhookDeliveries)
+      .where(inArray(webhookDeliveries.result, REJECTED_RESULTS))
+      .orderBy(webhookDeliveries.provider, desc(webhookDeliveries.createdAt)),
+    db
+      .select({ provider: webhookKeys.provider, status: webhookKeys.status, expiresAt: webhookKeys.expiresAt })
+      .from(webhookKeys),
+  ]);
+  const now = new Date();
+  const providers = WEBHOOK_PROVIDERS.map((provider): ProviderHealth => {
+    const s = stats.find((r) => r.provider === provider);
+    const rows = keyRows.filter((k) => k.provider === provider);
+    const activeKeys = rows.filter((k) => isKeyUsable(k, now)).length;
+    const usingServerSecret = rows.length === 0 && Boolean(envSecret(provider));
+    const lastAcceptedAt = s?.lastOk ? new Date(s.lastOk) : null;
+    const rejectedLastHour = Number(s?.rejected1h ?? 0);
+    const lastReject = lastRejects.find((r) => r.provider === provider)?.result ?? null;
+    return {
+      provider,
+      label: PROVIDER_LABELS[provider],
+      status: providerHealthStatus({ hasKey: activeKeys > 0 || usingServerSecret, rejectedLastHour, lastAcceptedAt, now }),
+      activeKeys,
+      usingServerSecret,
+      acceptedLast24h: Number(s?.accepted24h ?? 0),
+      rejectedLast24h: Number(s?.rejected24h ?? 0),
+      rejectedLastHour,
+      lastAcceptedAt: lastAcceptedAt?.toISOString() ?? null,
+      lastRejectedAt: s?.lastRejected ? new Date(s.lastRejected).toISOString() : null,
+      lastRejectReason: lastReject ? (REJECT_REASON[lastReject] ?? lastReject) : null,
+    };
+  });
+  return { environment: thisServerEnvironment(), providers };
 }
 
 export interface RejectionSummary {

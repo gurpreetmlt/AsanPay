@@ -16,7 +16,9 @@ import {
   maskSecret,
   maskedCallbackUrl,
   matchWebhookToken,
+  providerHealthStatus,
   secretLast4,
+  serverEnvironment,
   suggestKeyName,
   topIps,
   validateServices,
@@ -221,5 +223,36 @@ describe("wrong-key alert threshold", () => {
       { ip: "b", count: 5 },
       { ip: "a", count: 3 },
     ]);
+  });
+});
+
+describe("serverEnvironment", () => {
+  it("is dev outside production", () => {
+    expect(serverEnvironment("development", "https://app.asanpay.in")).toBe("dev");
+  });
+  it("is dev in production while the agent portal is a dev address or unset", () => {
+    expect(serverEnvironment("production", "https://dev.asanpay.in")).toBe("dev");
+    expect(serverEnvironment("production", undefined)).toBe("dev");
+  });
+  it("is live in production with a non-dev agent portal", () => {
+    expect(serverEnvironment("production", "https://app.asanpay.in")).toBe("live");
+  });
+});
+
+describe("providerHealthStatus", () => {
+  const now = new Date("2026-10-29T12:00:00Z");
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000);
+  it("is not_set without any key", () => {
+    expect(providerHealthStatus({ hasKey: false, rejectedLastHour: 0, lastAcceptedAt: hoursAgo(1), now })).toBe("not_set");
+  });
+  it("alerts on many rejections even with recent callbacks", () => {
+    expect(providerHealthStatus({ hasKey: true, rejectedLastHour: 10, lastAcceptedAt: hoursAgo(1), now })).toBe("alert");
+  });
+  it("is quiet when nothing was accepted for over a day", () => {
+    expect(providerHealthStatus({ hasKey: true, rejectedLastHour: 0, lastAcceptedAt: hoursAgo(25), now })).toBe("quiet");
+    expect(providerHealthStatus({ hasKey: true, rejectedLastHour: 0, lastAcceptedAt: null, now })).toBe("quiet");
+  });
+  it("is ok with a recent accepted callback", () => {
+    expect(providerHealthStatus({ hasKey: true, rejectedLastHour: 2, lastAcceptedAt: hoursAgo(3), now })).toBe("ok");
   });
 });
