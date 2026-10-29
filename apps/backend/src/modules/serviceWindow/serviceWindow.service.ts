@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import type { NextFunction, Request, Response } from "express";
 import { db } from "../../db/postgres";
 import { nightServiceExceptions, tenants } from "../../db/postgres/schema";
@@ -60,6 +60,7 @@ async function activeExceptionGroups(userId: string, now = new Date()): Promise<
     .where(
       and(
         eq(nightServiceExceptions.userId, userId),
+        or(isNull(nightServiceExceptions.startsAt), lte(nightServiceExceptions.startsAt, now)),
         or(isNull(nightServiceExceptions.until), gt(nightServiceExceptions.until, now)),
       ),
     );
@@ -134,14 +135,19 @@ export async function listNightAccess(userId: string) {
   const now = Date.now();
   return SERVICE_GROUPS.map((group) => {
     const r = rows.find((x) => x.serviceGroup === group);
-    const active = !!r && (!r.until || r.until.getTime() > now);
+    const started = !!r && (!r.startsAt || r.startsAt.getTime() <= now);
+    const ended = !!r?.until && r.until.getTime() <= now;
+    const active = started && !ended;
     return {
       group,
       label: SERVICE_GROUP_LABEL[group],
       active,
+      /** Saved with an open time that has not arrived yet. */
+      scheduled: !!r && !started && !ended,
       mode: !r ? null : r.until ? ("until" as const) : ("always" as const),
+      from: r?.startsAt ? r.startsAt.toISOString() : null,
       until: r?.until ? r.until.toISOString() : null,
-      expired: !!r && !active,
+      expired: ended,
       reason: r?.reason ?? null,
       updatedAt: r ? r.updatedAt.toISOString() : null,
     };
@@ -152,28 +158,41 @@ export async function listNightAccess(userId: string) {
 export async function setNightAccess(
   adminId: string,
   userId: string,
-  input: { group: ServiceGroup; until: string | null; reason: string },
+  input: { group: ServiceGroup; from: string | null; until: string | null; reason: string },
 ) {
+  const parse = (raw: string, label: string) => {
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) throw new HttpError(400, `${label} must be a valid date and time`, "INVALID_DATE");
+    return d;
+  };
   let until: Date | null = null;
+  let startsAt: Date | null = null;
   if (input.until) {
-    until = new Date(input.until);
-    if (Number.isNaN(until.getTime())) throw new HttpError(400, "Open until must be a valid date and time", "INVALID_DATE");
-    if (until.getTime() <= Date.now()) throw new HttpError(400, "Open until must be in the future", "INVALID_DATE");
+    until = parse(input.until, "Close time");
+    if (until.getTime() <= Date.now()) throw new HttpError(400, "Close time must be in the future", "INVALID_DATE");
+    if (input.from) {
+      startsAt = parse(input.from, "Open time");
+      if (startsAt.getTime() >= until.getTime()) {
+        throw new HttpError(400, "Close time must be after the open time", "INVALID_DATE");
+      }
+      // An open time already passed just means "open now".
+      if (startsAt.getTime() <= Date.now()) startsAt = null;
+    }
   }
   const now = new Date();
   await db
     .insert(nightServiceExceptions)
-    .values({ userId, serviceGroup: input.group, until, reason: input.reason, createdBy: adminId, updatedAt: now })
+    .values({ userId, serviceGroup: input.group, startsAt, until, reason: input.reason, createdBy: adminId, updatedAt: now })
     .onConflictDoUpdate({
       target: [nightServiceExceptions.userId, nightServiceExceptions.serviceGroup],
-      set: { until, reason: input.reason, createdBy: adminId, updatedAt: now },
+      set: { startsAt, until, reason: input.reason, createdBy: adminId, updatedAt: now },
     });
   await insertAuditLog({
     userId: adminId,
     action: "admin.night_access_set",
     entityType: "user",
     entityId: userId,
-    metadata: { group: input.group, until: until?.toISOString() ?? null, reason: input.reason },
+    metadata: { group: input.group, from: startsAt?.toISOString() ?? null, until: until?.toISOString() ?? null, reason: input.reason },
   });
   return listNightAccess(userId);
 }

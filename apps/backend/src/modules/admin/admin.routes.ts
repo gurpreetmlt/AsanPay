@@ -127,6 +127,7 @@ adminRouter.put("/users/:id/night-access", async (req, res) => {
   const body = z
     .object({
       group: z.enum(SERVICE_GROUPS),
+      from: z.string().max(40).nullable().optional().default(null),
       until: z.string().max(40).nullable(),
       reason: z.string().trim().min(3, "Enter a reason (at least 3 characters)").max(300),
     })

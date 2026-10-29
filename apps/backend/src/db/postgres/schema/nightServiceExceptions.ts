@@ -14,6 +14,8 @@ export const nightServiceExceptions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     /** aeps | dmt | bbps | recharge | cms */
     serviceGroup: varchar("service_group", { length: 16 }).notNull(),
+    /** Null = open from the moment it was saved. */
+    startsAt: timestamp("starts_at", { withTimezone: true }),
     until: timestamp("until", { withTimezone: true }),
     reason: text("reason"),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),

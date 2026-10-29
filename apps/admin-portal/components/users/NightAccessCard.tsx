@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
-import { Banknote, Clock, Fingerprint, Moon, Receipt, Send, Smartphone, type LucideIcon } from "lucide-react";
+import { Banknote, Clock, Fingerprint, Moon, Receipt, Send, Smartphone, Sunrise, Sunset, type LucideIcon } from "lucide-react";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { Modal } from "@/components/ui/Modal";
@@ -17,25 +17,50 @@ type Row = {
   group: Group;
   label: string;
   active: boolean;
+  scheduled?: boolean;
   mode: "always" | "until" | null;
+  from?: string | null;
   until: string | null;
   expired: boolean;
   reason: string | null;
 };
-type WindowInfo = { enabled: boolean; startLabel: string; endLabel: string; closedNow: boolean };
+type WindowInfo = { enabled: boolean; start?: string; end?: string; startLabel: string; endLabel: string; closedNow: boolean };
 
 const ICON: Record<Group, LucideIcon> = { aeps: Fingerprint, dmt: Send, bbps: Receipt, recharge: Smartphone, cms: Banknote };
 
 const errMsg = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? fallback;
 
-/** Open-until check against the current clock. */
-function untilProblem(until: string): string | null {
-  if (!until) return "Pick the date and time this should end";
-  return new Date(until).getTime() <= Date.now() ? "Open until must be in the future" : null;
+/** Open / close pair check against the current clock (values are local "YYYY-MM-DDTHH:mm"). */
+function windowProblems(from: string, until: string): { from: string | null; until: string | null } {
+  const untilMs = until ? new Date(until).getTime() : NaN;
+  const fromMs = from ? new Date(from).getTime() : NaN;
+  return {
+    from: !from ? "Pick the date and time it should open" : null,
+    until: !until
+      ? "Pick the date and time it should close"
+      : untilMs <= Date.now()
+        ? "Close time must be in the future"
+        : from && fromMs >= untilMs
+          ? "Close time must be after the open time"
+          : null,
+  };
 }
 
 const fmt = (iso: string) => new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+const pad = (n: number) => String(n).padStart(2, "0");
+/** Date → local "YYYY-MM-DDTHH:mm" for DateTimeField. */
+const toLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+/** Next time today/tomorrow at "HH:MM" that is after `after`. */
+function nextAt(hm: string | undefined, after: Date): Date {
+  const [h, m] = (hm ?? "06:00").split(":").map(Number);
+  const d = new Date(after);
+  d.setHours(h ?? 6, m ?? 0, 0, 0);
+  if (d.getTime() <= after.getTime()) d.setDate(d.getDate() + 1);
+  return d;
+}
 
 /** Agent page → Controls: keep a service group open for this agent during the night window. */
 export function NightAccessCard({ userId, agentName }: { userId: string; agentName: string }) {
@@ -44,6 +69,7 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
   const [editing, setEditing] = useState<Row | null>(null);
   const [closing, setClosing] = useState<Row | null>(null);
   const [mode, setMode] = useState<"always" | "until">("until");
+  const [from, setFrom] = useState("");
   const [until, setUntil] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,19 +95,27 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
   function openEditor(row: Row) {
     setEditing(row);
     setMode(row.mode === "always" ? "always" : "until");
-    setUntil(row.until && !row.expired ? row.until.slice(0, 16) : "");
+    const now = new Date();
+    const keep = row.until && !row.expired;
+    // New window defaults to tonight's closed hours (or now, if the window is already closed).
+    const saved = keep && row.from ? new Date(row.from) : null;
+    const fromDate = saved && saved > now ? saved : win?.closedNow || !win?.start ? now : nextAt(win.start, now);
+    setFrom(toLocal(fromDate));
+    setUntil(keep ? toLocal(new Date(row.until!)) : toLocal(nextAt(win?.end, fromDate)));
     setReason("");
   }
 
-  const untilError = mode === "until" ? untilProblem(until) : null;
+  const problems = mode === "until" ? windowProblems(from, until) : { from: null, until: null };
+  const windowError = problems.from ?? problems.until;
   const reasonError = reason.trim().length < 3 ? "Enter a reason (at least 3 characters)" : null;
 
   async function saveOpen() {
-    if (!editing || untilError || reasonError) return;
+    if (!editing || windowError || reasonError) return;
     setBusy(true);
     try {
       const list = await api.put<{ data: Row[] }>(`/admin/users/${userId}/night-access`, {
         group: editing.group,
+        from: mode === "always" ? null : new Date(from).toISOString(),
         until: mode === "always" ? null : new Date(until).toISOString(),
         reason: reason.trim(),
       });
@@ -172,17 +206,23 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
                     <p className="truncate text-sm font-semibold" style={{ color: B.blue }}>
                       {r.label}
                     </p>
-                    <p className="truncate text-[11px]" style={{ color: r.active ? "#15803D" : B.muted }} title={r.reason ?? undefined}>
+                    <p
+                      className="truncate text-[11px]"
+                      style={{ color: r.active ? "#15803D" : r.scheduled ? "#3730A3" : B.muted }}
+                      title={r.reason ?? undefined}
+                    >
                       {r.active
                         ? r.mode === "always"
                           ? "Open at night · always"
-                          : `Open at night until ${fmt(r.until!)}`
-                        : r.expired
-                          ? `Ended ${fmt(r.until!)} · closed at night`
-                          : "Closed at night"}
+                          : `Open now · closes ${fmt(r.until!)}`
+                        : r.scheduled
+                          ? `Opens ${fmt(r.from!)} · closes ${fmt(r.until!)}`
+                          : r.expired
+                            ? `Ended ${fmt(r.until!)} · closed at night`
+                            : "Closed at night"}
                     </p>
                   </div>
-                  {r.active ? (
+                  {r.active || r.scheduled ? (
                     <button
                       type="button"
                       onClick={() => openEditor(r)}
@@ -192,7 +232,11 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
                       Change
                     </button>
                   ) : null}
-                  <ToggleSwitch checked={r.active} onChange={(on) => (on ? openEditor(r) : setClosing(r))} disabled={busy} />
+                  <ToggleSwitch
+                    checked={r.active || !!r.scheduled}
+                    onChange={(on) => (on ? openEditor(r) : setClosing(r))}
+                    disabled={busy}
+                  />
                 </div>
               );
             })}
@@ -215,7 +259,7 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
             <div className="grid gap-2 sm:grid-cols-2">
               {(
                 [
-                  ["until", "Open until", "Ends by itself at the time you pick"],
+                  ["until", "Open & close time", "Opens and closes by itself at the times you pick"],
                   ["always", "Always open", "Stays open every night until you turn it off"],
                 ] as const
               ).map(([id, label, hint]) => (
@@ -239,14 +283,31 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
               ))}
             </div>
             {mode === "until" ? (
-              <div>
-                <p className="mb-1 text-xs font-semibold" style={{ color: B.muted }}>
-                  Open until
-                </p>
-                <DateTimeField value={until} onChange={setUntil} fullWidth />
-                {until && untilError ? (
-                  <p className="mt-1 text-xs font-semibold" style={{ color: B.danger }}>
-                    {untilError}
+              <div
+                className="space-y-3 rounded-2xl border p-3"
+                style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
+              >
+                {(
+                  [
+                    ["Open from", Sunrise, from, setFrom, problems.from],
+                    ["Close at", Sunset, until, setUntil, problems.until],
+                  ] as const
+                ).map(([label, Icon, value, set, err]) => (
+                  <div key={label}>
+                    <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold" style={{ color: B.muted }}>
+                      <Icon size={13} /> {label}
+                    </p>
+                    <DateTimeField value={value} onChange={set} fullWidth />
+                    {value && err ? (
+                      <p className="mt-1 text-xs font-semibold" style={{ color: B.danger }}>
+                        {err}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+                {!windowError ? (
+                  <p className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#F0FDF4", color: "#15803D" }}>
+                    {editing.label} open for {agentName}: {fmt(new Date(from).toISOString())} → {fmt(new Date(until).toISOString())}
                   </p>
                 ) : null}
               </div>
@@ -273,7 +334,7 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
               </button>
               <button
                 type="button"
-                disabled={busy || !!untilError || !!reasonError}
+                disabled={busy || !!windowError || !!reasonError}
                 onClick={() => void saveOpen()}
                 className="admin-btn-success rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
               >
