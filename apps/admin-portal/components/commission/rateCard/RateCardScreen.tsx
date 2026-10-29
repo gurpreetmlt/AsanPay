@@ -202,10 +202,6 @@ function PickBox({
   );
 }
 
-function canDeleteAll(row: ServiceRow): boolean {
-  return row.providerIncomeRules.length > 0 || row.slabs.some((s) => s.roles.some((r) => r.shareSlab && r.shareId));
-}
-
 function IconAction({
   title,
   tone,
@@ -863,21 +859,12 @@ export function RateCardScreen() {
                                       type="button"
                                       onClick={() => deletePicked(row)}
                                       className="admin-btn-danger inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-0.5 text-[11px] font-bold"
-                                      title={`Delete the ${pickedSlabs(row).length} selected slabs`}
+                                      title={`Delete the ${pickedSlabs(row).length} selected slab${pickedSlabs(row).length === 1 ? "" : "s"}`}
                                     >
-                                      <Trash2 size={12} /> Delete {pickedSlabs(row).length}
+                                      <Trash2 size={12} /> Delete {pickedSlabs(row).length} selected
                                     </button>
                                   ) : null}
                                   {addSlabButton(row)}
-                                  {canDeleteAll(row) ? (
-                                    <IconAction
-                                      title={`Delete all ${row.slabs.length} slabs of ${row.serviceName}`}
-                                      tone="red"
-                                      onClick={() => setSaveReq(endAllSlabsRequest(row))}
-                                    >
-                                      <Trash2 size={14} />
-                                    </IconAction>
-                                  ) : null}
                                 </span>
                               </td>
                             </tr>

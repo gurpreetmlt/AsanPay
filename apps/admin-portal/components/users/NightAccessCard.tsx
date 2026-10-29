@@ -251,6 +251,7 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
           subtitle={win ? `Normally closed ${win.startLabel} – ${win.endLabel}. Only this agent gets access.` : undefined}
           icon={<Moon size={22} />}
           iconTone="green"
+          wide
           onClose={() => {
             if (!busy) setEditing(null);
           }}
@@ -287,24 +288,26 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
                 className="space-y-3 rounded-2xl border p-3"
                 style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
               >
-                {(
-                  [
-                    ["Open from", Sunrise, from, setFrom, problems.from],
-                    ["Close at", Sunset, until, setUntil, problems.until],
-                  ] as const
-                ).map(([label, Icon, value, set, err]) => (
-                  <div key={label}>
-                    <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold" style={{ color: B.muted }}>
-                      <Icon size={13} /> {label}
-                    </p>
-                    <DateTimeField value={value} onChange={set} fullWidth />
-                    {value && err ? (
-                      <p className="mt-1 text-xs font-semibold" style={{ color: B.danger }}>
-                        {err}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(
+                    [
+                      ["Open from", Sunrise, from, setFrom, problems.from],
+                      ["Close at", Sunset, until, setUntil, problems.until],
+                    ] as const
+                  ).map(([label, Icon, value, set, err]) => (
+                    <div key={label} className="rounded-xl border bg-white p-3" style={{ borderColor: B.border }}>
+                      <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold" style={{ color: B.muted }}>
+                        <Icon size={13} /> {label}
                       </p>
-                    ) : null}
-                  </div>
-                ))}
+                      <DateTimeField value={value} onChange={set} className="w-full" />
+                      {value && err ? (
+                        <p className="mt-1 text-xs font-semibold" style={{ color: B.danger }}>
+                          {err}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
                 {!windowError ? (
                   <p className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "#F0FDF4", color: "#15803D" }}>
                     {editing.label} open for {agentName}: {fmt(new Date(from).toISOString())} → {fmt(new Date(until).toISOString())}
