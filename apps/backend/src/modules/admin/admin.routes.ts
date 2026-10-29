@@ -1015,6 +1015,45 @@ adminRouter.delete("/rate-card/tax/:serviceId", async (req, res) => {
   sendSuccess(res, await resetServiceTax(req.auth.sub, serviceId, reason), "Service now uses the default tax");
 });
 
+// ── Rate card file imports (history + 24 h undo) ────────────────────────────
+adminRouter.get("/rate-card/imports", async (_req, res) => {
+  const { listRateCardImports } = await import("../commission/rateCardImport.service");
+  sendSuccess(res, await listRateCardImports());
+});
+
+adminRouter.post("/rate-card/imports", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { recordRateCardImport } = await import("../commission/rateCardImport.service");
+  const { importChangeSchema, MAX_IMPORT_CHANGES } = await import("../commission/rateCardImport.ops");
+  const changes = z.array(importChangeSchema).max(MAX_IMPORT_CHANGES, `An import can save at most ${MAX_IMPORT_CHANGES} changes`);
+  const body = z
+    .object({
+      fileName: z.string().trim().min(1, "File name is required").max(200),
+      reason: z.string().max(500).nullable().optional(),
+      services: z
+        .array(
+          z.object({
+            serviceId: z.string().uuid("Service id must be a valid id"),
+            serviceName: z.string().max(200),
+            providerName: z.string().max(200),
+            changes: z.number().int().min(0),
+          }),
+        )
+        .max(500),
+      changes,
+      inverseChanges: changes,
+    })
+    .parse(req.body);
+  sendSuccess(res, await recordRateCardImport(req.auth.sub, body), "Import added to history");
+});
+
+adminRouter.post("/rate-card/imports/:id/undo", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { undoRateCardImport } = await import("../commission/rateCardImport.service");
+  const id = z.string().uuid("Import id must be a valid id").parse(req.params.id);
+  sendSuccess(res, await undoRateCardImport(req.auth.sub, id), "Import undone");
+});
+
 adminRouter.get("/commission/tax-config", async (_req, res) => {
   const { listTaxConfigs } = await import("../commission/tax.service");
   const { resolveTenantId } = await import("../fund-requests/tenant");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Download, FileSpreadsheet, FileText } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { B } from "@/lib/brand";
@@ -13,6 +13,8 @@ type Props = {
   onPdf: () => void;
   onExcel: () => void;
   onCsv: () => void;
+  /** More downloads listed under the three formats (e.g. a blank template). */
+  extra?: Array<{ label: string; onClick: () => void; icon?: ReactNode }>;
   className?: string;
 };
 
@@ -26,6 +28,7 @@ export function ExportMenu({
   onPdf,
   onExcel,
   onCsv,
+  extra,
   className,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -116,6 +119,26 @@ export function ExportMenu({
             <FileSpreadsheet size={15} style={{ color: B.muted }} />
             CSV
           </button>
+          {extra?.length ? (
+            <div className="border-t" style={{ borderColor: B.border }}>
+              {extra.map((x) => (
+                <button
+                  key={x.label}
+                  type="button"
+                  role="menuitem"
+                  className={item}
+                  style={{ color: B.blue }}
+                  onClick={() => {
+                    setOpen(false);
+                    x.onClick();
+                  }}
+                >
+                  {x.icon ?? <FileSpreadsheet size={15} style={{ color: "#16A34A" }} />}
+                  <span className="min-w-0 truncate">{x.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

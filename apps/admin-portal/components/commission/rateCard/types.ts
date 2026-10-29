@@ -138,11 +138,27 @@ export type ServiceRow = {
   tax: TaxView;
   reference: Reference | null;
   slabs: Slab[];
+  /** Every role share row in this scope (service default + slab-only), with its exact provider + bounds. */
+  slabShares?: SlabShareView[];
+  /** Newest saved rate change for this service. */
+  lastChangedAt?: string | null;
+};
+
+export type SlabShareView = {
+  id: string;
+  providerId: string | null;
+  role: SchemeRole;
+  sharePercent: string;
+  flatAmount: string | null;
+  minAmount: string | null;
+  maxAmount: string | null;
 };
 
 export type RateCardData = {
   providerId: string | null;
   at: string;
+  /** Newest saved rate change across services — written into exports as the data version. */
+  lastChangedAt?: string | null;
   providers: Array<{ id: string; code: string; name: string }>;
   tenantTax: TenantTax;
   services: ServiceRow[];

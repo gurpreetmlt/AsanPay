@@ -1,8 +1,6 @@
 import type { BrandedReport, ReportCell } from "@/lib/brandedExport";
-import { parseCsv } from "@/lib/taxCommissionUtils";
 import { downloadXlsx, type XlsxCell, type XlsxSheet } from "@/lib/xlsxWorkbook";
-import { amountBound, incomeChanges, incomeRowError, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
-import { roleSplitError, slabSplitChanges, slabSplitOf, type SlabSplit } from "./roleSplit";
+import { slabSplitOf } from "./roleSplit";
 import {
   ROLE_LABEL,
   SCHEME_ROLES,
@@ -10,7 +8,6 @@ import {
   pct,
   ruleLabel,
   slabLabel,
-  type CompareRow,
   type IncomeRule,
   type PendingChange,
   type RateCardData,
@@ -18,7 +15,6 @@ import {
   type ServiceRow,
   type Slab,
 } from "./types";
-import type { SplitMode } from "./ui";
 
 /**
  * One row per slab, easy to edit in Excel: a money cell is a plain number for flat ₹ ("0.5") or ends
@@ -40,9 +36,9 @@ export const RATE_CARD_CSV_HEADER = [
 ] as const;
 
 /** Header key after dropping case, spaces and punctuation ("Slab from" / "slab_from" → "slabfrom"). */
-const headerKey = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
+export const headerKey = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-const ROLE_KEY: Record<SchemeRole, string> = {
+export const ROLE_KEY: Record<SchemeRole, string> = {
   retailer: "retailer",
   distributor: "distributor",
   super_distributor: "sd",
@@ -178,12 +174,18 @@ export function rateCardReport(data: RateCardData, scopeName: string): BrandedRe
 
 // ── Excel workbook (.xlsx): an editable sheet — Summary tab + one tab per service ──
 
-const FLAT = "Flat ₹";
-const SHARE = "Share %";
-const PCT_OF_AMOUNT = "% of amount";
+export const FLAT = "Flat ₹";
+export const SHARE = "Share %";
+export const PCT_OF_AMOUNT = "% of amount";
 
+export const SUMMARY_TAB = "Summary";
+export const HOW_TO_TAB = "How to fill";
+/** Summary-tab labels the importer reads back for the stale-file check. */
+export const META_EXPORTED_AT = "Exported at";
+export const META_DATA_VERSION = "Data version";
+const META_FILE_TYPE = "File type";
 /** Header row of every service tab; import reads these names back. */
-const SHEET_HEADER = [
+export const SHEET_HEADER = [
   "Slab from",
   "Slab to",
   "Example amount",
@@ -209,9 +211,13 @@ function keepsFormula(r: number, incomeNow: number): string {
   return `ROUND(${provider}-${role("G", "H")}-${role("I", "J")}-${role("K", "L")},2)`;
 }
 
-function serviceSheet(row: ServiceRow, data: RateCardData): XlsxSheet {
+/** Empty rows a blank template tab starts with (Company keeps formula already in place). */
+const TEMPLATE_ROWS = 15;
+
+function serviceSheet(row: ServiceRow, data: RateCardData, template = false): XlsxSheet {
+  const slabs = template ? [] : row.slabs;
   const firstData = 4;
-  const lastData = firstData + row.slabs.length - 1;
+  const lastData = firstData + Math.max(slabs.length, template ? TEMPLATE_ROWS : 1) - 1;
   const lastEditable = lastData + 100;
   const typeCols = ["G", "I", "K"];
   return {
@@ -237,7 +243,11 @@ function serviceSheet(row: ServiceRow, data: RateCardData): XlsxSheet {
         },
       ],
       head(SHEET_HEADER),
-      ...row.slabs.map((s, i): XlsxCell[] => {
+      ...Array.from({ length: template ? TEMPLATE_ROWS : 0 }, (_, i): XlsxCell[] => [
+        ...Array<XlsxCell>(12).fill(null),
+        { f: keepsFormula(firstData + i, 0), s: "info" },
+      ]),
+      ...slabs.map((s, i): XlsxCell[] => {
         const income = row.providerIncomeRules.find((r) => r.minAmount === s.minAmount && r.maxAmount === s.maxAmount) ?? null;
         const split = slabSplitOf(s);
         const roleCells = SCHEME_ROLES.flatMap((role): XlsxCell[] => {
@@ -261,48 +271,107 @@ function serviceSheet(row: ServiceRow, data: RateCardData): XlsxSheet {
   };
 }
 
-/** Downloads the rate card as an editable .xlsx: Summary tab, then one tab per service (re-import with Import). */
-export function downloadRateCardWorkbook(data: RateCardData, scopeName: string): void {
-  downloadXlsx(`rate-card-${new Date().toISOString().slice(0, 10)}.xlsx`, rateCardWorkbookSheets(data, scopeName));
+export type WorkbookOptions = {
+  /** Same tabs, headers and dropdowns but no slab rows. */
+  template?: boolean;
+  /** Only these services get a tab (e.g. one expanded service). */
+  serviceIds?: string[];
+};
+
+const fileSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "service";
+
+/** Downloads the rate card as an editable .xlsx: Summary, How to fill, then one tab per service (re-import with Import). */
+export function downloadRateCardWorkbook(data: RateCardData, scopeName: string, opts: WorkbookOptions = {}): void {
+  const date = new Date().toISOString().slice(0, 10);
+  const only = opts.serviceIds?.length === 1 ? data.services.find((s) => s.serviceId === opts.serviceIds![0]) : null;
+  const name = opts.template
+    ? `rate-card-template-${date}`
+    : only
+      ? `rate-card-${fileSlug(only.serviceName)}-${date}`
+      : `rate-card-${date}`;
+  downloadXlsx(`${name}.xlsx`, rateCardWorkbookSheets(data, scopeName, opts));
 }
 
-export function rateCardWorkbookSheets(data: RateCardData, scopeName: string): XlsxSheet[] {
-  const generated = new Date().toLocaleString("en-IN");
-  const summary: XlsxSheet = {
-    name: "Summary",
-    freezeRows: 10,
-    autoFilter: `A10:F${10 + data.services.length}`,
-    widths: [26, 20, 8, 20, 18, 22],
+/** Short instructions + a worked example; the importer skips this tab. */
+function howToSheet(data: RateCardData): XlsxSheet {
+  const note = (v: string): XlsxCell[] => [{ v, s: "note" }];
+  return {
+    name: HOW_TO_TAB,
+    widths: [11, 11, 14, 14, 13, 12, 14, 10, 16, 12, 12, 9, 15, 18, 60],
     rows: [
-      [{ v: "Commission rate card", s: "title" }],
-      [{ v: `${scopeName} · generated ${generated} · amounts per txn before TDS`, s: "muted" }],
+      [{ v: "How to fill this workbook", s: "title" }],
       [],
-      [{ v: "How to use: open a service tab, change the white cells, save, then Rate card → Import.", s: "note" }],
-      [{ v: "Type columns have a dropdown: Flat ₹ (green) or Share % / % of amount (blue). Use the filter arrows on the header row.", s: "note" }],
-      [{ v: "Blank cell = keep what is saved. 0 = ₹0. Add a slab by filling a new row under the last one.", s: "note" }],
-      [
-        {
-          v: `Provider column: ${ALL_PROVIDERS} or a provider name (${data.providers.map((p) => p.name).join(", ") || "none yet"}). Blank = the provider picked on the rate card.`,
-          s: "note",
-        },
-      ],
-      [{ v: "Company keeps (grey) updates by itself; copy it down for new rows.", s: "note" }],
+      note("1. Every service has its own tab. One row = one slab (amount range). Leave Slab from and Slab to blank for any amount."),
+      note(`2. Type columns: ${FLAT} = rupees per transaction. ${SHARE} = % of what the provider pays (role columns).`),
+      note(`   ${PCT_OF_AMOUNT} = the provider's rate on the transaction amount (Provider pays only); Provider max caps it in ₹.`),
+      note("3. Blank cell = keep what is saved. 0 = ₹0 (nobody earns that part)."),
+      note("4. Add a slab: fill a new row under the last one with its Slab from and Slab to."),
+      note('5. Remove a slab: delete its row, then tick "Remove slabs that are not in the file" when importing. A tab with no rows is skipped.'),
+      note(
+        `6. Provider column: ${ALL_PROVIDERS} or a provider name (${data.providers.map((p) => p.name).join(", ") || "none yet"}). Blank = the provider picked on the rate card.`,
+      ),
+      note("7. Do not rename tabs or header cells. Summary and this tab are ignored on import. Grey cells are worked out for you."),
       [],
-      head(["Service", "Category", "Slabs", "Provider pays not set", "Slabs losing money", "Slabs with a role on ₹0"]),
-      ...data.services.map((row): XlsxCell[] => {
-        const losing = row.slabs.filter((s) => s.underwater).length;
-        return [
-          row.serviceName,
-          row.categoryName,
-          row.slabs.length,
-          row.slabs.filter((s) => s.providerIncome == null).length,
-          losing ? { v: losing, s: "loss" } : losing,
-          row.slabs.filter((s) => s.missingRoles.length > 0).length,
-        ];
-      }),
+      [{ v: "Worked example (not imported)", s: "title" }],
+      head([...SHEET_HEADER, "What it means"]),
+      [100, 3000, 3000, PCT_OF_AMOUNT, 0.5, 15, SHARE, 60, SHARE, 10, SHARE, 5, null, ALL_PROVIDERS,
+        "Provider pays 0.5% of the amount, max ₹15. Retailer gets 60% of that, Distributor 10%, SD 5%."],
+      [3000.01, 10000, 10000, FLAT, 12, null, FLAT, 8, FLAT, 1, null, null, null, ALL_PROVIDERS,
+        "Provider pays ₹12 per txn. Retailer ₹8, Distributor ₹1. SD blank = keeps what is saved."],
+      [10000.01, null, 20000, FLAT, 15, null, FLAT, 0, null, null, null, null, null, null,
+        "New slab above ₹10,000 (Slab to blank = no upper limit). Retailer 0 = ₹0. Provider blank = the provider on the rate card."],
     ],
   };
-  return [summary, ...data.services.map((row) => serviceSheet(row, data))];
+}
+
+export function rateCardWorkbookSheets(data: RateCardData, scopeName: string, opts: WorkbookOptions = {}): XlsxSheet[] {
+  const template = Boolean(opts.template);
+  const services = opts.serviceIds ? data.services.filter((s) => opts.serviceIds!.includes(s.serviceId)) : data.services;
+  const generated = new Date().toLocaleString("en-IN");
+  const top: XlsxCell[][] = [
+    [{ v: template ? "Commission rate card — blank template" : "Commission rate card", s: "title" }],
+    [{ v: `${scopeName} · generated ${generated} · amounts per txn before TDS`, s: "muted" }],
+    [],
+    [{ v: "How to use: read the How to fill tab, change the white cells on a service tab, save, then Rate card → Import.", s: "note" }],
+    [{ v: "Type columns have a dropdown: Flat ₹ (green) or Share % / % of amount (blue). Use the filter arrows on the header row.", s: "note" }],
+    [{ v: "Blank cell = keep what is saved. 0 = ₹0. Add a slab by filling a new row under the last one.", s: "note" }],
+    [],
+    [{ v: META_FILE_TYPE, s: "muted" }, template ? "Rate card template" : "Rate card export"],
+    [{ v: META_EXPORTED_AT, s: "muted" }, new Date().toISOString()],
+    [{ v: META_DATA_VERSION, s: "muted" }, data.lastChangedAt ?? "none"],
+    [],
+  ];
+  const headRow = top.length + 1;
+  const summary: XlsxSheet = template
+    ? {
+        name: SUMMARY_TAB,
+        freezeRows: headRow,
+        autoFilter: `A${headRow}:C${headRow + services.length}`,
+        widths: [26, 20, 22],
+        rows: [...top, head(["Service", "Category", "Service code"]), ...services.map((r): XlsxCell[] => [r.serviceName, r.categoryName, r.serviceCode])],
+      }
+    : {
+        name: SUMMARY_TAB,
+        freezeRows: headRow,
+        autoFilter: `A${headRow}:F${headRow + services.length}`,
+        widths: [26, 20, 8, 20, 18, 22],
+        rows: [
+          ...top,
+          head(["Service", "Category", "Slabs", "Provider pays not set", "Slabs losing money", "Slabs with a role on ₹0"]),
+          ...services.map((row): XlsxCell[] => {
+            const losing = row.slabs.filter((s) => s.underwater).length;
+            return [
+              row.serviceName,
+              row.categoryName,
+              row.slabs.length,
+              row.slabs.filter((s) => s.providerIncome == null).length,
+              losing ? { v: losing, s: "loss" } : losing,
+              row.slabs.filter((s) => s.missingRoles.length > 0).length,
+            ];
+          }),
+        ],
+      };
+  return [summary, howToSheet(data), ...services.map((row) => serviceSheet(row, data, template))];
 }
 
 // ── Fill "Provider pays" from the provider sheet (services with no provider income yet) ──
@@ -345,313 +414,4 @@ export function sheetFillRequest(data: RateCardData) {
     changes,
     warnings: ask > 0 ? [`${ask} service${ask === 1 ? "" : "s"} still need the rate from the provider.`] : [],
   };
-}
-
-export type ImportPlan = {
-  changes: PendingChange[];
-  errors: string[];
-  rowsRead: number;
-  unchangedRows: number;
-  /** Before → after per slab that changes. */
-  compare: CompareRow[];
-};
-
-/** "80% share" / "₹0.50 flat" / "Not set" for one role on a slab. */
-function splitText(mode: SplitMode, value: string): string {
-  if (value.trim() === "") return "Not set";
-  return mode === "percent" ? `${pct(value)} share` : `${inr(value)} flat`;
-}
-
-const sameSplit = (a: SplitMode, av: string, b: SplitMode, bv: string) =>
-  (av.trim() === "" && bv.trim() === "") || (a === b && av.trim() !== "" && bv.trim() !== "" && Number(av) === Number(bv));
-
-const MAX_ERRORS = 25;
-
-/** Money / amount text from Excel: drops ₹ (or the "?" it turns into), commas and spaces. */
-const cleanNumber = (v: string) => v.replace(/[₹?,\s]/g, "").replace(/^rs\.?/i, "");
-
-/** "0.5" → flat ₹; "80%" → percent. null = blank cell (leave as is). */
-function parseMoney(raw: string): { mode: SplitMode; value: string } | "bad" | null {
-  const t = raw.trim();
-  if (t === "") return null;
-  const percent = /%\s*$/.test(t);
-  const value = cleanNumber(t.replace(/%\s*$/, ""));
-  if (!/^\d+(\.\d{1,4})?$/.test(value)) return "bad";
-  return { mode: percent ? "percent" : "flat", value: String(Number(value)) };
-}
-
-/**
- * Slab bounds from "Slab from" / "Slab to", or from one "Slab" cell such as
- * "₹100.00 – ₹199.99 · Example ₹199.99", "Any amount", "Up to ₹1,000" or "₹3,000+".
- */
-function parseBounds(get: (k: string) => string): { from: string; to: string } | "bad" {
-  if (get("slabfrom") || get("slabto")) return { from: cleanNumber(get("slabfrom")), to: cleanNumber(get("slabto")) };
-  const raw = get("slab").split("·")[0]!.trim();
-  if (raw === "" || /any/i.test(raw)) return { from: "", to: "" };
-  const nums = (raw.match(/\d[\d,]*(\.\d+)?/g) ?? []).map((n) => n.replace(/,/g, ""));
-  if (/up\s*to/i.test(raw) && nums.length === 1) return { from: "", to: nums[0]! };
-  if (/\+\s*$/.test(raw) && nums.length === 1) return { from: nums[0]!, to: "" };
-  if (nums.length >= 2) return { from: nums[0]!, to: nums[1]! };
-  return "bad";
-}
-
-/** Header row + data rows of an import file, with a "Row 5" / "Cash Withdraw tab, row 7" label per data row. */
-export type ImportRows = { rows: string[][]; labels: string[] };
-
-/**
- * Edited rate card CSV. Accepts the export columns (Service, Provider, Slab from, Slab to, Provider pays,
- * Retailer, Distributor, SD) with "80%" for a percentage and a plain number for flat ₹, a single "Slab"
- * text column, and the older *_type / *_value template. Blank cells mean "leave as is"; 0 means ₹0.
- */
-export function importRowsFromCsv(text: string): ImportRows {
-  const rows = parseCsv(text);
-  return { rows, labels: rows.slice(1).map((_, i) => `Row ${i + 2}`) };
-}
-
-/**
- * Editable Excel workbook: every service tab (title row = service name, last title cell = service code,
- * header row with "Slab from") becomes rows of one import.
- */
-export function importRowsFromXlsx(sheets: Array<{ name: string; rows: string[][] }>): ImportRows | { error: string } {
-  const header = ["Service", "Service code", ...SHEET_HEADER];
-  const body: string[][] = [];
-  const labels: string[] = [];
-  for (const sheet of sheets) {
-    const h = sheet.rows.findIndex((r) => r.some((c) => headerKey(c) === "slabfrom"));
-    if (h < 0) continue;
-    const title = (sheet.rows[0] ?? []).filter((c) => c.trim() !== "");
-    const name = title[0] ?? sheet.name;
-    const code = title.length > 1 ? title[title.length - 1]! : "";
-    const keys = sheet.rows[h]!.map(headerKey);
-    const at = (row: string[], key: string) => {
-      const i = keys.indexOf(key);
-      return i >= 0 ? (row[i] ?? "").trim() : "";
-    };
-    sheet.rows.slice(h + 1).forEach((row, i) => {
-      const cells = SHEET_HEADER.map((label) => at(row, headerKey(label)));
-      // Skip empty lines (only formula / example cells left).
-      if (!cells.some((c, ci) => c !== "" && !["Example amount", "Company keeps", "Provider"].includes(SHEET_HEADER[ci]!))) return;
-      body.push([name, code, ...cells]);
-      labels.push(`${sheet.name} tab, row ${h + i + 2}`);
-    });
-  }
-  if (body.length === 0) return { error: "No service tab with slabs was found. Use the workbook from Export → Excel." };
-  return { rows: [header, ...body], labels };
-}
-
-/** Rows for one provider, planned against that provider's saved rate card. */
-export type ImportGroup = { providerId: string | null; providerName: string; rows: string[][]; labels: string[] };
-
-/**
- * Splits import rows by the Provider column: "All providers", a provider name or code, or blank
- * (= the provider the rate card is showing).
- */
-export function splitImportByProvider(input: ImportRows, data: RateCardData): { groups: ImportGroup[]; errors: string[] } {
-  const [headRow, ...body] = input.rows;
-  if (!headRow) return { groups: [], errors: ["The file is empty. Export the rate card and edit that file."] };
-  const providerCol = headRow.map(headerKey).indexOf("provider");
-  const nameOf = (id: string | null) => (id ? (data.providers.find((p) => p.id === id)?.name ?? "This provider") : ALL_PROVIDERS);
-  const choices = [ALL_PROVIDERS, ...data.providers.map((p) => p.name)].join(", ");
-  const groups = new Map<string, ImportGroup>();
-  const errors: string[] = [];
-  body.forEach((cells, i) => {
-    const raw = providerCol >= 0 ? (cells[providerCol] ?? "").trim() : "";
-    let id: string | null;
-    if (raw === "") id = data.providerId;
-    else if (headerKey(raw) === headerKey(ALL_PROVIDERS) || headerKey(raw) === "all") id = null;
-    else {
-      const hit = data.providers.find((p) => headerKey(p.name) === headerKey(raw) || headerKey(p.code) === headerKey(raw));
-      if (!hit) {
-        if (errors.length < MAX_ERRORS) errors.push(`${input.labels[i]}: provider "${raw}" not found. Use one of: ${choices}.`);
-        return;
-      }
-      id = hit.id;
-    }
-    const key = id ?? "";
-    if (!groups.has(key)) groups.set(key, { providerId: id, providerName: nameOf(id), rows: [headRow], labels: [] });
-    const g = groups.get(key)!;
-    g.rows.push(cells);
-    g.labels.push(input.labels[i]!);
-  });
-  return { groups: [...groups.values()], errors };
-}
-
-/** Only the writes that differ from what is saved for this group's provider. */
-export function planImportGroup(group: ImportGroup, data: RateCardData): ImportPlan {
-  return planRows(group.rows, group.labels, data, group.providerId, group.providerName);
-}
-
-/** One plan from every provider's plan; nothing is written when any row anywhere is invalid. */
-export function mergeImportPlans(plans: ImportPlan[]): ImportPlan {
-  const errors = plans.flatMap((p) => p.errors).slice(0, MAX_ERRORS + 1);
-  const failed = errors.length > 0;
-  return {
-    changes: failed ? [] : plans.flatMap((p) => p.changes),
-    errors,
-    rowsRead: plans.reduce((n, p) => n + p.rowsRead, 0),
-    unchangedRows: plans.reduce((n, p) => n + p.unchangedRows, 0),
-    compare: failed ? [] : plans.flatMap((p) => p.compare),
-  };
-}
-
-/** "Flat ₹" / "flat" → flat; "Share %" / "% of amount" / "percent" → percent; "" → none. */
-const typeIsPercent = (t: string) => /%|share|percent/i.test(t);
-
-function planRows(
-  rows: string[][],
-  labels: string[],
-  data: RateCardData,
-  providerId: string | null,
-  providerName: string,
-): ImportPlan {
-  const errors: string[] = [];
-  const changes: PendingChange[] = [];
-  const compare: CompareRow[] = [];
-  const fail = (msg: string): ImportPlan => ({ changes, errors: [msg], rowsRead: 0, unchangedRows: 0, compare: [] });
-  if (rows.length === 0) return fail("The file is empty. Export the rate card as CSV and edit that file.");
-
-  const header = rows[0]!.map(headerKey);
-  const col = (key: string) => header.indexOf(key);
-  if (col("service") < 0 && col("servicecode") < 0 && col("servicename") < 0) {
-    return fail('Column "Service" is missing. Use the CSV from Export → CSV as the template.');
-  }
-  if (col("slab") < 0 && col("slabfrom") < 0 && col("slabto") < 0) {
-    return fail('Columns "Slab from" and "Slab to" (or one "Slab" column) are missing. Use the CSV from Export → CSV.');
-  }
-
-  const byCode = new Map(data.services.map((s) => [s.serviceCode.toLowerCase(), s]));
-  const byName = new Map(data.services.map((s) => [s.serviceName.toLowerCase(), s]));
-  const isAmount = (v: string) => /^\d+(\.\d{1,2})?$/.test(v);
-  let unchangedRows = 0;
-  const body = rows.slice(1);
-
-  body.forEach((cells, i) => {
-    if (errors.length >= MAX_ERRORS) return;
-    const at = labels[i] ?? `Row ${i + 2}`;
-    const get = (key: string) => (col(key) >= 0 ? (cells[col(key)] ?? "").trim() : "");
-
-    // Service: code first, else the name (an exported "Cash Withdraw · Banking Services" works too).
-    const code = get("servicecode");
-    const name = (get("service") || get("servicename")).split("·")[0]!.trim();
-    const service = (code && byCode.get(code.toLowerCase())) || byName.get(name.toLowerCase()) || byCode.get(name.toLowerCase());
-    if (!service) {
-      errors.push(`${at}: service "${code || name}" not found. Use the service name or code from the export.`);
-      return;
-    }
-    const where = at.includes(" tab, ") ? at : `${at} (${service.serviceName})`;
-
-    const bounds = parseBounds(get);
-    if (bounds === "bad" || (bounds.from && !isAmount(bounds.from)) || (bounds.to && !isAmount(bounds.to))) {
-      errors.push(`${where}: slab must be rupees like 100 and 199.99 (or "Any amount")`);
-      return;
-    }
-    const { from, to } = bounds;
-    if (to && Number(to) <= 0) {
-      errors.push(`${where}: Slab to must be more than 0 — leave it blank for any amount`);
-      return;
-    }
-    if (from && to && Number(from) > Number(to)) {
-      errors.push(`${where}: Slab from cannot be more than Slab to`);
-      return;
-    }
-    const minAmount = from || null;
-    const maxAmount = to || null;
-    const sameBounds = (r: { minAmount: string | null; maxAmount: string | null }) =>
-      amountBound(r.minAmount) === amountBound(minAmount) && amountBound(r.maxAmount) === amountBound(maxAmount);
-    const rowChanges: PendingChange[] = [];
-    const fields: CompareRow["fields"] = [];
-
-    // Provider pays: "13.95" flat, "0.465%" percent, or a type column ("Flat ₹" / "% of amount") + number.
-    const pType = get("providertype");
-    const pValue = (get("providervalue") || get("providerpays")).replace(/%\s*$/, "");
-    const provider = pType
-      ? parseMoney(pValue === "" ? "" : `${pValue}${typeIsPercent(pType) ? "%" : ""}`)
-      : parseMoney(get("providervalue") || get("providerpays"));
-    if (provider === "bad") {
-      errors.push(`${where}: Provider pays must be a number like 1.5 or a percent like 0.465%`);
-      return;
-    }
-    if (provider) {
-      const draft: IncomeDraft = {
-        key: newIncomeKey(),
-        replacesId: null,
-        providerId,
-        ruleType: provider.mode === "flat" ? "flat" : "percentage",
-        value: provider.value,
-        capAmount: provider.mode === "percent" ? cleanNumber(get("providermax") || get("providercap")) : "",
-        minAmount: from,
-        maxAmount: to,
-        note: null,
-      };
-      const err = incomeRowError(draft);
-      if (err) {
-        errors.push(`${where}: ${err}`);
-        return;
-      }
-      const saved = service.providerIncomeRules.find((r) => r.providerId === providerId && sameBounds(r));
-      const same =
-        saved &&
-        saved.ruleType === draft.ruleType &&
-        Number(saved.value) === Number(draft.value) &&
-        amountBound(saved.capAmount) === amountBound(draft.capAmount);
-      if (!same) {
-        rowChanges.push(...incomeChanges(service, draft, providerName));
-        fields.push({
-          label: "Provider pays",
-          before: saved ? ruleLabel(saved.ruleType, saved.value, saved.capAmount) : "Not set",
-          after: ruleLabel(draft.ruleType, draft.value, draft.capAmount || null),
-        });
-      }
-    }
-
-    // Role split for this slab: "0.5" flat ₹ or "80%", or a type column ("Flat ₹" / "Share %") + number.
-    const slab = service.slabs.find(sameBounds);
-    const initial: SlabSplit = slab
-      ? slabSplitOf(slab)
-      : {
-          modes: { retailer: "percent", distributor: "percent", super_distributor: "percent" },
-          values: { retailer: "", distributor: "", super_distributor: "" },
-        };
-    const next: SlabSplit = { modes: { ...initial.modes }, values: { ...initial.values } };
-    for (const role of SCHEME_ROLES) {
-      const key = ROLE_KEY[role];
-      const rType = get(`${key}type`);
-      const rValue = get(`${key}value`) || get(key);
-      const parsed = rType
-        ? parseMoney(rValue === "" ? "" : `${rValue.replace(/%\s*$/, "")}${typeIsPercent(rType) ? "%" : ""}`)
-        : parseMoney(rValue);
-      if (parsed === null) continue;
-      const err = parsed === "bad" ? `${ROLE_LABEL[role]} must be a number like 0.5 or a percent like 80%` : roleSplitError(role, parsed.mode, parsed.value);
-      if (err || parsed === "bad") {
-        errors.push(`${where}: ${err}`);
-        return;
-      }
-      next.modes[role] = parsed.mode;
-      next.values[role] = parsed.value;
-    }
-    const splitChanges = slabSplitChanges({ row: service, initial, next, providerId, minAmount, maxAmount });
-    rowChanges.push(...splitChanges);
-    if (splitChanges.length > 0) {
-      for (const role of SCHEME_ROLES) {
-        const [a, av, b, bv] = [initial.modes[role], initial.values[role], next.modes[role], next.values[role]];
-        if (!sameSplit(a, av, b, bv)) fields.push({ label: ROLE_LABEL[role], before: splitText(a, av), after: splitText(b, bv) });
-      }
-    }
-
-    if (rowChanges.length === 0) unchangedRows += 1;
-    else {
-      compare.push({
-        service: service.serviceName,
-        provider: providerName,
-        slab: slabLabel(minAmount, maxAmount),
-        isNew: !slab && !service.providerIncomeRules.some((r) => r.providerId === providerId && sameBounds(r)),
-        fields: fields.length ? fields : [{ label: "Saved values", before: "—", after: `${rowChanges.length} update${rowChanges.length === 1 ? "" : "s"}` }],
-      });
-    }
-    changes.push(...rowChanges);
-  });
-
-  if (errors.length >= MAX_ERRORS) errors.push("Stopped after 25 problems — fix these and import again.");
-  const failed = errors.length > 0;
-  return { changes: failed ? [] : changes, errors, rowsRead: body.length, unchangedRows, compare: failed ? [] : compare };
 }

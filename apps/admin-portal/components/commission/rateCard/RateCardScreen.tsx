@@ -18,27 +18,18 @@ import {
   TableProperties,
   Trash2,
   Upload,
+  History,
+  FileSpreadsheet,
   type LucideIcon,
 } from "lucide-react";
 import { getServiceIcon } from "@/lib/serviceIcons";
-import { readXlsx } from "@/lib/xlsxWorkbook";
 import { toast } from "react-hot-toast";
-import { Modal } from "@/components/ui/Modal";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { openBrandedPdf } from "@/lib/brandedExport";
 import { downloadCsv } from "@/lib/taxCommissionUtils";
-import {
-  downloadRateCardWorkbook,
-  importRowsFromCsv,
-  importRowsFromXlsx,
-  mergeImportPlans,
-  planImportGroup,
-  rateCardCsv,
-  rateCardReport,
-  sheetFillRequest,
-  sheetReady,
-  splitImportByProvider,
-} from "./rateCardTransfer";
+import { downloadRateCardWorkbook, rateCardCsv, rateCardReport, sheetFillRequest, sheetReady } from "./rateCardTransfer";
+import { RateCardImportModal } from "./RateCardImportModal";
+import { ImportHistoryModal, UndoImportModal, type UndoTarget } from "./RateCardImportHistory";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
@@ -278,7 +269,7 @@ export function RateCardScreen() {
   /** Slab open in the add / edit popup. `slabKey` null = a new slab. */
   const [slabEditor, setSlabEditor] = useState<{ serviceId: string; slabKey: string | null; draft: IncomeDraft } | null>(null);
 
-  const { saveReq, setSaveReq, saving, runSave } = usePendingSave(() => {
+  const { saveReq, setSaveReq, saving, progress, runSave } = usePendingSave(() => {
     setVersion((v) => v + 1);
     setSlabEditor(null);
     setPicked(new Set());
@@ -424,67 +415,43 @@ export function RateCardScreen() {
     };
   }
 
-  const importInput = useRef<HTMLInputElement>(null);
-  const [importErrors, setImportErrors] = useState<string[] | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [undoTarget, setUndoTarget] = useState<UndoTarget | null>(null);
+  const scopeName = providerId ? providerName : "All providers";
+  const expandedRow = data?.services.find((s) => s.serviceId === expanded) ?? null;
 
   function exportPdf() {
     if (!data) return;
-    if (!openBrandedPdf(rateCardReport(data, providerId ? providerName : "All providers"))) {
+    if (!openBrandedPdf(rateCardReport(data, scopeName))) {
       toast.error("Allow pop-ups for this site to export the PDF");
     }
   }
 
-  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !data) return;
-    const isXlsx = /\.xlsx$/i.test(file.name);
-    if (!isXlsx && !/\.csv$/i.test(file.name)) {
-      setImportErrors([`"${file.name}" is not an Excel (.xlsx) or CSV file. Use the file from Export → Excel or CSV.`]);
-      return;
-    }
-    let plan;
-    try {
-      const parsed = isXlsx ? importRowsFromXlsx(await readXlsx(file)) : importRowsFromCsv(await file.text());
-      if ("error" in parsed) {
-        setImportErrors([parsed.error]);
-        return;
-      }
-      const { groups, errors } = splitImportByProvider(parsed, data);
-      if (errors.length) {
-        setImportErrors(errors);
-        return;
-      }
-      // Each provider's rows are compared with that provider's saved slabs.
-      const plans = [];
-      for (const g of groups) {
-        const scoped =
-          g.providerId === data.providerId
-            ? data
-            : await fetchApi<RateCardData>("/admin/rate-card", g.providerId ? { providerId: g.providerId } : undefined);
-        plans.push(planImportGroup(g, scoped));
-      }
-      plan = mergeImportPlans(plans);
-    } catch (err) {
-      setImportErrors([err instanceof Error ? err.message : "Could not read this file. Save it again in Excel and retry."]);
-      return;
-    }
-    if (plan.errors.length) {
-      setImportErrors(plan.errors);
-      return;
-    }
-    if (plan.changes.length === 0) {
-      toast.success(`Nothing to change — all ${plan.rowsRead} rows already match the rate card`);
-      return;
-    }
-    setSaveReq({
-      title: "Import rate card — compare before saving",
-      changes: plan.changes,
-      compare: plan.compare,
-      warnings: [
-        `${plan.rowsRead} rows read · ${plan.unchangedRows} already match · ${plan.compare.length} slabs change. Slabs not in the file stay as they are.`,
-      ],
-    });
+  function onImported(importId: string | null, saved: number, fileName: string) {
+    setImportOpen(false);
+    if (!importId) return;
+    toast(
+      (t) => (
+        <span className="flex items-center gap-3 text-sm">
+          <span>
+            {saved} change{saved === 1 ? "" : "s"} imported from {fileName}.
+          </span>
+          <button
+            type="button"
+            className="shrink-0 font-bold underline"
+            style={{ color: B.blueLight }}
+            onClick={() => {
+              toast.dismiss(t.id);
+              setUndoTarget({ id: importId, fileName, changeCount: saved });
+            }}
+          >
+            Undo
+          </button>
+        </span>
+      ),
+      { duration: 20_000, icon: "✅" },
+    );
   }
 
   /** ✎ / 🗑 for a slab line ("+" sets provider income when none covers it); `withAdd` adds "Add slab". */
@@ -749,8 +716,23 @@ export function RateCardScreen() {
               <ExportMenu
                 disabled={!data || data.services.length === 0}
                 onPdf={exportPdf}
-                onExcel={() => data && downloadRateCardWorkbook(data, providerId ? providerName : "All providers")}
+                onExcel={() => data && downloadRateCardWorkbook(data, scopeName)}
                 onCsv={() => data && downloadCsv(`rate-card-${new Date().toISOString().slice(0, 10)}.csv`, rateCardCsv(data))}
+                extra={[
+                  {
+                    label: "Blank template (.xlsx)",
+                    icon: <FileSpreadsheet size={15} style={{ color: B.greenDark }} />,
+                    onClick: () => data && downloadRateCardWorkbook(data, scopeName, { template: true }),
+                  },
+                  ...(expandedRow
+                    ? [
+                        {
+                          label: `Only ${expandedRow.serviceName} (.xlsx)`,
+                          onClick: () => data && downloadRateCardWorkbook(data, scopeName, { serviceIds: [expandedRow.serviceId] }),
+                        },
+                      ]
+                    : []),
+                ]}
               />
               {sheetReadyCount > 0 ? (
                 <Btn
@@ -763,20 +745,22 @@ export function RateCardScreen() {
                 </Btn>
               ) : null}
               <Btn
-                variant="secondary"
+                variant="primary"
                 disabled={!data || saving}
-                onClick={() => importInput.current?.click()}
+                onClick={() => setImportOpen(true)}
                 title="Import the Excel (or CSV) from Export after editing it"
               >
                 <Upload size={14} /> Import
               </Btn>
-              <input
-                ref={importInput}
-                type="file"
-                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="hidden"
-                onChange={onImportFile}
-              />
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(true)}
+                className="inline-flex items-center gap-1 text-xs font-bold hover:underline"
+                style={{ color: B.blueLight }}
+                title="Last 20 imports — undo one within 24 hours"
+              >
+                <History size={13} /> Import history
+              </button>
             </div>
           </div>
 
@@ -1025,52 +1009,42 @@ export function RateCardScreen() {
           warnings={saveReq.warnings}
           compare={saveReq.compare}
           busy={saving}
+          progress={progress}
           onConfirm={(reason) => void runSave(reason)}
           onClose={() => setSaveReq(null)}
         />
       ) : null}
 
-      {importErrors ? (
-        <Modal
-          title="Import stopped"
-          eyebrow="Rate card CSV"
-          subtitle="Nothing was saved. Fix these rows in the file and import it again."
-          icon={<AlertTriangle size={22} />}
-          iconTone="red"
-          onClose={() => setImportErrors(null)}
-          wide={importErrors.length > 6}
-        >
-          <ul
-            className="max-h-[50vh] space-y-1.5 overflow-y-auto rounded-2xl border p-3 text-xs"
-            style={{ borderColor: "#FCA5A5", background: "#FEF2F2", color: B.danger }}
-          >
-            {importErrors.map((err) => (
-              <li key={err} className="flex items-start gap-1.5 font-semibold">
-                <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                {err}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-[11px]" style={{ color: B.muted }}>
-            Template: Export → Excel (or CSV). Pick Flat ₹ or Share % in the type column and type the number. Blank cells keep
-            what is saved; 0 sets ₹0.
-            Service name or code both work.
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Btn variant="destructive" onClick={() => setImportErrors(null)}>
-              Close
-            </Btn>
-            <Btn
-              variant="primary"
-              onClick={() => {
-                setImportErrors(null);
-                importInput.current?.click();
-              }}
-            >
-              Choose another file
-            </Btn>
-          </div>
-        </Modal>
+      {importOpen && data ? (
+        <RateCardImportModal
+          data={data}
+          saving={saving}
+          progress={progress}
+          runSave={runSave}
+          onClose={() => setImportOpen(false)}
+          onImported={onImported}
+        />
+      ) : null}
+
+      {historyOpen ? (
+        <ImportHistoryModal
+          onClose={() => setHistoryOpen(false)}
+          onUndo={(t) => {
+            setHistoryOpen(false);
+            setUndoTarget(t);
+          }}
+        />
+      ) : null}
+
+      {undoTarget ? (
+        <UndoImportModal
+          target={undoTarget}
+          onClose={() => setUndoTarget(null)}
+          onUndone={() => {
+            setUndoTarget(null);
+            setVersion((v) => v + 1);
+          }}
+        />
       ) : null}
     </div>
   );

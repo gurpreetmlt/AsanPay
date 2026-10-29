@@ -38,7 +38,7 @@ function ChangeList({ changes }: { changes: PendingChange[] }) {
 }
 
 /** Before → after table for an import, one block per slab. */
-function CompareTable({ rows }: { rows: CompareRow[] }) {
+export function CompareTable({ rows }: { rows: CompareRow[] }) {
   const newCount = rows.filter((r) => r.isNew).length;
   const valueCount = rows.reduce((n, r) => n + r.fields.length, 0);
   return (
@@ -102,7 +102,7 @@ function CompareTable({ rows }: { rows: CompareRow[] }) {
                   <td className="px-0 py-1.5" style={{ color: B.muted }}>
                     <ArrowRight size={12} />
                   </td>
-                  <td className="px-3 py-1.5 font-bold tabular-nums" style={{ color: f.after === "Not set" ? B.danger : B.greenDark }}>
+                  <td className="px-3 py-1.5 font-bold tabular-nums" style={{ color: f.after === "Not set" || f.after === "Removed" ? B.danger : B.greenDark }}>
                     {f.after}
                   </td>
                 </tr>
@@ -121,6 +121,7 @@ export function SaveConfirmModal({
   warnings,
   compare,
   busy,
+  progress,
   onConfirm,
   onClose,
 }: {
@@ -129,6 +130,7 @@ export function SaveConfirmModal({
   warnings: string[];
   compare?: CompareRow[];
   busy: boolean;
+  progress?: { done: number; total: number } | null;
   onConfirm: (reason: string) => void;
   onClose: () => void;
 }) {
@@ -203,7 +205,7 @@ export function SaveConfirmModal({
           Cancel
         </Btn>
         <Btn variant="primary" disabled={busy || !reasonOk} onClick={() => onConfirm(reason.trim())}>
-          {busy ? "Saving…" : "Save"}
+          {busy ? (progress && progress.total > 1 ? `Saving ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : "Saving…") : "Save"}
         </Btn>
       </div>
     </Modal>

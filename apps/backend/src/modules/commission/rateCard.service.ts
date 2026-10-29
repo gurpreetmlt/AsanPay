@@ -1,6 +1,7 @@
-import { and, asc, eq, gt, inArray, isNull, lte, notInArray, or } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, max, notInArray, or } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
+  commissionRateChangeEvents,
   commissionShares,
   providerPayoutRules,
   providers,
@@ -343,7 +344,7 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
     )
     .orderBy(asc(serviceCategories.displayOrder), asc(services.displayOrder));
 
-  const [cfg, charges, taxes, tenantTax, providerRows] = await Promise.all([
+  const [cfg, charges, taxes, tenantTax, providerRows, changeTimes] = await Promise.all([
     loadRateConfig(null, now),
     loadCharges(tenantId, null, now),
     Promise.all(serviceRows.map((s) => resolveTaxForService(tenantId, s.id, now))),
@@ -353,7 +354,15 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
       .from(providers)
       .where(eq(providers.isActive, true))
       .orderBy(asc(providers.name)),
+    db
+      .select({ serviceId: commissionRateChangeEvents.serviceId, at: max(commissionRateChangeEvents.createdAt) })
+      .from(commissionRateChangeEvents)
+      .where(eq(commissionRateChangeEvents.tenantId, tenantId))
+      .groupBy(commissionRateChangeEvents.serviceId),
   ]);
+  // Exported files carry this; import warns when a service changed after the file was made.
+  const changedAt = new Map(changeTimes.map((c) => [c.serviceId, c.at ? new Date(c.at).toISOString() : null]));
+  const lastChangedAt = [...changedAt.values()].reduce<string | null>((a, b) => (b && (!a || b > a) ? b : a), null);
 
   const inScope = (r: { providerId: string | null }) => r.providerId === null || r.providerId === providerId;
 
@@ -441,6 +450,17 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
         minAmount: r.minAmount,
         maxAmount: r.maxAmount,
       })),
+      /** Every role share row in scope (service default + slab-only), so a file import can restore them on undo. */
+      slabShares: slabShares.map((r) => ({
+        id: r.id,
+        providerId: r.providerId,
+        role: r.role,
+        sharePercent: r.sharePercent,
+        flatAmount: r.flatAmount,
+        minAmount: r.minAmount,
+        maxAmount: r.maxAmount,
+      })),
+      lastChangedAt: changedAt.get(s.id) ?? null,
       tax: taxView(tax),
       reference,
       slabs: slabBounds.map((b) => ({
@@ -455,6 +475,7 @@ export async function getRateCard(opts?: { providerId?: string | null }) {
   return {
     providerId,
     at: now.toISOString(),
+    lastChangedAt,
     providers: providerRows,
     tenantTax: tenantTaxView(tenantTax),
     services: rows,

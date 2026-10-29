@@ -341,3 +341,28 @@ export const commissionTaxMonthLocks = pgTable(
   },
   (table) => [uniqueIndex("commission_tax_month_locks_tenant_month_key").on(table.tenantId, table.yearMonth)],
 );
+
+/** One admin rate card file import; `inverseChanges` restores the rates it replaced (undo within 24 h, once). */
+export const rateCardImports = pgTable(
+  "rate_card_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    adminId: uuid("admin_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    fileName: varchar("file_name", { length: 200 }).notNull(),
+    reason: text("reason"),
+    /** [{ serviceId, serviceName, providerName, changes }] */
+    services: jsonb("services").notNull().default([]),
+    changeCount: integer("change_count").notNull(),
+    /** PendingChange-like writes, already in replay order. */
+    inverseChanges: jsonb("inverse_changes").notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    undoneAt: timestamp("undone_at", { withTimezone: true }),
+    undoneBy: uuid("undone_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (table) => [index("rate_card_imports_tenant_created_idx").on(table.tenantId, table.createdAt)],
+);
