@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { AlertTriangle, Copy, KeyRound, ShieldCheck, ShieldOff, Smartphone } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Modal } from "@/components/ui/Modal";
@@ -314,9 +315,18 @@ export default function SecuritySettingsPage() {
                 <div className="flex items-center gap-2">
                   <Smartphone size={16} style={{ color: B.blueLight }} />
                   <p className="text-sm font-semibold" style={{ color: B.blue }}>
-                    In the app: Add account → Enter a setup key
+                    In the app: tap + → Scan a QR code
                   </p>
                 </div>
+                <div className="flex flex-col items-center gap-2 rounded-xl border p-3" style={{ borderColor: B.border, background: "#fff" }}>
+                  <QRCodeSVG value={setup.otpauthUrl} size={176} level="M" marginSize={2} aria-label="Authenticator setup QR code" />
+                  <p className="text-center text-[11px]" style={{ color: B.muted }}>
+                    Works with Google Authenticator and Microsoft Authenticator. Do not share or screenshot this code.
+                  </p>
+                </div>
+                <p className="text-xs font-semibold" style={{ color: B.muted }}>
+                  Can&apos;t scan? Tap + → Enter a setup key, and use:
+                </p>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-xl border p-2.5" style={{ borderColor: B.border }}>
                     <p className="text-[11px] uppercase tracking-wide" style={{ color: B.muted }}>
@@ -350,28 +360,6 @@ export default function SecuritySettingsPage() {
                   >
                     <Copy size={13} />
                     Copy key
-                  </button>
-                </div>
-                <div className="mt-auto rounded-xl border p-3" style={{ borderColor: B.border }}>
-                  <p className="text-[11px] uppercase tracking-wide" style={{ color: B.muted }}>
-                    Setup link (for apps that accept otpauth links)
-                  </p>
-                  <textarea
-                    readOnly
-                    rows={3}
-                    value={setup.otpauthUrl}
-                    onFocus={(e) => e.currentTarget.select()}
-                    className="mt-1 w-full resize-none rounded-lg border p-2 font-mono text-[11px]"
-                    style={{ borderColor: B.border, background: B.bg, color: B.blue }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void copyText(setup.otpauthUrl, "Setup link")}
-                    className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold"
-                    style={{ color: B.blueLight }}
-                  >
-                    <Copy size={13} />
-                    Copy link
                   </button>
                 </div>
               </div>
