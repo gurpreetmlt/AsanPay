@@ -1,9 +1,15 @@
 import { createHmac } from "node:crypto";
 import { Router, type Request } from "express";
 import { env } from "../../../config/env";
+import { clientIp } from "../../../middleware/rateLimiter";
 import { logger } from "../../../utils/logger";
 import { safeEqual } from "../../../utils/safeEqual";
-import { getWebhookSecrets, isWebhookAuthConfigured, recordWebhookKeyUse } from "../../webhookKeys/webhookKeys.service";
+import {
+  getWebhookSecrets,
+  isWebhookAuthConfigured,
+  recordWebhookDelivery,
+  recordWebhookKeyUse,
+} from "../../webhookKeys/webhookKeys.service";
 import { processWhatsAppWebhookPayload } from "./support.service";
 
 /**
@@ -57,6 +63,13 @@ whatsappWebhookRouter.post("/", async (req, res) => {
       if (isValidMetaSignature(rawBody, signature, secret) && matchedId == null) matchedId = id;
     }
     if (matchedId == null) {
+      recordWebhookDelivery({
+        provider: "whatsapp",
+        keyId: null,
+        result: signature?.trim() ? "bad_token" : "no_token",
+        httpStatus: 401,
+        ip: clientIp(req),
+      });
       logger.warn({ ip: req.ip, hasSignature: Boolean(signature) }, "WhatsApp webhook signature rejected");
       res.status(401).json({
         success: false,
@@ -66,6 +79,7 @@ whatsappWebhookRouter.post("/", async (req, res) => {
       return;
     }
     recordWebhookKeyUse(matchedId);
+    recordWebhookDelivery({ provider: "whatsapp", keyId: matchedId, result: "ok", httpStatus: 200, ip: clientIp(req) });
   }
 
   // Ack immediately — Meta retries on slow/4xx/5xx.

@@ -1,9 +1,15 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import { clientIp } from "../../../middleware/rateLimiter";
 import { HttpError } from "../../../utils/httpError";
 import { sendSuccess } from "../../../utils/apiResponse";
 import { settleTxnFromProviderCallback } from "../../transactions/txn.service";
-import { isWebhookAuthConfigured, verifyWebhookToken } from "../../webhookKeys/webhookKeys.service";
+import { isTestCallbackBody } from "../../webhookKeys/webhookKeys.helpers";
+import {
+  checkCallbackToken,
+  isWebhookAuthConfigured,
+  recordWebhookDelivery,
+} from "../../webhookKeys/webhookKeys.service";
 import { mapVyaparTxnStatus } from "./status";
 import type { ProviderResult } from "../types";
 
@@ -21,7 +27,8 @@ const callbackSchema = z.object({
 async function assertCallbackAuth(
   tokenFromQueryOrBody: string | undefined,
   headerToken: string | undefined,
-): Promise<void> {
+  ip: string | null,
+): Promise<string> {
   if (!(await isWebhookAuthConfigured("vyaparapi"))) {
     throw new HttpError(
       503,
@@ -30,9 +37,11 @@ async function assertCallbackAuth(
     );
   }
   const got = (tokenFromQueryOrBody || headerToken || "").trim();
-  if (!(await verifyWebhookToken("vyaparapi", got))) {
+  const keyId = await checkCallbackToken("vyaparapi", got, ip);
+  if (!keyId) {
     throw new HttpError(401, "Invalid VyaparAPI callback token", "VYAPARAPI_CALLBACK_UNAUTHORIZED");
   }
+  return keyId;
 }
 
 function toProviderResult(payload: z.infer<typeof callbackSchema>): ProviderResult {
@@ -63,35 +72,65 @@ async function handleCallback(req: {
   query: Record<string, unknown>;
   body: Record<string, unknown>;
   header: (name: string) => string | undefined;
-}): Promise<{ txnRef: string; status: string }> {
+  ip: string | null;
+}): Promise<{ test: true } | { txnRef: string; status: string }> {
   const merged = { ...req.query, ...req.body };
+  const keyId = await assertCallbackAuth(
+    typeof merged.token === "string" ? merged.token : undefined,
+    req.header("x-vyapar-token") ?? req.header("x-callback-token"),
+    req.ip,
+  );
+
+  if (isTestCallbackBody(req.body)) {
+    recordWebhookDelivery({ provider: "vyaparapi", keyId, result: "test", httpStatus: 200, ip: req.ip });
+    return { test: true };
+  }
+
   const parsed = callbackSchema.safeParse(merged);
   if (!parsed.success) {
     const msg = parsed.error.issues[0]?.message ?? "Invalid callback payload";
+    recordWebhookDelivery({ provider: "vyaparapi", keyId, result: "error", httpStatus: 400, ip: req.ip, note: msg });
     throw new HttpError(400, msg, "VYAPARAPI_CALLBACK_INVALID");
   }
 
-  await assertCallbackAuth(parsed.data.token, req.header("x-vyapar-token") ?? req.header("x-callback-token"));
+  const txnRef = parsed.data.partnerid;
+  try {
+    const result = toProviderResult(parsed.data);
+    const outcome = await settleTxnFromProviderCallback(txnRef, result);
+    recordWebhookDelivery({ provider: "vyaparapi", keyId, result: "ok", httpStatus: 200, ip: req.ip, txnRef });
+    return { txnRef: outcome.txn.txnRef, status: outcome.txn.status };
+  } catch (err) {
+    recordWebhookDelivery({
+      provider: "vyaparapi",
+      keyId,
+      result: "error",
+      httpStatus: err instanceof HttpError ? err.statusCode : 500,
+      ip: req.ip,
+      txnRef,
+      note: err instanceof HttpError ? err.message : "Callback could not be processed",
+    });
+    throw err;
+  }
+}
 
-  const result = toProviderResult(parsed.data);
-  const outcome = await settleTxnFromProviderCallback(parsed.data.partnerid, result);
-  return { txnRef: outcome.txn.txnRef, status: outcome.txn.status };
+async function respond(req: Request, res: Response, body: Record<string, unknown>): Promise<void> {
+  const data = await handleCallback({
+    query: req.query as Record<string, unknown>,
+    body,
+    header: (n) => req.header(n),
+    ip: clientIp(req),
+  });
+  if ("test" in data) {
+    res.status(200).json({ status: 1, message: "Test callback received" });
+    return;
+  }
+  sendSuccess(res, data);
 }
 
 vyaparapiWebhookRouter.get("/callback", async (req, res) => {
-  const data = await handleCallback({
-    query: req.query as Record<string, unknown>,
-    body: {},
-    header: (n) => req.header(n),
-  });
-  sendSuccess(res, data);
+  await respond(req, res, {});
 });
 
 vyaparapiWebhookRouter.post("/callback", async (req, res) => {
-  const data = await handleCallback({
-    query: req.query as Record<string, unknown>,
-    body: (req.body ?? {}) as Record<string, unknown>,
-    header: (n) => req.header(n),
-  });
-  sendSuccess(res, data);
+  await respond(req, res, (req.body ?? {}) as Record<string, unknown>);
 });

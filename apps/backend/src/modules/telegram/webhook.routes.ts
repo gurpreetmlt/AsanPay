@@ -1,14 +1,16 @@
 import { Router } from "express";
+import { clientIp } from "../../middleware/rateLimiter";
 import { HttpError } from "../../utils/httpError";
 import { sendSuccess } from "../../utils/apiResponse";
 import { logger } from "../../utils/logger";
-import { isWebhookAuthConfigured, verifyWebhookToken } from "../webhookKeys/webhookKeys.service";
+import { isTestCallbackBody } from "../webhookKeys/webhookKeys.helpers";
+import { checkCallbackToken, isWebhookAuthConfigured, recordWebhookDelivery } from "../webhookKeys/webhookKeys.service";
 import { telegramSendMessage } from "./client";
 import { bindTelegramFromStartPayload } from "./link.service";
 
 export const telegramWebhookRouter = Router();
 
-async function assertWebhookAuth(headerToken: string | undefined, queryToken: unknown): Promise<void> {
+async function assertWebhookAuth(headerToken: string | undefined, queryToken: unknown, ip: string | null): Promise<string> {
   if (!(await isWebhookAuthConfigured("telegram"))) {
     throw new HttpError(
       503,
@@ -17,13 +19,15 @@ async function assertWebhookAuth(headerToken: string | undefined, queryToken: un
     );
   }
   const got = headerToken?.trim() || (typeof queryToken === "string" ? queryToken : "");
-  if (!(await verifyWebhookToken("telegram", got))) {
+  const keyId = await checkCallbackToken("telegram", got, ip);
+  if (!keyId) {
     throw new HttpError(
       401,
       "Invalid Telegram webhook secret. X-Telegram-Bot-Api-Secret-Token must match an active Telegram key.",
       "TELEGRAM_WEBHOOK_UNAUTHORIZED",
     );
   }
+  return keyId;
 }
 
 type TgUpdate = {
@@ -34,7 +38,14 @@ type TgUpdate = {
 };
 
 telegramWebhookRouter.post("/", async (req, res) => {
-  await assertWebhookAuth(req.header("x-telegram-bot-api-secret-token"), req.query.token);
+  const ip = clientIp(req);
+  const keyId = await assertWebhookAuth(req.header("x-telegram-bot-api-secret-token"), req.query.token, ip);
+  if (isTestCallbackBody(req.body)) {
+    recordWebhookDelivery({ provider: "telegram", keyId, result: "test", httpStatus: 200, ip });
+    res.status(200).json({ status: 1, message: "Test callback received" });
+    return;
+  }
+  recordWebhookDelivery({ provider: "telegram", keyId, result: "ok", httpStatus: 200, ip });
   const update = (req.body ?? {}) as TgUpdate;
   const chatId = update.message?.chat?.id != null ? String(update.message.chat.id) : "";
   const text = (update.message?.text ?? "").trim();

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, integer, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 /**
@@ -13,6 +13,8 @@ export const webhookKeys = pgTable(
     provider: varchar("provider", { length: 30 }).notNull(),
     name: varchar("name", { length: 120 }).notNull(),
     notes: varchar("notes", { length: 300 }),
+    /** Services this key is used for, from the provider's allowed list (e.g. ["UPI QR","CMS"]). */
+    services: jsonb("services").$type<string[]>().notNull().default([]),
     secretEncrypted: text("secret_encrypted").notNull(),
     secretLast4: varchar("secret_last4", { length: 4 }).notNull(),
     /** generated | pasted */
@@ -29,4 +31,25 @@ export const webhookKeys = pgTable(
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
   },
   (t) => [index("webhook_keys_provider_status_idx").on(t.provider, t.status)],
+);
+
+/** One row per incoming callback (latest 500 per provider). Never stores the token. */
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    provider: varchar("provider", { length: 30 }).notNull(),
+    keyId: uuid("key_id").references(() => webhookKeys.id, { onDelete: "set null" }),
+    /** ok | bad_token | no_token | error | test */
+    result: varchar("result", { length: 16 }).notNull(),
+    httpStatus: integer("http_status"),
+    ip: varchar("ip", { length: 64 }),
+    txnRef: varchar("txn_ref", { length: 80 }),
+    note: varchar("note", { length: 200 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("webhook_deliveries_key_created_idx").on(t.keyId, t.createdAt.desc()),
+    index("webhook_deliveries_provider_created_idx").on(t.provider, t.createdAt.desc()),
+  ],
 );

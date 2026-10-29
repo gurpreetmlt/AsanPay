@@ -1,9 +1,14 @@
 import { Router } from "express";
 import { env } from "../../../config/env";
 import { insertProviderLog } from "../../../db/postgres/repositories/providerLog";
-import { nobleCallbackLimiter } from "../../../middleware/rateLimiter";
+import { clientIp, nobleCallbackLimiter } from "../../../middleware/rateLimiter";
 import { logger } from "../../../utils/logger";
-import { isWebhookAuthConfigured, verifyWebhookToken } from "../../webhookKeys/webhookKeys.service";
+import { isTestCallbackBody } from "../../webhookKeys/webhookKeys.helpers";
+import {
+  checkCallbackToken,
+  isWebhookAuthConfigured,
+  recordWebhookDelivery,
+} from "../../webhookKeys/webhookKeys.service";
 
 export const nobleWebhookRouter = Router();
 
@@ -40,6 +45,8 @@ function pickTxnRef(payload: Record<string, unknown>): string | null {
  * Transactions are still settled through the status-check APIs until the payload shape is confirmed.
  */
 nobleWebhookRouter.post("/callback", nobleCallbackLimiter, async (req, res) => {
+  const ip = clientIp(req);
+  let keyId: string | null = null;
   if (!(await isWebhookAuthConfigured("noble"))) {
     if (env.NODE_ENV === "production") {
       res.status(503).json({
@@ -51,7 +58,8 @@ nobleWebhookRouter.post("/callback", nobleCallbackLimiter, async (req, res) => {
   } else {
     const queryToken = typeof req.query.token === "string" ? req.query.token : "";
     const got = (req.header("x-callback-token") || queryToken).trim();
-    if (!(await verifyWebhookToken("noble", got))) {
+    keyId = await checkCallbackToken("noble", got, ip);
+    if (!keyId) {
       logger.warn({ ip: req.ip, hasToken: Boolean(got) }, "AEPS provider callback rejected: bad token");
       res.status(401).json({
         status: 0,
@@ -62,6 +70,11 @@ nobleWebhookRouter.post("/callback", nobleCallbackLimiter, async (req, res) => {
   }
 
   const payload = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+  if (keyId && isTestCallbackBody(payload)) {
+    recordWebhookDelivery({ provider: "noble", keyId, result: "test", httpStatus: 200, ip });
+    res.status(200).json({ status: 1, message: "Test callback received" });
+    return;
+  }
   const { token: _token, ...safeQuery } = req.query as Record<string, unknown>;
   const txnRef = pickTxnRef(payload);
 
@@ -85,5 +98,6 @@ nobleWebhookRouter.post("/callback", nobleCallbackLimiter, async (req, res) => {
     durationMs: 0,
   }).catch((err: unknown) => logger.error({ err }, "failed to store AEPS provider callback"));
 
+  recordWebhookDelivery({ provider: "noble", keyId, result: "ok", httpStatus: 200, ip, txnRef });
   res.status(200).json({ status: 1, statusCode: "SS0000", message: "Callback received" });
 });
