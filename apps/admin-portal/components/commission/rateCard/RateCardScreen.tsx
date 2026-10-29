@@ -324,7 +324,8 @@ export function RateCardScreen() {
   function deletePicked(row: ServiceRow) {
     const slabs = pickedSlabs(row);
     if (slabs.length === 0) return;
-    if (slabs.length === row.slabs.length) {
+    // Everything selectable is ticked: same as deleting all slabs (also clears slab-only role shares).
+    if (slabs.length === deletableSlabs(row).length) {
       setSaveReq(endAllSlabsRequest(row));
       return;
     }
@@ -996,16 +997,6 @@ export function RateCardScreen() {
                                   >
                                     <Plus size={13} /> Add slab to {row.serviceName}
                                   </button>
-                                  {canDeleteAll(row) ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setSaveReq(endAllSlabsRequest(row))}
-                                      className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-xl border py-1.5 text-xs font-bold transition hover:bg-[#FEF2F2]"
-                                      style={{ borderColor: "#FCA5A5", color: B.danger }}
-                                    >
-                                      <Trash2 size={13} /> Delete all {row.slabs.length} slabs
-                                    </button>
-                                  ) : null}
                                 </td>
                               </tr>
                             ) : null}
