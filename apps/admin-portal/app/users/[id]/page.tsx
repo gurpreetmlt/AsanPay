@@ -62,6 +62,9 @@ import {
 import { Modal } from "@/components/ui/Modal";
 import { AgentRateCard } from "@/components/users/AgentRateCard";
 import { NightAccessCard } from "@/components/users/NightAccessCard";
+import { ServiceAccessCard } from "@/components/users/ServiceAccessCard";
+import { TxnLimitsCard } from "@/components/users/TxnLimitsCard";
+import { RoleAccountCard } from "@/components/users/RoleAccountCard";
 import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
 import api, { fetchApi } from "@/lib/api";
@@ -128,7 +131,7 @@ const TABS: Array<{ id: AgentTab; label: string; icon: LucideIcon }> = [
   { id: "kyc", label: "KYC", icon: FileCheck2 },
   { id: "wallet", label: "Wallet & bank", icon: Wallet },
   { id: "commission", label: "Commission", icon: Percent },
-  { id: "controls", label: "Controls", icon: SlidersHorizontal },
+  { id: "controls", label: "Services & limits", icon: SlidersHorizontal },
 ];
 
 const initialsOf = (name: string) =>
@@ -1433,7 +1436,7 @@ export default function AgentDetailPage() {
                       <QuickAction icon={FileCheck2} label="Review KYC" hint="Documents, approve or reject" onClick={() => setTab("kyc")} />
                       <QuickAction icon={Percent} label="Custom commission" hint="Per-slab rate for this agent" onClick={() => setTab("commission")} />
                       <QuickAction icon={Wallet} label="Wallet & banks" hint="Balances and settlement banks" onClick={() => setTab("wallet")} />
-                      <QuickAction icon={SlidersHorizontal} label="Controls" hint="Restrict, move or reactivate" onClick={() => setTab("controls")} />
+                      <QuickAction icon={SlidersHorizontal} label="Services & limits" hint="Service on/off, limits, role, restrict" onClick={() => setTab("controls")} />
                     </div>
                   </DetailSection>
                 </div>
@@ -1697,6 +1700,7 @@ export default function AgentDetailPage() {
             {tab === "controls" ? (
               <div className="agent-tab-in grid gap-5 lg:grid-cols-2">
                 <div className="space-y-5">
+                  <ServiceAccessCard userId={agent.id} agentName={agent.name} />
                   <DetailSection title="Login" icon={KeyRound}>
                     <LoginEmailCard agent={agent} busy={busy} onResend={askResendLoginEmail} />
                     {agent.isFrozen ? (
@@ -1764,6 +1768,7 @@ export default function AgentDetailPage() {
 
                 <div className="space-y-5">
                   <NightAccessCard userId={agent.id} agentName={agent.name} />
+                  <RoleAccountCard userId={agent.id} uid={agent.uid} agentName={agent.name} onChanged={() => void load()} />
                   {agent.role === "distributor" || agent.role === "retailer" ? (
                     <DetailSection title="Move in tree" icon={Network}>
                       <div className="mb-3">
@@ -1812,6 +1817,10 @@ export default function AgentDetailPage() {
                       </div>
                     </DetailSection>
                   ) : null}
+                </div>
+
+                <div className="lg:col-span-2">
+                  <TxnLimitsCard userId={agent.id} agentName={agent.name} />
                 </div>
               </div>
             ) : null}

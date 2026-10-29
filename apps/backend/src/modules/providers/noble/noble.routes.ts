@@ -7,6 +7,7 @@ import { sendSuccess } from "../../../utils/apiResponse";
 import { HttpError } from "../../../utils/httpError";
 import { executeServiceTxn, recheckTxnStatus } from "../../transactions/txn.service";
 import { serviceWindowGuard } from "../../serviceWindow/serviceWindow.service";
+import { serviceBlockGuard } from "../../agentControls/agentControls.service";
 import {
   CMS_PROVIDERS,
   checkCashCollection,
@@ -28,6 +29,7 @@ nobleRouter.use(requireAuth);
 
 const retailer = requireRole("retailer");
 const adminOrRetailer = requireRole("admin", "retailer");
+const upiCashPointOn = serviceBlockGuard("upi_cash_point");
 
 const upiLoadSchema = z.object({
   channel: z.enum(["APP", "WEB"]).optional().default("APP"),
@@ -80,7 +82,7 @@ const reconSchema = z.object({
 });
 
 // ── UPI QR ──────────────────────────────────────────────────────────────
-nobleRouter.post("/upi-qr/load", retailer, validateBody(upiLoadSchema), async (req, res) => {
+nobleRouter.post("/upi-qr/load", retailer, upiCashPointOn, validateBody(upiLoadSchema), async (req, res) => {
   sendSuccess(
     res,
     await nobleUpiQrLoad(req.auth!.sub, {
@@ -90,7 +92,7 @@ nobleRouter.post("/upi-qr/load", retailer, validateBody(upiLoadSchema), async (r
   );
 });
 
-nobleRouter.post("/upi-qr/kyc", retailer, validateBody(upiKycSchema), async (req, res) => {
+nobleRouter.post("/upi-qr/kyc", retailer, upiCashPointOn, validateBody(upiKycSchema), async (req, res) => {
   const body = req.body as z.infer<typeof upiKycSchema>;
   sendSuccess(
     res,
@@ -105,7 +107,7 @@ nobleRouter.post("/upi-qr/kyc", retailer, validateBody(upiKycSchema), async (req
 });
 
 // Each QR is a UPI Cash Point txn: pending until paid, then the AEPS wallet is credited on settle.
-nobleRouter.post("/upi-qr/generate", retailer, validateBody(upiGenerateSchema), async (req, res) => {
+nobleRouter.post("/upi-qr/generate", retailer, upiCashPointOn, validateBody(upiGenerateSchema), async (req, res) => {
   const body = req.body as z.infer<typeof upiGenerateSchema>;
   const userId = req.auth!.sub;
   const input: UpiQrGenerateInput = {

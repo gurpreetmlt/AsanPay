@@ -1261,3 +1261,25 @@ html.dark .popup-close {
     transform: none;
   }
 }
+
+/* Status list rows in popups (role change / close checks) — stagger with animationDelay. */
+@keyframes la-check-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.la-check-row {
+  animation: la-check-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .la-check-row {
+    animation: none;
+  }
+}

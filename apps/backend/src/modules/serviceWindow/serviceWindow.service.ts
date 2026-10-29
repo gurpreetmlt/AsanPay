@@ -7,6 +7,7 @@ import { HttpError } from "../../utils/httpError";
 import { resolveTenantId } from "../fund-requests/tenant";
 import { asSettings } from "../tenants/tenantSettings.service";
 import { closedMessage, hmLabel, isInsideWindow, type NightWindow } from "./serviceWindow.math";
+import { assertServiceNotBlocked } from "../agentControls/agentControls.service";
 
 export { closedMessage, hmLabel, isInsideWindow, type NightWindow };
 
@@ -74,10 +75,14 @@ export async function assertServiceOpen(userId: string, group: ServiceGroup): Pr
   throw new HttpError(423, closedMessage(w), "SERVICE_WINDOW_CLOSED");
 }
 
-/** Route guard: `txnRouter.post("/aeps/withdraw", serviceWindowGuard("aeps"), …)`. */
+/**
+ * Route guard: `txnRouter.post("/aeps/withdraw", serviceWindowGuard("aeps"), …)`. Also rejects a
+ * group the admin turned off for this agent — that wins over the night window.
+ */
 export function serviceWindowGuard(group: ServiceGroup) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+    await assertServiceNotBlocked(req.auth.sub, group);
     await assertServiceOpen(req.auth.sub, group);
     next();
   };

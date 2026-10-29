@@ -38,4 +38,5 @@ export * from "./support";
 export * from "./whatsappSupport";
 export * from "./userPhotos";
 export * from "./nightServiceExceptions";
+export * from "./agentControls";
 export * from "./relations";

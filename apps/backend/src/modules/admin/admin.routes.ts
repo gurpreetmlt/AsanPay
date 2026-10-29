@@ -142,6 +142,125 @@ adminRouter.delete("/users/:id/night-access/:group", async (req, res) => {
   sendSuccess(res, await clearNightAccess(req.auth.sub, req.params.id, group, reason), "Night access removed");
 });
 
+/** Like schema.parse, but the client gets the first field message instead of "Validation failed". */
+function parseBody<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
+  const r = schema.safeParse(body ?? {});
+  if (!r.success) {
+    const issue = r.error.issues[0];
+    throw new HttpError(422, issue?.message ?? `Check ${String(issue?.path[0] ?? "the form")} and try again`, "VALIDATION_ERROR");
+  }
+  return r.data;
+}
+
+const reasonField = z
+  .string({ message: "Enter a reason (at least 3 characters)" })
+  .trim()
+  .min(3, "Enter a reason (at least 3 characters)")
+  .max(300, "Reason must be at most 300 characters");
+const limitField = (label: string) =>
+  z
+    .number({ message: `${label} must be a number` })
+    .positive(`${label} must be more than ₹0`)
+    .nullable();
+
+adminRouter.get("/users/:id/service-access", async (req, res) => {
+  const { listServiceAccess } = await import("../agentControls/agentControls.service");
+  sendSuccess(res, await listServiceAccess(req.params.id));
+});
+
+adminRouter.put("/users/:id/service-access", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setServiceAccess, AGENT_SERVICE_GROUPS, AGENT_SERVICE_LABEL } = await import("../agentControls/agentControls.service");
+  const body = parseBody(
+    z.object({
+      group: z.enum(AGENT_SERVICE_GROUPS, { message: "Pick a service" }),
+      enabled: z.boolean({ message: "Send enabled: true or false" }),
+      reason: reasonField,
+    }),
+    req.body,
+  );
+  const label = AGENT_SERVICE_LABEL[body.group];
+  sendSuccess(
+    res,
+    await setServiceAccess(req.auth.sub, req.params.id, body),
+    body.enabled ? `${label} turned on` : `${label} turned off`,
+  );
+});
+
+adminRouter.get("/users/:id/txn-limits", async (req, res) => {
+  const { listAgentLimits } = await import("../agentControls/agentControls.service");
+  sendSuccess(res, await listAgentLimits(req.params.id));
+});
+
+adminRouter.put("/users/:id/txn-limits", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setAgentLimit, AGENT_SERVICE_GROUPS } = await import("../agentControls/agentControls.service");
+  const body = parseBody(
+    z.object({
+      group: z.enum(AGENT_SERVICE_GROUPS, { message: "Pick a service" }),
+      perTxnRupees: limitField("Per transaction limit"),
+      dailyRupees: limitField("Daily limit"),
+      monthlyRupees: limitField("Monthly limit"),
+      reason: reasonField,
+    }),
+    req.body,
+  );
+  sendSuccess(res, await setAgentLimit(req.auth.sub, req.params.id, body), "Transaction limits saved");
+});
+
+adminRouter.delete("/users/:id/txn-limits/:group", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { clearAgentLimit, AGENT_SERVICE_GROUPS } = await import("../agentControls/agentControls.service");
+  const group = parseBody(z.enum(AGENT_SERVICE_GROUPS, { message: "Pick a service" }), req.params.group);
+  const { reason } = parseBody(z.object({ reason: reasonField }), req.body);
+  sendSuccess(res, await clearAgentLimit(req.auth.sub, req.params.id, group, reason), "Limits reset to platform defaults");
+});
+
+adminRouter.get("/users/:id/account-controls", async (req, res) => {
+  const { getAccountControls } = await import("../agentControls/agentAccount.service");
+  sendSuccess(res, await getAccountControls(req.params.id));
+});
+
+adminRouter.post("/users/:id/role", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { changeAgentRole, AGENT_ROLES } = await import("../agentControls/agentAccount.service");
+  const body = parseBody(
+    z.object({
+      newRole: z.enum(AGENT_ROLES, { message: "Pick the new role" }),
+      upline: z
+        .string()
+        .trim()
+        .max(20, "Upline mobile or agent ID must be at most 20 characters")
+        .nullable()
+        .optional()
+        .default(null),
+      reason: reasonField,
+    }),
+    req.body,
+  );
+  sendSuccess(res, await changeAgentRole(req.auth.sub, req.params.id, body), "Role changed");
+});
+
+adminRouter.post("/users/:id/close", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { closeAgentAccount } = await import("../agentControls/agentAccount.service");
+  const body = parseBody(
+    z.object({
+      reason: reasonField,
+      confirmUid: z.string({ message: "Type the agent ID to confirm" }).trim().min(1, "Type the agent ID to confirm").max(20),
+    }),
+    req.body,
+  );
+  sendSuccess(res, await closeAgentAccount(req.auth.sub, req.params.id, body), "Account closed");
+});
+
+adminRouter.post("/users/:id/reopen", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { reopenAgentAccount } = await import("../agentControls/agentAccount.service");
+  const { reason } = parseBody(z.object({ reason: reasonField }), req.body);
+  sendSuccess(res, await reopenAgentAccount(req.auth.sub, req.params.id, reason), "Account reopened");
+});
+
 adminRouter.get("/users/:id/photo", async (req, res) => {
   const { getUserPhotoBytes } = await import("../account/profilePhoto.service");
   const photo = await getUserPhotoBytes(req.params.id);

@@ -18,6 +18,7 @@
 - [x] KYC queue UI
 - [x] Commission scheme builder (role defaults)
 - [x] Per-agent service commission overrides (admin agent detail)
+- [x] Admin agent page → Services & limits (PL-31 phase 1): per-agent service on/off (incl. UPI Cash Point), per txn / daily / monthly limits per service, role change, soft account close / reopen (migration `0093`)
 - [x] Commission page: AEPS sub-services collapsed to one shared-rate row (Task 25)
 - [x] Wallet page shows Pending balance (Wallet 1 / Wallet 2)
 - [x] Role rename: `master_distributor` → `super_distributor` (enum + UI code; migration `0032`)

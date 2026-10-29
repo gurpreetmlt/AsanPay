@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-31 | Agent controls — every per-agent control on the admin agent page, by tab: service on/off, limits, role change, account close, security (logout all, PIN reset, unlock, devices, location), wallet hold, fund limits, commission hold, activity timeline, notes, tags | Backend, admin | XL | building — phase 1 of 4 shipped 29 Oct | — | [agent-controls-queue.md](TASKS/agent-controls-queue.md) |
 | PL-30 | Agent profile photo — agent sets / changes / removes it in Settings (web) and Account (app); shown in header menu and on the admin agent page (falls back to KYC selfie, then initials) | Backend, agent web, mobile, admin | M | built — 28 Oct (migration 0091 `user_photos`, `/api/account/photo`, `/admin/users/:id/photo`) | — | — |
 | PL-29 | Agent custom commission like the rate card — per-slab Flat ₹ / Share % (of provider pays) for one agent, live calc vs default; modern admin agent page with tabs | Backend, admin | L | built — 28 Oct (migration 0090, `/admin/users/:id/commission-slabs`, `AgentRateCard` in agent Commission tab) | — | — |
 | PL-28 | Night service window — all services off 12:00 AM–6:00 AM IST by default; admin changes the time / turns it off, and can keep services open for chosen retailers | Backend, admin, web, mobile | M | built — 29 Oct (migration 0092, guard on AePS/DMT/BBPS/recharge/CMS routes, Platform settings card, agent Controls → Night services per service, dashboard banner web + app; tile badges = follow-up) | — | — |
@@ -39,6 +40,23 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-31 — Agent controls (all per-agent levers on the agent page)
+
+**Problem:** Admin can only restrict (Soft/Hard/Freeze), move upline, reactivate AePS and open night services. Support and risk need finer levers per agent.
+
+**Plan** (tab → controls; build order in the task file)
+- Services & limits (renamed Controls): per-service on/off, per-agent transaction limits, role change, account close (+ existing restrict, night services, move, AePS reactivate).
+- Security (new tab): logout all devices, password / MPIN / TPIN reset, unlock, trusted + biometric devices, location reset / exempt / radius.
+- Wallet & bank: wallet hold (lien), settlement-only block, manual credit/debit (dual approval), fund request limits.
+- Commission: payout hold.
+- Activity (new tab): admin-change timeline, notes, tags (tags also in the hero).
+
+**Open decisions**
+- [ ] Manual credit/debit threshold for dual approval (reuse fund-request dual limit?)
+- [ ] Who sees tags — admin only (recommended)
+
+**Notes:** Owner asked for all 10 on 29 Oct. One phase per chat.
 
 ## PL-30 — Agent profile photo
 

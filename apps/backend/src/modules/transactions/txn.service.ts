@@ -33,13 +33,22 @@ import type { UserRole, WalletType } from "@asanpay/shared-types";
 import { resolveCustomerFee } from "../service-charges/serviceCharge.service";
 import { evaluateVelocitySpike, effectiveDailyLimit } from "../limits/velocity.service";
 import {
+  DEFAULT_DMT_LIMITS,
   DMT_LIMIT_STATUSES,
   DMT_SERVICE_CODES,
   assertDmtLimits,
   isDmtServiceCode,
   istDayStart,
   istMonthStart,
+  type DmtLimits,
 } from "../limits/moneyLimits";
+import {
+  assertAgentPerTxnLimit,
+  assertAgentPeriodLimitsInTx,
+  assertServiceNotBlocked,
+  getAgentLimit,
+  serviceGroupForCode,
+} from "../agentControls/agentControls.service";
 import { upsertReconException } from "../limits/moneyExceptions";
 import { resolveTaxForService, splitFeeGstRupees } from "../commission/tax.service";
 
@@ -248,6 +257,7 @@ async function assertDmtLimitsInTx(
   actorId: string,
   metadata: Record<string, unknown>,
   amount: string,
+  limits: DmtLimits = DEFAULT_DMT_LIMITS,
 ): Promise<void> {
   const remitterMobile = typeof metadata.customerMobile === "string" ? metadata.customerMobile.trim() : "";
   if (!/^\d{10}$/.test(remitterMobile)) {
@@ -275,11 +285,14 @@ async function assertDmtLimitsInTx(
       ),
     );
 
-  assertDmtLimits({
-    amountPaise: toPaise(amount),
-    remitterMonthPaise: toPaise(row?.remitterMonth ?? "0"),
-    agentDayPaise: toPaise(row?.agentDay ?? "0"),
-  });
+  assertDmtLimits(
+    {
+      amountPaise: toPaise(amount),
+      remitterMonthPaise: toPaise(row?.remitterMonth ?? "0"),
+      agentDayPaise: toPaise(row?.agentDay ?? "0"),
+    },
+    limits,
+  );
 }
 
 // ── The engine ──────────────────────────────────────────────────────────────
@@ -316,6 +329,15 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   await assertCanTransact(actor);
   const service = await getServiceOrThrow(serviceCode);
   assertAmountWithinLimits(amount, service, serverFee != null);
+  const serviceGroup = await serviceGroupForCode(service.code);
+  if (serviceGroup) await assertServiceNotBlocked(actor.id, serviceGroup);
+  const agentLimit = serviceGroup ? await getAgentLimit(actor.id, serviceGroup) : null;
+  if (serviceGroup && amount != null) assertAgentPerTxnLimit(serviceGroup, agentLimit, amount);
+  const isDmtDebit = direction === "debit" && isDmtServiceCode(serviceCode);
+  const dmtLimits: DmtLimits = {
+    ...DEFAULT_DMT_LIMITS,
+    agentDailyRupees: agentLimit?.dailyRupees ?? DEFAULT_DMT_LIMITS.agentDailyRupees,
+  };
   void checkFraudPatterns(actor, service.id, amount);
   void checkDailyLimit(actor, amount);
   if (amount != null) void evaluateVelocitySpike(actor.id, amount);
@@ -374,8 +396,15 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
         .where(and(eq(transactions.idempotencyKey, idempotencyKey), eq(transactions.userId, actor.id)));
       if (again) return { row: again, replay: true as const };
 
-      if (direction === "debit" && isDmtServiceCode(serviceCode)) {
-        await assertDmtLimitsInTx(tx, actor.id, metadata, amount ?? "0");
+      if (isDmtDebit) {
+        await assertDmtLimitsInTx(tx, actor.id, metadata, amount ?? "0", dmtLimits);
+      }
+      if (serviceGroup && agentLimit && amount != null) {
+        await assertAgentPeriodLimitsInTx(tx, actor.id, serviceGroup, amount, {
+          // DMT daily already ran above with this agent's daily cap.
+          dailyRupees: isDmtDebit ? null : agentLimit.dailyRupees,
+          monthlyRupees: agentLimit.monthlyRupees,
+        });
       }
 
       const [created] = await tx
