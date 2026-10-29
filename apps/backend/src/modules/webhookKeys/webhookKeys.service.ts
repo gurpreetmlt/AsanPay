@@ -440,12 +440,12 @@ export async function rotateWebhookKey(
     const [old] = await tx.select().from(webhookKeys).where(eq(webhookKeys.id, id)).for("update").limit(1);
     if (!old) throw new HttpError(404, "Webhook key not found. Refresh the list and try again.", "WEBHOOK_KEY_NOT_FOUND");
     if (old.status !== "active") {
-      throw new HttpError(409, "This key is disabled. Generate a new callback key instead.", "WEBHOOK_KEY_DISABLED");
+      throw new HttpError(409, "This key is revoked. Generate a new callback key instead.", "WEBHOOK_KEY_DISABLED");
     }
     if (old.expiresAt) {
       throw new HttpError(
         409,
-        "This key was already rotated. Rotate the newer key for this provider instead.",
+        "This key was already regenerated. Regenerate the newer key for this provider instead.",
         "WEBHOOK_KEY_ALREADY_ROTATED",
       );
     }
@@ -485,7 +485,7 @@ export async function disableWebhookKey(
 ): Promise<WebhookKeyView> {
   const row = await loadKey(id);
   if (row.status === "disabled") {
-    throw new HttpError(409, "This key is already disabled.", "WEBHOOK_KEY_DISABLED");
+    throw new HttpError(409, "This key is already revoked.", "WEBHOOK_KEY_DISABLED");
   }
   await requireStepUp(adminId, input.totpCode, ctx, { action: "admin.webhook_key_disable_failed", target: row });
   const [updated] = await db
@@ -496,6 +496,28 @@ export async function disableWebhookKey(
   invalidateWebhookKeyCache();
   await audit(adminId, "admin.webhook_key_disable", row, ctx, { reason: input.reason });
   return toView(updated!, null);
+}
+
+/**
+ * Permanently removes a key. Callbacks using it stop at once; the audit log keeps the record
+ * (name, provider, last 4) and the callback log rows stay, unlinked from the key.
+ */
+export async function deleteWebhookKey(
+  adminId: string,
+  id: string,
+  input: { reason: string; totpCode: string },
+  ctx: AdminContext,
+): Promise<{ id: string }> {
+  const row = await loadKey(id);
+  await requireStepUp(adminId, input.totpCode, ctx, { action: "admin.webhook_key_delete_failed", target: row });
+  await db.delete(webhookKeys).where(eq(webhookKeys.id, id));
+  invalidateWebhookKeyCache();
+  await audit(adminId, "admin.webhook_key_delete", row, ctx, {
+    reason: input.reason,
+    name: row.name,
+    wasStatus: row.status,
+  });
+  return { id };
 }
 
 // ---------------------------------------------------------------------------
@@ -545,7 +567,7 @@ async function postTestCallback(provider: WebhookProvider, secret: string): Prom
 export async function sendTestCallback(adminId: string, id: string, ctx: AdminContext): Promise<TestCallbackResult> {
   const row = await loadKey(id);
   if (!isKeyUsable(row)) {
-    throw new HttpError(409, "This key is disabled or expired. Send a test with an active key.", "WEBHOOK_KEY_NOT_ACTIVE");
+    throw new HttpError(409, "This key is revoked or expired. Send a test with an active key.", "WEBHOOK_KEY_NOT_ACTIVE");
   }
   const provider = row.provider as WebhookProvider;
   const secret = decryptPII(row.secretEncrypted);

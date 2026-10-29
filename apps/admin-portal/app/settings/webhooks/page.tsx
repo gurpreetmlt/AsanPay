@@ -19,6 +19,7 @@ import {
   Send,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -90,7 +91,7 @@ interface TestResult {
   message: string;
 }
 
-type StepUpAction = "create" | "reveal" | "rotate" | "disable";
+type StepUpAction = "create" | "reveal" | "rotate" | "disable" | "delete";
 
 const PROVIDERS: { value: Provider; label: string }[] = [
   { value: "noble", label: "Noble" },
@@ -170,7 +171,7 @@ function fmtIst(iso: string): string {
 
 function statusPill(k: WebhookKey, now: number): { label: string; bg: string; fg: string } {
   const grey = { bg: "rgba(100,116,139,0.14)", fg: "#64748B" };
-  if (k.status === "disabled") return { label: "Disabled", ...grey };
+  if (k.status === "disabled") return { label: "Revoked", ...grey };
   if (k.expiresAt) {
     const ms = new Date(k.expiresAt).getTime() - now;
     if (ms <= 0) return { label: "Expired", ...grey };
@@ -210,17 +211,24 @@ const STEP_UP_COPY: Record<
     tone: "blue",
   },
   rotate: {
-    title: "Verify to rotate key",
+    title: "Verify to regenerate key",
     subtitle: "Enter the current 6-digit code. The old key keeps working for 24 hours.",
-    confirm: "Verify & rotate",
-    busy: "Rotating…",
+    confirm: "Verify & regenerate",
+    busy: "Regenerating…",
     tone: "amber",
   },
   disable: {
-    title: "Verify to disable key",
+    title: "Verify to revoke key",
     subtitle: "Enter the current 6-digit code. Callbacks using this key stop immediately.",
-    confirm: "Verify & disable",
-    busy: "Disabling…",
+    confirm: "Verify & revoke",
+    busy: "Revoking…",
+    tone: "red",
+  },
+  delete: {
+    title: "Verify to delete key",
+    subtitle: "Enter the current 6-digit code. The key is removed permanently and callbacks using it stop immediately.",
+    confirm: "Verify & delete",
+    busy: "Deleting…",
     tone: "red",
   },
 };
@@ -440,7 +448,7 @@ export default function WebhookKeysPage() {
   const [revealKey, setRevealKey] = useState<WebhookKey | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
 
-  const [confirm, setConfirm] = useState<{ kind: "rotate" | "disable"; key: WebhookKey } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: "rotate" | "disable" | "delete"; key: WebhookKey } | null>(null);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
 
@@ -584,7 +592,7 @@ export default function WebhookKeysPage() {
 
   function onConfirm() {
     if (!confirm) return;
-    if (confirm.kind === "disable") {
+    if (confirm.kind === "disable" || confirm.kind === "delete") {
       const r = reason.trim();
       if (r.length < 3) {
         setReasonError("Reason must be at least 3 characters");
@@ -640,7 +648,16 @@ export default function WebhookKeysPage() {
           totpCode: code,
         });
         if (!data.success) throw new Error(data.message);
-        toast.success("Key disabled");
+        toast.success("Key revoked");
+        setConfirm(null);
+        setReason("");
+      } else if (action === "delete" && key) {
+        const { data } = await api.post<ApiResponse<{ id: string }>>(`/admin/webhook-keys/${key.id}/delete`, {
+          reason: reason.trim(),
+          totpCode: code,
+        });
+        if (!data.success) throw new Error(data.message);
+        toast.success("Key deleted");
         setConfirm(null);
         setReason("");
       }
@@ -654,7 +671,7 @@ export default function WebhookKeysPage() {
       } else {
         setStepUp(null);
         if (action === "create") setCreateError(msg);
-        else if (action === "disable") setReasonError(msg);
+        else if (action === "disable" || action === "delete") setReasonError(msg);
         else toast.error(msg);
       }
     } finally {
@@ -717,7 +734,7 @@ export default function WebhookKeysPage() {
 
   return (
     <AdminShell>
-      <div className="mx-auto w-full max-w-6xl space-y-5 p-4 md:p-6">
+      <div className="w-full space-y-5 p-4 md:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-xl font-bold md:text-2xl" style={{ color: B.blue }}>
@@ -766,7 +783,7 @@ export default function WebhookKeysPage() {
             <div className="text-sm" style={{ color: B.blue }}>
               <p className="font-semibold">Two-factor login is off</p>
               <p className="mt-0.5" style={{ color: B.muted }}>
-                Generating, viewing, rotating or disabling a key needs a 6-digit authenticator code.{" "}
+                Generating, viewing, regenerating, revoking or deleting a key needs a 6-digit authenticator code.{" "}
                 <Link href={SECURITY_PAGE} className="font-semibold underline" style={{ color: B.blueLight }}>
                   Turn it on in Security
                 </Link>
@@ -980,7 +997,7 @@ export default function WebhookKeysPage() {
                                       style={{ borderColor: B.border, color: B.blue }}
                                     >
                                       <RefreshCw size={12} />
-                                      Rotate
+                                      Regenerate
                                     </button>
                                   ) : null}
                                   <button
@@ -992,10 +1009,25 @@ export default function WebhookKeysPage() {
                                     }}
                                     className="admin-btn-danger rounded-xl px-3 py-1.5 text-xs font-semibold"
                                   >
-                                    Disable
+                                    Revoke
                                   </button>
                                 </>
                               ) : null}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReason("");
+                                  setReasonError(null);
+                                  setConfirm({ kind: "delete", key: k });
+                                }}
+                                title="Delete this key permanently"
+                                aria-label={`Delete key ${k.name}`}
+                                className="inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold transition hover:bg-[#FEF2F2]"
+                                style={{ borderColor: "#FCA5A5", color: B.danger }}
+                              >
+                                <Trash2 size={12} />
+                                Delete
+                              </button>
                             </div>
                             {test?.result ? (
                               <p
@@ -1292,14 +1324,30 @@ export default function WebhookKeysPage() {
 
       {confirm && !stepUp ? (
         <Modal
-          title={confirm.kind === "rotate" ? "Rotate callback key" : "Disable callback key"}
+          title={
+            confirm.kind === "rotate"
+              ? "Regenerate callback key"
+              : confirm.kind === "delete"
+                ? "Delete callback key"
+                : "Revoke callback key"
+          }
           eyebrow={`${providerLabel(confirm.key.provider)} · ${confirm.key.name}`}
           subtitle={
             confirm.kind === "rotate"
-              ? "A new key is created. The old key keeps working for 24 hours, then stops. Send the new key to the provider."
-              : "Callbacks using this key stop working immediately."
+              ? "A new key is generated. The old key keeps working for 24 hours, then stops. Send the new key to the provider."
+              : confirm.kind === "delete"
+                ? "The key is removed permanently and callbacks using it stop immediately. The audit log keeps the record."
+                : "Callbacks using this key stop working immediately."
           }
-          icon={confirm.kind === "rotate" ? <RefreshCw size={22} /> : <Ban size={22} />}
+          icon={
+            confirm.kind === "rotate" ? (
+              <RefreshCw size={22} />
+            ) : confirm.kind === "delete" ? (
+              <Trash2 size={22} />
+            ) : (
+              <Ban size={22} />
+            )
+          }
           iconTone={confirm.kind === "rotate" ? "amber" : "red"}
           onClose={() => setConfirm(null)}
         >
@@ -1324,7 +1372,7 @@ export default function WebhookKeysPage() {
                   {confirm.key.lastUsedAt ? fmtDate(confirm.key.lastUsedAt) : "Never"}
                 </p>
               </div>
-              {confirm.kind === "disable" ? (
+              {confirm.kind === "disable" || confirm.kind === "delete" ? (
                 <label className="col-span-2 block space-y-1.5">
                   <span className="text-xs font-semibold" style={{ color: B.muted }}>
                     Reason <span style={{ color: B.danger }}>*</span>
@@ -1346,7 +1394,7 @@ export default function WebhookKeysPage() {
                 </label>
               ) : (
                 <p className="col-span-2 text-xs" style={{ color: B.muted }}>
-                  You will need a 6-digit authenticator code. The new key is shown once after rotating.
+                  You will need a 6-digit authenticator code. The new key is shown once after regenerating.
                 </p>
               )}
             </div>
@@ -1365,11 +1413,11 @@ export default function WebhookKeysPage() {
               </button>
               <button
                 type="button"
-                disabled={confirm.kind === "disable" && reason.trim().length < 3}
+                disabled={confirm.kind !== "rotate" && reason.trim().length < 3}
                 onClick={onConfirm}
                 className={`${confirm.kind === "rotate" ? "admin-btn-primary" : "admin-btn-danger"} rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60`}
               >
-                {confirm.kind === "rotate" ? "Rotate key" : "Disable key"}
+                {confirm.kind === "rotate" ? "Regenerate key" : confirm.kind === "delete" ? "Delete key" : "Revoke key"}
               </button>
             </div>
           </div>

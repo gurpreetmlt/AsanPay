@@ -9,6 +9,7 @@ import { HttpError } from "../../utils/httpError";
 import { PASTED_SECRET_MAX, PASTED_SECRET_MIN, WEBHOOK_PROVIDERS } from "./webhookKeys.helpers";
 import {
   createWebhookKey,
+  deleteWebhookKey,
   disableWebhookKey,
   listKeyDeliveries,
   listRejectedDeliveries,
@@ -150,14 +151,29 @@ webhookKeysAdminRouter.post("/:id/disable", manageLimiter, async (req, res) => {
   const body = z
     .object({
       reason: z
-        .string({ message: "Enter a reason for disabling this key" })
+        .string({ message: "Enter a reason for revoking this key" })
         .trim()
         .min(3, "Reason must be at least 3 characters")
         .max(200, "Reason must be at most 200 characters"),
       totpCode: totpCodeSchema,
     })
     .parse(req.body ?? {});
-  sendSuccess(res, await disableWebhookKey(adminId(req), id, body, context(req)), "Key disabled");
+  sendSuccess(res, await disableWebhookKey(adminId(req), id, body, context(req)), "Key revoked");
+});
+
+webhookKeysAdminRouter.post("/:id/delete", manageLimiter, async (req, res) => {
+  const id = keyIdSchema.parse(req.params.id);
+  const body = z
+    .object({
+      reason: z
+        .string({ message: "Enter a reason for deleting this key" })
+        .trim()
+        .min(3, "Reason must be at least 3 characters")
+        .max(200, "Reason must be at most 200 characters"),
+      totpCode: totpCodeSchema,
+    })
+    .parse(req.body ?? {});
+  sendSuccess(res, await deleteWebhookKey(adminId(req), id, body, context(req)), "Key deleted");
 });
 
 webhookKeysAdminRouter.post("/:id/test", testLimiter, async (req, res) => {
