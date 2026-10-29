@@ -261,6 +261,42 @@ adminRouter.post("/users/:id/reopen", async (req, res) => {
   sendSuccess(res, await reopenAgentAccount(req.auth.sub, req.params.id, reason), "Account reopened");
 });
 
+adminRouter.get("/verifications", async (_req, res) => {
+  const { listVerificationChecks } = await import("../verifications/verificationRouting.service");
+  sendSuccess(res, await listVerificationChecks());
+});
+
+adminRouter.put("/verifications/:check/providers/:provider", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setVerificationProvider, VERIFICATION_CHECK_IDS, VERIFICATION_CHECKS, VERIFICATION_PROVIDERS } = await import(
+    "../verifications/verificationRouting.service"
+  );
+  const providerIds = Object.keys(VERIFICATION_PROVIDERS) as [keyof typeof VERIFICATION_PROVIDERS, ...(keyof typeof VERIFICATION_PROVIDERS)[]];
+  const check = parseBody(z.enum(VERIFICATION_CHECK_IDS, { message: "Unknown verification check" }), req.params.check);
+  const provider = parseBody(z.enum(providerIds, { message: "Unknown verification provider" }), req.params.provider);
+  const body = parseBody(
+    z.object({ enabled: z.boolean({ message: "Send enabled: true or false" }), reason: reasonField }),
+    req.body,
+  );
+  const result = await setVerificationProvider(req.auth.sub, check, provider, body.enabled, body.reason);
+  const label = `${VERIFICATION_PROVIDERS[provider].name} for ${VERIFICATION_CHECKS[check].label}`;
+  sendSuccess(res, result, body.enabled ? `${label} turned on` : `${label} turned off`);
+});
+
+adminRouter.put("/verifications/:check/primary", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setVerificationPrimary, VERIFICATION_CHECK_IDS, VERIFICATION_PROVIDERS } = await import(
+    "../verifications/verificationRouting.service"
+  );
+  const providerIds = Object.keys(VERIFICATION_PROVIDERS) as [keyof typeof VERIFICATION_PROVIDERS, ...(keyof typeof VERIFICATION_PROVIDERS)[]];
+  const check = parseBody(z.enum(VERIFICATION_CHECK_IDS, { message: "Unknown verification check" }), req.params.check);
+  const body = parseBody(
+    z.object({ provider: z.enum(providerIds, { message: "Pick the provider to run first" }), reason: reasonField }),
+    req.body,
+  );
+  sendSuccess(res, await setVerificationPrimary(req.auth.sub, check, body.provider, body.reason), "Primary provider changed");
+});
+
 adminRouter.get("/users/:id/photo", async (req, res) => {
   const { getUserPhotoBytes } = await import("../account/profilePhoto.service");
   const photo = await getUserPhotoBytes(req.params.id);

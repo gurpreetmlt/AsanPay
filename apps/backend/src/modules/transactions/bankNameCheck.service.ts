@@ -17,6 +17,7 @@ import type { ProviderResult } from "../providers/types";
 import { resolveTenantId } from "../fund-requests/tenant";
 import { getTenantSettings } from "../tenants/tenantSettings.service";
 import { executeServiceTxn } from "./txn.service";
+import { enabledProviders, verificationOffError } from "../verifications/verificationRouting.service";
 
 type Actor = { id: string; role: UserRole };
 
@@ -162,20 +163,27 @@ export async function verifyBankAccount(input: {
     refId: checkId,
   });
 
-  const best = await bestApiAccountCheck({ accountNumber, ifsc });
-  if (best.outcome === "verified") {
-    const id = await log("bestapi", "verified", best.beneficiaryName, best.mode ? `mode ${best.mode}` : null);
-    return verified("bestapi", best.beneficiaryName, id);
-  }
-  await log("bestapi", best.outcome === "invalid" ? "invalid" : "failed", null, best.message);
-  if (best.outcome === "invalid") {
-    return { status: "not_confirmed", bankName: null, method: "bestapi", cached: false, message: best.message, checkId: null, refId: null };
+  const steps = await enabledProviders("bank_account");
+  const usable = input.bestApiOnly ? steps.filter((s) => s === "bestapi") : steps;
+  if (usable.length === 0) throw verificationOffError("bank_account");
+
+  if (usable.includes("bestapi")) {
+    const best = await bestApiAccountCheck({ accountNumber, ifsc });
+    if (best.outcome === "verified") {
+      const id = await log("bestapi", "verified", best.beneficiaryName, best.mode ? `mode ${best.mode}` : null);
+      return verified("bestapi", best.beneficiaryName, id);
+    }
+    await log("bestapi", best.outcome === "invalid" ? "invalid" : "failed", null, best.message);
+    if (best.outcome === "invalid") {
+      return { status: "not_confirmed", bankName: null, method: "bestapi", cached: false, message: best.message, checkId: null, refId: null };
+    }
   }
 
   if (input.bestApiOnly || !isNobleConfigured()) {
     return { status: "not_confirmed", bankName: null, method: null, cached: false, message: NOT_CONFIRMED, checkId: null, refId: null };
   }
-  for (const method of ["pennyless", "pennydrop"] as const) {
+  const nobleSteps = (["pennyless", "pennydrop"] as const).filter((m) => usable.includes(`noble_${m}`));
+  for (const method of nobleSteps) {
     const r = await noblePolled(method, { accountNumber, ifsc });
     const name = r.data.beneficiaryName;
     if (r.status === "success" && name) return verified(method, name, await log(method, "verified", name, null));

@@ -130,35 +130,35 @@ export async function recharge(req: Request, res: Response): Promise<void> {
 /** BestAPI: detect operator + circle for a prepaid mobile number. */
 export async function rechargeMobileInfo(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof rechargeMobileInfoSchema>;
-  const { lookupMobileRechargeInfo } = await import("../providers/bestapi/plans.service");
+  const { lookupMobileRechargeInfo } = await import("../verifications/rechargeLookups");
   const info = await lookupMobileRechargeInfo(body.mobile);
   sendSuccess(res, info, "OK");
 }
 
 export async function rechargeMobilePlans(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof rechargeMobilePlansSchema>;
-  const { fetchMobilePlans } = await import("../providers/bestapi/plans.service");
+  const { fetchMobilePlans } = await import("../verifications/rechargeLookups");
   const plans = await fetchMobilePlans(body);
   sendSuccess(res, { plans }, "OK");
 }
 
 export async function rechargeMobileOffers(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof rechargeMobileOffersSchema>;
-  const { fetchMobileOffers } = await import("../providers/bestapi/plans.service");
+  const { fetchMobileOffers } = await import("../verifications/rechargeLookups");
   const offers = await fetchMobileOffers(body);
   sendSuccess(res, { offers }, "OK");
 }
 
 export async function rechargeDthPlans(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof rechargeDthPlansSchema>;
-  const { fetchDthPlans } = await import("../providers/bestapi/plans.service");
+  const { fetchDthPlans } = await import("../verifications/rechargeLookups");
   const plans = await fetchDthPlans(body.operatorCode);
   sendSuccess(res, { plans }, "OK");
 }
 
 export async function rechargeDthInfo(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof rechargeDthInfoSchema>;
-  const { fetchDthInfo } = await import("../providers/bestapi/plans.service");
+  const { fetchDthInfo } = await import("../verifications/rechargeLookups");
   const info = await fetchDthInfo(body);
   sendSuccess(res, info, "OK");
 }

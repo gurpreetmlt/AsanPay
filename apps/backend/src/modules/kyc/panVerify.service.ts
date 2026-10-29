@@ -9,6 +9,7 @@ import { logger } from "../../utils/logger";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { encryptPII } from "../../utils/aes";
 import { recordKycVerification, statusForKycError } from "./kycVerification.service";
+import { assertVerificationOn } from "../verifications/verificationRouting.service";
 
 const VERIFY_PATH = "/api/gw/identity-verify/pan/pan-verify";
 const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;
@@ -111,6 +112,7 @@ type PanVerifyResult = {
 };
 
 export async function verifyPanKyc(userId: string, panNumber: string): Promise<PanVerifyResult> {
+  await assertVerificationOn("pan_verify");
   const ctx = { actorId: userId, source: "pan_verify" as const };
   try {
     const result = await runPanVerify(userId, panNumber);

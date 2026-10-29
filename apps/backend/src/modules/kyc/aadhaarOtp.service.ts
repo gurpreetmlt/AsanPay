@@ -9,6 +9,7 @@ import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { recordKycVerification, statusForKycError } from "./kycVerification.service";
+import { assertVerificationOn } from "../verifications/verificationRouting.service";
 
 /** BestAPI docs: Identity Verify → Adhar Send OTP / Aadhar OTP Verify */
 const SEND_PATH = "/api/gw/identity/verification/aadhar-send-otp";
@@ -266,6 +267,7 @@ export async function sendAadhaarKycOtp(
   userId: string,
   aadhaarNumber: string,
 ): Promise<{ requestId: string; message: string }> {
+  await assertVerificationOn("aadhaar_otp");
   assertConfigured();
   const digits = aadhaarNumber.replace(/\D/g, "");
   if (!/^\d{12}$/.test(digits)) {

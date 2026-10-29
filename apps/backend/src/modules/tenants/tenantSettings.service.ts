@@ -44,6 +44,8 @@ export interface TenantSettings {
   bankCheckPennyDropPriceRupees?: number;
   /** Night service window (see serviceWindow.service). */
   nightWindow?: { enabled?: boolean; start?: string; end?: string };
+  /** Per verification check: provider order + providers switched off (see verificationRouting.service). */
+  verificationRouting?: Record<string, { order?: string[]; disabled?: string[] }>;
 }
 
 export const BANK_CHECK_PRICE_DEFAULTS = { standard: 1.5, pennyDrop: 2.5 } as const;
@@ -52,7 +54,7 @@ const BANK_CHECK_PRICE_MAX = 50;
 const toRupees2 = (n: number) => Math.round(n * 100) / 100;
 
 export type ResolvedTenantSettings = Required<
-  Omit<TenantSettings, "promoSlides" | "promoAssets" | "geofence" | "nightWindow">
+  Omit<TenantSettings, "promoSlides" | "promoAssets" | "geofence" | "nightWindow" | "verificationRouting">
 > & { geofence: GeofenceLimits };
 
 export type SupportContacts = {

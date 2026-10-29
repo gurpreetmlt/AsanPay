@@ -21,7 +21,7 @@ export type RechargePlanItem = {
 export type MobileRechargeInfo = {
   mobile: string;
   /** Which upstream filled operator/circle */
-  operatorSource: "bestapi" | null;
+  operatorSource: "bestapi" | "vyaparapi" | null;
   operatorCode: string | null;
   operatorName: string | null;
   circleCode: string | null;
@@ -29,7 +29,7 @@ export type MobileRechargeInfo = {
   plans: RechargePlanItem[];
   offers: RechargePlanItem[];
   /** Which upstream filled plans/offers */
-  plansSource: "bestapi" | null;
+  plansSource: "bestapi" | "vyaparapi" | null;
   warnings: string[];
 };
 
@@ -295,7 +295,7 @@ function extractDthRdataPlans(
   }
 }
 
-function extractPlanItems(json: BestApiJson): RechargePlanItem[] {
+export function extractPlanItems(json: BestApiJson): RechargePlanItem[] {
   const items: RechargePlanItem[] = [];
   const seen = new Set<string>();
 
@@ -337,7 +337,7 @@ function extractPlanItems(json: BestApiJson): RechargePlanItem[] {
   return items.slice(0, 120);
 }
 
-type OperatorHit = {
+export type OperatorHit = {
   /** Vyapar recharge code (JIO, AT, …) */
   operatorCode: string | null;
   /** Raw BestAPI opcord if different from mapped code */
@@ -347,7 +347,7 @@ type OperatorHit = {
   circleName: string | null;
 };
 
-function parseOperator(json: BestApiJson): OperatorHit {
+export function parseOperator(json: BestApiJson): OperatorHit {
   const row = firstDataObject(json);
   const operatorName =
     pickString(row, ["operator", "operatorName", "opname", "Operator", "operator_name"]) ??
@@ -419,7 +419,7 @@ function isBadGatewayPayload(sample: string): boolean {
   return sample.includes("Bad gateway") || sample.includes("<!DOCTYPE") || sample.includes("origin_bad_gateway");
 }
 
-export async function fetchMobilePlans(input: {
+export async function bestApiMobilePlans(input: {
   mobile?: string;
   operatorCode: string;
   circleCode: string;
@@ -444,7 +444,7 @@ export async function fetchMobilePlans(input: {
   return plans;
 }
 
-export async function fetchMobileOffers(input: {
+export async function bestApiMobileOffers(input: {
   mobile: string;
   operatorCode: string;
   /** Kept for caller compat — Roffer docs do not send circle. */
@@ -476,7 +476,7 @@ export async function fetchMobileOffers(input: {
  * Mobile prepaid helper: operator + circle via BestAPI only.
  * Plans and offers load separately when the retailer opens those tabs.
  */
-export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRechargeInfo> {
+export async function bestApiMobileOperator(mobile: string): Promise<MobileRechargeInfo> {
   assertBestApiConfigured();
 
   const warnings: string[] = [];
@@ -535,7 +535,7 @@ export async function lookupMobileRechargeInfo(mobile: string): Promise<MobileRe
   };
 }
 
-function extractSummaryRows(json: BestApiJson): { label: string; value: string }[] {
+export function extractSummaryRows(json: BestApiJson): { label: string; value: string }[] {
   /** Container keys — walk into them, do not show as rows. */
   const walkOnly = new Set([
     "status",
@@ -616,7 +616,7 @@ function extractSummaryRows(json: BestApiJson): { label: string; value: string }
 }
 
 /** BestAPI DTH plan list for an operator (`opcord` only). */
-export async function fetchDthPlans(operatorCode: string): Promise<RechargePlanItem[]> {
+export async function bestApiDthPlans(operatorCode: string): Promise<RechargePlanItem[]> {
   assertBestApiConfigured();
   const opcord = mapVyaparOperatorCode(operatorCode);
   const res = await bestApiPost(DTH_PLAN_PATH, { opcord });
@@ -634,7 +634,7 @@ export async function fetchDthPlans(operatorCode: string): Promise<RechargePlanI
 }
 
 /** BestAPI DTH customer info for operator + subscriber number. */
-export async function fetchDthInfo(input: {
+export async function bestApiDthInfo(input: {
   operatorCode: string;
   number: string;
 }): Promise<{
