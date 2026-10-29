@@ -645,6 +645,13 @@
       "when": 1794200000000,
       "tag": "0091_user_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1794300000000,
+      "tag": "0092_night_service_window",
+      "breakpoints": true
     }
   ]
 }

@@ -96,6 +96,52 @@ adminRouter.get("/users/:id/kyc-documents/:docKey", async (req, res) => {
   res.send(doc.buffer);
 });
 
+adminRouter.get("/service-window", async (_req, res) => {
+  const { getNightWindow, hmLabel, isInsideWindow } = await import("../serviceWindow/serviceWindow.service");
+  const w = await getNightWindow();
+  sendSuccess(res, { ...w, startLabel: hmLabel(w.start), endLabel: hmLabel(w.end), closedNow: isInsideWindow(w) });
+});
+
+adminRouter.put("/service-window", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setNightWindow } = await import("../serviceWindow/serviceWindow.service");
+  const body = z
+    .object({
+      enabled: z.boolean(),
+      start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Start must be a time like 00:00"),
+      end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "End must be a time like 06:00"),
+      reason: z.string().trim().min(3, "Enter a reason (at least 3 characters)").max(300),
+    })
+    .parse(req.body);
+  sendSuccess(res, await setNightWindow(req.auth.sub, body, body.reason), "Night service window saved");
+});
+
+adminRouter.get("/users/:id/night-access", async (req, res) => {
+  const { listNightAccess } = await import("../serviceWindow/serviceWindow.service");
+  sendSuccess(res, await listNightAccess(req.params.id));
+});
+
+adminRouter.put("/users/:id/night-access", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setNightAccess, SERVICE_GROUPS } = await import("../serviceWindow/serviceWindow.service");
+  const body = z
+    .object({
+      group: z.enum(SERVICE_GROUPS),
+      until: z.string().max(40).nullable(),
+      reason: z.string().trim().min(3, "Enter a reason (at least 3 characters)").max(300),
+    })
+    .parse(req.body);
+  sendSuccess(res, await setNightAccess(req.auth.sub, req.params.id, body), "Night access saved");
+});
+
+adminRouter.delete("/users/:id/night-access/:group", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { clearNightAccess, SERVICE_GROUPS } = await import("../serviceWindow/serviceWindow.service");
+  const group = z.enum(SERVICE_GROUPS).parse(req.params.group);
+  const reason = typeof req.body?.reason === "string" && req.body.reason.trim().length >= 3 ? req.body.reason.trim() : "Closed by admin";
+  sendSuccess(res, await clearNightAccess(req.auth.sub, req.params.id, group, reason), "Night access removed");
+});
+
 adminRouter.get("/users/:id/photo", async (req, res) => {
   const { getUserPhotoBytes } = await import("../account/profilePhoto.service");
   const photo = await getUserPhotoBytes(req.params.id);

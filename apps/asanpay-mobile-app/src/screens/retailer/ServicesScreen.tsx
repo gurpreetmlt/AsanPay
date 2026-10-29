@@ -28,6 +28,7 @@ import { LinkedAccountsHost, type LinkedAccountsView } from "../../components/li
 import { PageEnter } from "../../components/PageEnter";
 import { TodayEarningsCard } from "../../components/TodayEarningsCard";
 import { PanMissingBanner } from "../../components/PanMissingBanner";
+import { ServiceWindowBanner } from "../../components/ServiceWindowBanner";
 import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
 import { CashManagementModal } from "../shared/CashManagementModal";
 import { useNavigation } from "@react-navigation/native";
@@ -289,6 +290,7 @@ export function ServicesScreen() {
           });
         }}
       />
+      <ServiceWindowBanner />
       <PanMissingBanner onPress={() => navigation.navigate("Account")} />
 
       {user.kycStatus !== "verified" ? (

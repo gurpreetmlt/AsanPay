@@ -69,6 +69,7 @@ import {
   aadhaarPaySchema,
 } from "./txn.validators";
 import { walletTxnLimiter } from "../../middleware/rateLimiter";
+import { serviceWindowGuard } from "../serviceWindow/serviceWindow.service";
 
 export const txnRouter = Router();
 
@@ -77,7 +78,7 @@ txnRouter.use(requireAuth);
 // Counter services are retailer-only; history/receipt/recheck also serve admin support tooling.
 const retailerOnly = requireRole("retailer");
 
-txnRouter.post("/recharge", retailerOnly, walletTxnLimiter, validateBody(rechargeSchema), recharge);
+txnRouter.post("/recharge", retailerOnly, serviceWindowGuard("recharge"), walletTxnLimiter, validateBody(rechargeSchema), recharge);
 txnRouter.post(
   "/recharge/mobile-info",
   retailerOnly,
@@ -109,15 +110,15 @@ txnRouter.post(
   rechargeDthInfo,
 );
 
-txnRouter.post("/bbps/fetch-bill", retailerOnly, validateBody(bbpsFetchBillSchema), bbpsFetchBill);
-txnRouter.post("/bbps/pay", retailerOnly, walletTxnLimiter, validateBody(bbpsPayBillSchema), bbpsPayBill);
+txnRouter.post("/bbps/fetch-bill", retailerOnly, serviceWindowGuard("bbps"), validateBody(bbpsFetchBillSchema), bbpsFetchBill);
+txnRouter.post("/bbps/pay", retailerOnly, serviceWindowGuard("bbps"), walletTxnLimiter, validateBody(bbpsPayBillSchema), bbpsPayBill);
 
 txnRouter.get("/dmt/banks", retailerOnly, dmtBankList);
-txnRouter.post("/dmt/remitter/profile", retailerOnly, validateBody(dmtRemitterProfileSchema), dmtRemitterProfile);
-txnRouter.post("/dmt/remitter/register", retailerOnly, validateBody(dmtRemitterRegisterSchema), dmtRemitterRegister);
-txnRouter.post("/dmt/remitter/register/verify", retailerOnly, validateBody(dmtRemitterRegisterVerifySchema), dmtRemitterRegisterVerify);
-txnRouter.post("/dmt/remitter/kyc", retailerOnly, validateBody(dmtRemitterKycSchema), dmtRemitterKyc);
-txnRouter.post("/dmt/beneficiary", retailerOnly, validateBody(dmtBeneficiarySchema), dmtAddBeneficiary);
+txnRouter.post("/dmt/remitter/profile", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtRemitterProfileSchema), dmtRemitterProfile);
+txnRouter.post("/dmt/remitter/register", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtRemitterRegisterSchema), dmtRemitterRegister);
+txnRouter.post("/dmt/remitter/register/verify", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtRemitterRegisterVerifySchema), dmtRemitterRegisterVerify);
+txnRouter.post("/dmt/remitter/kyc", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtRemitterKycSchema), dmtRemitterKyc);
+txnRouter.post("/dmt/beneficiary", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtBeneficiarySchema), dmtAddBeneficiary);
 txnRouter.get("/dmt/beneficiary/bank-check/price", retailerOnly, dmtBankNameCheckPrice);
 txnRouter.post(
   "/dmt/beneficiary/bank-check",
@@ -126,11 +127,11 @@ txnRouter.post(
   validateBody(dmtBankNameCheckSchema),
   dmtBankNameCheck,
 );
-txnRouter.post("/dmt/beneficiary/verify", retailerOnly, validateBody(dmtBeneficiaryVerifySchema), dmtAddBeneficiaryVerify);
-txnRouter.post("/dmt/beneficiary/delete", retailerOnly, validateBody(dmtBeneficiaryDeleteSchema), dmtDeleteBeneficiary);
-txnRouter.post("/dmt/beneficiary/delete/verify", retailerOnly, validateBody(dmtBeneficiaryVerifySchema), dmtDeleteBeneficiaryVerify);
-txnRouter.post("/dmt/transfer/otp", retailerOnly, validateBody(dmtTransactionOtpSchema), dmtGenerateTransactionOtp);
-txnRouter.post("/dmt/transfer", retailerOnly, walletTxnLimiter, validateBody(dmtTransferSchema), dmtTransfer);
+txnRouter.post("/dmt/beneficiary/verify", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtBeneficiaryVerifySchema), dmtAddBeneficiaryVerify);
+txnRouter.post("/dmt/beneficiary/delete", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtBeneficiaryDeleteSchema), dmtDeleteBeneficiary);
+txnRouter.post("/dmt/beneficiary/delete/verify", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtBeneficiaryVerifySchema), dmtDeleteBeneficiaryVerify);
+txnRouter.post("/dmt/transfer/otp", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtTransactionOtpSchema), dmtGenerateTransactionOtp);
+txnRouter.post("/dmt/transfer", retailerOnly, serviceWindowGuard("dmt"), walletTxnLimiter, validateBody(dmtTransferSchema), dmtTransfer);
 txnRouter.post("/dmt/refund/otp", retailerOnly, validateBody(dmtRefundOtpSchema), dmtTransactionRefundOtp);
 txnRouter.post("/dmt/refund", retailerOnly, validateBody(dmtRefundSchema), dmtTransactionRefund);
 
@@ -138,13 +139,13 @@ txnRouter.post("/dmt/refund", retailerOnly, validateBody(dmtRefundSchema), dmtTr
 txnRouter.all(["/nepal", "/nepal/*splat"], retailerOnly, nepalComingSoon);
 
 txnRouter.get("/aeps/banks", retailerOnly, aepsBankList);
-txnRouter.post("/aeps/balance-enquiry", retailerOnly, validateBody(aepsEnquirySchema), aepsBalanceEnquiry);
-txnRouter.post("/aeps/mini-statement", retailerOnly, validateBody(aepsEnquirySchema), aepsMiniStatement);
-txnRouter.post("/aeps/withdraw/otp", retailerOnly, walletTxnLimiter, validateBody(aepsTxnOtpSchema), aepsWithdrawOtp);
-txnRouter.post("/aeps/withdraw", retailerOnly, walletTxnLimiter, validateBody(aepsWithdrawSchema), aepsWithdraw);
-txnRouter.post("/aeps/deposit", retailerOnly, walletTxnLimiter, validateBody(aepsDepositSchema), aepsDeposit);
-txnRouter.post("/aeps/aadhaar-pay/otp", retailerOnly, walletTxnLimiter, validateBody(aepsTxnOtpSchema), aadhaarPayOtp);
-txnRouter.post("/aeps/aadhaar-pay", retailerOnly, walletTxnLimiter, validateBody(aadhaarPaySchema), aadhaarPay);
+txnRouter.post("/aeps/balance-enquiry", retailerOnly, serviceWindowGuard("aeps"), validateBody(aepsEnquirySchema), aepsBalanceEnquiry);
+txnRouter.post("/aeps/mini-statement", retailerOnly, serviceWindowGuard("aeps"), validateBody(aepsEnquirySchema), aepsMiniStatement);
+txnRouter.post("/aeps/withdraw/otp", retailerOnly, serviceWindowGuard("aeps"), walletTxnLimiter, validateBody(aepsTxnOtpSchema), aepsWithdrawOtp);
+txnRouter.post("/aeps/withdraw", retailerOnly, serviceWindowGuard("aeps"), walletTxnLimiter, validateBody(aepsWithdrawSchema), aepsWithdraw);
+txnRouter.post("/aeps/deposit", retailerOnly, serviceWindowGuard("aeps"), walletTxnLimiter, validateBody(aepsDepositSchema), aepsDeposit);
+txnRouter.post("/aeps/aadhaar-pay/otp", retailerOnly, serviceWindowGuard("aeps"), walletTxnLimiter, validateBody(aepsTxnOtpSchema), aadhaarPayOtp);
+txnRouter.post("/aeps/aadhaar-pay", retailerOnly, serviceWindowGuard("aeps"), walletTxnLimiter, validateBody(aadhaarPaySchema), aadhaarPay);
 
 txnRouter.get("/", history);
 txnRouter.get("/:txnRef/receipt/pdf", receiptPdf);

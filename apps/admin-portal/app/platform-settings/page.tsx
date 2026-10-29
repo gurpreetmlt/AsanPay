@@ -8,6 +8,7 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { DangerConfirmModal } from "@/components/ui/DangerConfirmModal";
 import { LabelText } from "@/components/ui/RequiredMark";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
+import { NightWindowCard } from "@/components/settings/NightWindowCard";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -258,6 +259,7 @@ export default function PlatformSettingsPage() {
           </p>
         ) : (
           <>
+            <NightWindowCard />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
               <section
                 className="space-y-4 rounded-2xl border bg-white p-5"

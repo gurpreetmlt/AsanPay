@@ -9,7 +9,7 @@ One row per feature; details in the section below the table. Newest at the top o
 |---|---------|----------|------|--------|--------|-----------|
 | PL-30 | Agent profile photo — agent sets / changes / removes it in Settings (web) and Account (app); shown in header menu and on the admin agent page (falls back to KYC selfie, then initials) | Backend, agent web, mobile, admin | M | built — 28 Oct (migration 0091 `user_photos`, `/api/account/photo`, `/admin/users/:id/photo`) | — | — |
 | PL-29 | Agent custom commission like the rate card — per-slab Flat ₹ / Share % (of provider pays) for one agent, live calc vs default; modern admin agent page with tabs | Backend, admin | L | built — 28 Oct (migration 0090, `/admin/users/:id/commission-slabs`, `AgentRateCard` in agent Commission tab) | — | — |
-| PL-28 | Night service window — all services off 12:00 AM–6:00 AM IST by default; admin changes the time / turns it off, and can keep services open for chosen retailers | Backend, admin, web, mobile | M | planned — 28 Oct (decisions taken; build in a new chat) | — | — |
+| PL-28 | Night service window — all services off 12:00 AM–6:00 AM IST by default; admin changes the time / turns it off, and can keep services open for chosen retailers | Backend, admin, web, mobile | M | built — 29 Oct (migration 0092, guard on AePS/DMT/BBPS/recharge/CMS routes, Platform settings card, agent Controls → Night services per service, dashboard banner web + app; tile badges = follow-up) | — | — |
 | PL-27 | Simple commission setup — one table: "Company gets" auto-filled per service from the provider sheet (rate + example ₹), then split per role (Retailer / Distributor / SD) as flat ₹ or % of company income, company keeps the rest | Backend, admin | M | building — 28 Oct: slab editing moved to Rate card (per-slab % / ₹ split, migrate `0087`); `/tax-commission/setup` is now a read-only Commission overview (net after TDS per role); "Fill from sheet" lives on Rate card | — | — |
 | PL-26 | Invite-only signup — public Sign up removed (web, app, marketing site); Distributor invites Retailer, SD invites Distributor, admin invites SD + Direct Retailer (new admin Invites page); signup OTP needs a valid invite | Backend, web, mobile, admin, marketing | M | building — built 28 Oct (Coolify backend/web/admin/marketing deploy + APK + live test pending) | — | — |
 | PL-25 | No password at signup — temporary password emailed when admin approves KYC, forced "Set new password" on first login, mobile OTP to resume KYC | Backend, web, mobile, admin | M | building — built 28 Oct (migrate `0084` + Coolify backend/web/admin deploy + APK + live test pending; needs SMTP env) | — | — |
@@ -99,7 +99,8 @@ time editable from Admin and a way to keep services open for specific retailers.
 - [x] Only service txns close (AePS, DMT, recharge, BBPS, CMS); wallet transfer / fund request / settlement stay open (28 Oct)
 - [x] Applies to all agents — Retailer, Distributor, SD (28 Oct)
 - [x] Exception per agent: both — "Always open" toggle, or "Open until" a date/time that ends by itself (28 Oct)
-- [ ] Txns already in progress at the start time: let them finish (recommended)
+- [x] Txns already in progress at the start time: let them finish — guard only runs when a txn starts (29 Oct)
+- [x] Emergency access per service group (AePS, DMT, BBPS, recharge, CMS), not one switch for all (29 Oct)
 
 **Notes:** Touches money rails — backend check is the source of truth; UI badge is only a hint.
 

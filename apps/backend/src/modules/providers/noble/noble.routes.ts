@@ -6,6 +6,7 @@ import { validateBody } from "../../../middleware/validate";
 import { sendSuccess } from "../../../utils/apiResponse";
 import { HttpError } from "../../../utils/httpError";
 import { executeServiceTxn, recheckTxnStatus } from "../../transactions/txn.service";
+import { serviceWindowGuard } from "../../serviceWindow/serviceWindow.service";
 import {
   CMS_PROVIDERS,
   checkCashCollection,
@@ -187,7 +188,7 @@ nobleRouter.get("/cms/providers", retailer, (_req, res) => {
   sendSuccess(res, CMS_PROVIDERS);
 });
 
-nobleRouter.post("/cms/start", retailer, validateBody(cmsStartSchema), async (req, res) => {
+nobleRouter.post("/cms/start", retailer, serviceWindowGuard("cms"), validateBody(cmsStartSchema), async (req, res) => {
   const body = req.body as z.infer<typeof cmsStartSchema>;
   sendSuccess(res, await startCashCollection(req.auth!.sub, body.provider));
 });

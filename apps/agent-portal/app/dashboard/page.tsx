@@ -8,6 +8,7 @@ import { RetailerDashboard } from "@/components/dashboard/RetailerDashboard";
 import { DistributorDashboard } from "@/components/dashboard/DistributorDashboard";
 import { SuperDistributorDashboard } from "@/components/dashboard/SuperDistributorDashboard";
 import { KycOnboardingBanner } from "@/components/dashboard/KycOnboardingBanner";
+import { ServiceWindowBanner } from "@/components/dashboard/ServiceWindowBanner";
 import { nextOnboardingPath } from "@/lib/onboarding";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
@@ -82,6 +83,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        <ServiceWindowBanner />
         <KycOnboardingBanner />
 
         {/* Role-specific Dashboard */}

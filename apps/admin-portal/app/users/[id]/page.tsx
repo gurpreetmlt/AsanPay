@@ -61,6 +61,7 @@ import {
 } from "@/components/users/ReasonSelect";
 import { Modal } from "@/components/ui/Modal";
 import { AgentRateCard } from "@/components/users/AgentRateCard";
+import { NightAccessCard } from "@/components/users/NightAccessCard";
 import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
 import api, { fetchApi } from "@/lib/api";
@@ -1762,6 +1763,7 @@ export default function AgentDetailPage() {
                 </div>
 
                 <div className="space-y-5">
+                  <NightAccessCard userId={agent.id} agentName={agent.name} />
                   {agent.role === "distributor" || agent.role === "retailer" ? (
                     <DetailSection title="Move in tree" icon={Network}>
                       <div className="mb-3">

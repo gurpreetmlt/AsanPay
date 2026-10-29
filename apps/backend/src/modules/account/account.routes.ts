@@ -5,6 +5,7 @@ import { sendSuccess } from "../../utils/apiResponse";
 import { HttpError } from "../../utils/httpError";
 import { getAppVersionConfig, getDeletionRequestStatus, requestAccountDeletion } from "./account.service";
 import { deleteMyPhoto, getMyPhoto, setMyPhoto } from "./profilePhoto.service";
+import { getMyServiceWindow } from "../serviceWindow/serviceWindow.service";
 
 /** Mounted at `/api` ahead of the other routers so the version check below sees every app request. */
 export const accountRouter = Router();
@@ -67,4 +68,9 @@ accountRouter.put("/account/photo", requireAuth, async (req, res) => {
 accountRouter.delete("/account/photo", requireAuth, async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   sendSuccess(res, await deleteMyPhoto(req.auth.sub), "Profile photo removed");
+});
+
+accountRouter.get("/service-window", requireAuth, async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  sendSuccess(res, await getMyServiceWindow(req.auth.sub));
 });
