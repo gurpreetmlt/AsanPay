@@ -335,7 +335,7 @@ export default function ProvidersPage() {
             icon={ShieldCheck}
             label="Verifications"
             value={verChecks.length === 0 ? "…" : `${verOn}/${verChecks.length} on`}
-            hint="PAN, Aadhaar, bank account, recharge lookups"
+            hint="KYC, bank account, AePS / DMT / UPI checks, recharge lookups"
             tone={verChecks.length > 0 && verOn === verChecks.length ? "#16a34a" : "#D97706"}
           />
           <StatTile

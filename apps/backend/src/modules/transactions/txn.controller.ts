@@ -23,6 +23,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { serviceCategories, services } from "../../db/postgres/schema";
 import { resolveServiceTxnType } from "../wallet/wallet.ledger";
+import { assertVerificationOn } from "../verifications/verificationRouting.service";
 import type {
   rechargeSchema,
   rechargeMobileInfoSchema,
@@ -228,6 +229,7 @@ export async function dmtRemitterProfile(req: Request, res: Response): Promise<v
 export async function dmtRemitterRegister(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtRemitterRegisterSchema>;
   const userId = actor(req).id;
+  await assertVerificationOn("dmt_remitter_otp");
   const routedProviders = await resolveProvidersForService("dmt_remitter_register");
   const result = await callProvider(
     routedProviders[0]!,
@@ -249,6 +251,7 @@ export async function dmtRemitterRegister(req: Request, res: Response): Promise<
 export async function dmtRemitterRegisterVerify(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtRemitterRegisterVerifySchema>;
   const userId = actor(req).id;
+  await assertVerificationOn("dmt_remitter_otp");
   const routedProviders = await resolveProvidersForService("dmt_remitter_register_verify");
   const result = await callProvider(
     routedProviders[0]!,
@@ -270,6 +273,7 @@ export async function dmtRemitterRegisterVerify(req: Request, res: Response): Pr
 export async function dmtRemitterKyc(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtRemitterKycSchema>;
   const userId = actor(req).id;
+  await assertVerificationOn("dmt_remitter_ekyc");
   const routedProviders = await resolveProvidersForService("dmt_remitter_kyc");
   const result = await callProvider(
     routedProviders[0]!,

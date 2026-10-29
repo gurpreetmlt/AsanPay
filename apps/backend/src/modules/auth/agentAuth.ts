@@ -8,6 +8,7 @@ import { decryptPII } from "../../utils/aes";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { assertFreshBiometric } from "../transactions/biometricReplay";
 import { resolveProvidersForService, callProvider } from "../providers/provider.router";
+import { assertVerificationOn } from "../verifications/verificationRouting.service";
 
 // Retailer-own-identity proof-of-presence, distinct from the customer's AEPS biometric.
 // NPCI daily 2FA is based on the Indian calendar day, not a rolling-hour window.
@@ -143,6 +144,7 @@ export async function verifyAndRecordAgentAuth(
   }
 
   await assertFreshBiometric(input.biometricPayload);
+  await assertVerificationOn("aeps_daily_2fa");
 
   const routedProviders = await resolveProvidersForService("agent_auth");
   const result = await callProvider(

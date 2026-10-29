@@ -8,6 +8,7 @@ import { HttpError } from "../../../utils/httpError";
 import { executeServiceTxn, recheckTxnStatus } from "../../transactions/txn.service";
 import { serviceWindowGuard } from "../../serviceWindow/serviceWindow.service";
 import { serviceBlockGuard } from "../../agentControls/agentControls.service";
+import { assertVerificationOn } from "../../verifications/verificationRouting.service";
 import {
   CMS_PROVIDERS,
   checkCashCollection,
@@ -94,6 +95,7 @@ nobleRouter.post("/upi-qr/load", retailer, upiCashPointOn, validateBody(upiLoadS
 
 nobleRouter.post("/upi-qr/kyc", retailer, upiCashPointOn, validateBody(upiKycSchema), async (req, res) => {
   const body = req.body as z.infer<typeof upiKycSchema>;
+  await assertVerificationOn("upi_cash_point_kyc");
   sendSuccess(
     res,
     await nobleUpiQrKyc(req.auth!.sub, {

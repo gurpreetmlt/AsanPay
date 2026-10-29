@@ -436,6 +436,7 @@ export async function verifyAadhaarKycOtp(
   userId: string,
   input: { otp: string; requestId?: string },
 ): Promise<AadhaarOtpVerifyResult> {
+  await assertVerificationOn("aadhaar_otp");
   const ctx = { actorId: userId, source: "aadhaar_otp" as const };
   try {
     const result = await runAadhaarOtpVerify(userId, input);

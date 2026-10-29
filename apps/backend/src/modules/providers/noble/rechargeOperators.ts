@@ -2,6 +2,7 @@ import { cacheGet, cacheSet } from "../../../cache/redis";
 import { logger } from "../../../utils/logger";
 import { firstResponseRow } from "./aepsOps";
 import { noblePost } from "./client";
+import { isVerificationOn } from "../../verifications/verificationRouting.service";
 
 /** Provider default when the circle of a number is unknown. */
 export const UNKNOWN_CIRCLE_CODE = "50";
@@ -180,7 +181,7 @@ export async function resolveRechargeRoute(params: {
     return { ok: false, code: "RECHARGE_MOBILE_INVALID", message: "Enter a valid 10-digit mobile" };
   }
 
-  const detected = await detectOperatorAndCircle(mobile);
+  const detected = (await isVerificationOn("recharge_operator_check")) ? await detectOperatorAndCircle(mobile) : null;
   if (!detected) {
     return { ok: true, operatorCode: def.fallbackCode, circleCode: UNKNOWN_CIRCLE_CODE, source: "fallback" };
   }
