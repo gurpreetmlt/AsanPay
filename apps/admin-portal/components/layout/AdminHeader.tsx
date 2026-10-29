@@ -69,6 +69,8 @@ const QUICK_ROUTES = [
   { q: "promo", href: "/promotions", label: "Promotions" },
   { q: "announcement", href: "/announcements", label: "Announcements" },
   { q: "audit", href: "/audit-logs", label: "Audit log" },
+  { q: "webhook", href: "/settings/webhooks", label: "Webhooks & keys" },
+  { q: "callback key", href: "/settings/webhooks", label: "Webhooks & keys" },
   { q: "safety", href: "/developer-options/safety", label: "Safety" },
   { q: "rate card", href: "/tax-commission/rate-card", label: "Rate card" },
   { q: "share", href: "/tax-commission/rate-card", label: "Rate card (share %)" },

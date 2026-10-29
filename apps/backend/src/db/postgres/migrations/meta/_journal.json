@@ -666,6 +666,20 @@
       "when": 1794500000000,
       "tag": "0094_night_access_window",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1794600000000,
+      "tag": "0095_webhook_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1794700000000,
+      "tag": "0096_provider_sessions",
+      "breakpoints": true
     }
   ]
 }

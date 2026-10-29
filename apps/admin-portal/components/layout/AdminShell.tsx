@@ -38,6 +38,7 @@ import {
   TableProperties,
   Tags,
   Trash2,
+  Webhook,
   Wrench,
 } from "lucide-react";
 import { AsanPayLockup } from "@/components/brand/Logo";
@@ -219,6 +220,7 @@ const SYSTEM: NavItem[] = [
     children: [
       { href: "/audit-logs", label: "Audit log", icon: { lib: "lucide", icon: ScrollText } },
       { href: "/settings/security", label: "Security", icon: { lib: "lucide", icon: Lock } },
+      { href: "/settings/webhooks", label: "Webhooks & keys", icon: { lib: "lucide", icon: Webhook } },
       { href: "/developer-options/safety", label: "Safety", icon: { lib: "lucide", icon: Trash2 } },
     ],
   },
