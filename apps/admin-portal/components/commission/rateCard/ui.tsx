@@ -393,20 +393,20 @@ export type SlabHeaderCell = { label: string; title?: string; colSpan?: number }
 export function SlabHeaderRow({ cells }: { cells: SlabHeaderCell[] }) {
   const edge = B.blueLight;
   return (
-    <tr className="rc-slab-in text-[11px] uppercase tracking-wider" style={{ color: "#fff" }}>
+    <tr className="rc-slab-in text-[11px] uppercase tracking-wide" style={{ color: B.blueLight }}>
       {cells.map((c, i) => (
         <th
           key={`${c.label}-${i}`}
           scope="col"
           colSpan={c.colSpan}
           title={c.title}
-          className={`py-2.5 font-extrabold ${i === 0 ? "pl-[4.25rem] pr-3 text-left" : "px-3 text-right"}`}
+          className={`py-2 font-semibold ${i === 0 ? "pl-[4.25rem] pr-3 text-left" : "px-3 text-right"}`}
           style={{
-            background: "linear-gradient(180deg, #3B6CF0 0%, #2A5CDD 100%)",
+            background: "color-mix(in srgb, #2A5CDD 7%, var(--admin-card))",
             boxShadow: [
               i === 0 ? `inset 2px 0 0 ${edge}` : null,
               i === cells.length - 1 ? `inset -2px 0 0 ${edge}` : null,
-              "inset 0 -2px 0 #1D3FA8",
+              "inset 0 -1px 0 color-mix(in srgb, #2A5CDD 25%, transparent)",
             ]
               .filter(Boolean)
               .join(", "),
@@ -414,7 +414,7 @@ export function SlabHeaderRow({ cells }: { cells: SlabHeaderCell[] }) {
         >
           {i === 0 ? (
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-white" />
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: B.blueLight }} />
               {c.label}
             </span>
           ) : (
