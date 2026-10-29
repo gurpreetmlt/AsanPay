@@ -856,12 +856,12 @@ export function RateCardScreen() {
                               </td>
                               <td colSpan={5} />
                               <td className="w-[150px] px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                                <span className="inline-flex items-center justify-end">
+                                <span className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">
                                   {open && pickedSlabs(row).length > 0 ? (
                                     <button
                                       type="button"
                                       onClick={() => deletePicked(row)}
-                                      className="admin-btn-danger mr-1 inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-0.5 text-[11px] font-bold"
+                                      className="admin-btn-danger inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-0.5 text-[11px] font-bold"
                                       title={`Delete the ${pickedSlabs(row).length} selected slabs`}
                                     >
                                       <Trash2 size={12} /> Delete {pickedSlabs(row).length}
@@ -934,14 +934,16 @@ export function RateCardScreen() {
                                       });
                                     }}
                                   >
-                                    <td className={`pl-[4.25rem] pr-3 text-xs ${dense ? "py-1" : "py-2"}`} style={{ color: B.muted }}>
-                                      <span className="flex flex-wrap items-center gap-1.5">
+                                    <td className={`relative pl-[4.25rem] pr-3 text-xs ${dense ? "py-1" : "py-2"}`} style={{ color: B.muted }}>
+                                      <span className="absolute left-5 top-1/2 flex -translate-y-1/2 items-center">
                                         <PickBox
                                           checked={picked.has(pickKey(row, s))}
                                           disabled={!incomeRuleForSlab(row, s)}
                                           label={incomeRuleForSlab(row, s) ? "Select this slab" : "Nothing to delete — no provider income on this slab"}
                                           onChange={() => togglePick(row, s)}
                                         />
+                                      </span>
+                                      <span className="flex flex-wrap items-center gap-1.5">
                                         {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
                                         <IssueTags
                                           loss={s.underwater ? 1 : 0}

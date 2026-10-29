@@ -400,7 +400,7 @@ export function SlabHeaderRow({ cells, lead }: { cells: SlabHeaderCell[]; /** e.
           scope="col"
           colSpan={c.colSpan}
           title={c.title}
-          className={`py-2.5 font-bold ${i === 0 ? "pl-[4.25rem] pr-3 text-left" : "px-3 text-right"}`}
+          className={`py-2.5 font-bold ${i === 0 ? "relative pl-[4.25rem] pr-3 text-left" : "px-3 text-right"}`}
           style={{
             background: "color-mix(in srgb, #2A5CDD 15%, var(--admin-card))",
             boxShadow: [
@@ -415,7 +415,9 @@ export function SlabHeaderRow({ cells, lead }: { cells: SlabHeaderCell[]; /** e.
         >
           {i === 0 ? (
             <span className="inline-flex items-center gap-1.5">
-              {lead}
+              {lead ? (
+                <span className="absolute left-5 top-1/2 flex -translate-y-1/2 items-center normal-case">{lead}</span>
+              ) : null}
               <span className="h-2 w-2 rounded-full" style={{ background: B.blueLight }} />
               {c.label}
             </span>
