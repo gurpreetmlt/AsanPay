@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { assertNobleAepsProviderConfig, env } from "./config/env";
 import { pgPool } from "./db/postgres";
 import { bootstrapLedger } from "./modules/bootstrap/systemAccounts";
+import { hasWebhookSecret } from "./modules/webhookKeys/webhookKeys.service";
 import { logger } from "./utils/logger";
 
 async function main() {
@@ -10,6 +11,12 @@ async function main() {
 
   await pgPool.query("SELECT 1");
   logger.info("PostgreSQL connected");
+
+  if (env.STRICT_PRODUCTION && env.NOBLE_API_KEY?.trim() && !(await hasWebhookSecret("noble"))) {
+    logger.warn(
+      "[LAUNCH-SAFETY] No Noble callback key — provider callbacks will be refused. Generate one in Admin → Webhooks & keys.",
+    );
+  }
 
   // Fail fast. If a system account is missing or has the wrong flags, the ledger cannot post
   // correctly — and a half-initialised financial system is worse than a stopped one. This

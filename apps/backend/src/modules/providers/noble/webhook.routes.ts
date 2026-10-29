@@ -3,7 +3,7 @@ import { env } from "../../../config/env";
 import { insertProviderLog } from "../../../db/postgres/repositories/providerLog";
 import { nobleCallbackLimiter } from "../../../middleware/rateLimiter";
 import { logger } from "../../../utils/logger";
-import { safeEqual } from "../../../utils/safeEqual";
+import { isWebhookAuthConfigured, verifyWebhookToken } from "../../webhookKeys/webhookKeys.service";
 
 export const nobleWebhookRouter = Router();
 
@@ -40,23 +40,22 @@ function pickTxnRef(payload: Record<string, unknown>): string | null {
  * Transactions are still settled through the status-check APIs until the payload shape is confirmed.
  */
 nobleWebhookRouter.post("/callback", nobleCallbackLimiter, async (req, res) => {
-  const expected = env.NOBLE_CALLBACK_SECRET?.trim();
-  if (!expected) {
+  if (!(await isWebhookAuthConfigured("noble"))) {
     if (env.NODE_ENV === "production") {
       res.status(503).json({
         status: 0,
-        message: "AEPS provider callback is not configured. Set NOBLE_CALLBACK_SECRET on the backend.",
+        message: "AEPS provider callback is not configured. Generate a callback key in Admin → Webhooks & keys.",
       });
       return;
     }
   } else {
     const queryToken = typeof req.query.token === "string" ? req.query.token : "";
     const got = (req.header("x-callback-token") || queryToken).trim();
-    if (!safeEqual(got, expected)) {
+    if (!(await verifyWebhookToken("noble", got))) {
       logger.warn({ ip: req.ip, hasToken: Boolean(got) }, "AEPS provider callback rejected: bad token");
       res.status(401).json({
         status: 0,
-        message: "Invalid callback token. Send NOBLE_CALLBACK_SECRET in the X-Callback-Token header or ?token=.",
+        message: "Invalid callback token. Send the active callback key in the X-Callback-Token header or ?token=.",
       });
       return;
     }

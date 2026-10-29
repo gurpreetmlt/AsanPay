@@ -432,12 +432,6 @@ export function launchSafetyViolations(
   if (!raw.DATABASE_SSL_CA_PATH?.trim() && /amazonaws\.com/i.test(raw.DATABASE_URL ?? "")) {
     problems.push("DATABASE_SSL_CA_PATH must point to the RDS CA bundle");
   }
-  if (raw.WHATSAPP_ACCESS_TOKEN?.trim() && !raw.WHATSAPP_APP_SECRET?.trim()) {
-    problems.push("WHATSAPP_APP_SECRET must be set when WHATSAPP_ACCESS_TOKEN is set (webhook signature check)");
-  }
-  if (raw.NOBLE_API_KEY?.trim() && !raw.NOBLE_CALLBACK_SECRET?.trim()) {
-    problems.push("NOBLE_CALLBACK_SECRET must be set when NOBLE_API_KEY is set (provider callback auth)");
-  }
   return problems;
 }
 

@@ -598,6 +598,16 @@ async function loadAdminForTotp(userId: string): Promise<typeof users.$inferSele
   return row;
 }
 
+/** Step-up check for sensitive admin actions; consumes the code so it cannot be replayed. */
+export async function verifyAdminStepUpTotp(
+  userId: string,
+  code: string,
+): Promise<"ok" | "not_enabled" | "incorrect"> {
+  const row = await loadAdminForTotp(userId);
+  if (!isAdminTotpEnabled(row)) return "not_enabled";
+  return (await consumeAdminTotpCode(row, code)) ? "ok" : "incorrect";
+}
+
 export async function getAdminTotpStatus(userId: string): Promise<{
   enabled: boolean;
   enabledAt: string | null;

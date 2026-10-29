@@ -3,6 +3,7 @@ import { Router, type Request } from "express";
 import { env } from "../../../config/env";
 import { logger } from "../../../utils/logger";
 import { safeEqual } from "../../../utils/safeEqual";
+import { getWebhookSecrets, isWebhookAuthConfigured, recordWebhookKeyUse } from "../../webhookKeys/webhookKeys.service";
 import { processWhatsAppWebhookPayload } from "./support.service";
 
 /**
@@ -38,28 +39,33 @@ function isValidMetaSignature(rawBody: Buffer | undefined, header: string | unde
   return safeEqual(match[1]!.toLowerCase(), expected);
 }
 
-whatsappWebhookRouter.post("/", (req, res) => {
-  const secret = env.WHATSAPP_APP_SECRET?.trim();
-  if (!secret) {
+whatsappWebhookRouter.post("/", async (req, res) => {
+  if (!(await isWebhookAuthConfigured("whatsapp"))) {
     if (env.NODE_ENV === "production") {
       res.status(503).json({
         success: false,
-        message: "WhatsApp webhook is not configured. Set WHATSAPP_APP_SECRET on the backend to accept events.",
+        message: "WhatsApp webhook is not configured. Add the Meta App Secret in Admin → Webhooks & keys to accept events.",
         code: "WHATSAPP_WEBHOOK_NOT_CONFIGURED",
       });
       return;
     }
   } else {
     const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
-    if (!isValidMetaSignature(rawBody, req.header("x-hub-signature-256"), secret)) {
-      logger.warn({ ip: req.ip, hasSignature: Boolean(req.header("x-hub-signature-256")) }, "WhatsApp webhook signature rejected");
+    const signature = req.header("x-hub-signature-256");
+    let matchedId: string | null = null;
+    for (const { id, secret } of await getWebhookSecrets("whatsapp")) {
+      if (isValidMetaSignature(rawBody, signature, secret) && matchedId == null) matchedId = id;
+    }
+    if (matchedId == null) {
+      logger.warn({ ip: req.ip, hasSignature: Boolean(signature) }, "WhatsApp webhook signature rejected");
       res.status(401).json({
         success: false,
-        message: "Invalid X-Hub-Signature-256. Check WHATSAPP_APP_SECRET matches the Meta app secret.",
+        message: "Invalid X-Hub-Signature-256. Check the WhatsApp key in Admin → Webhooks & keys matches the Meta app secret.",
         code: "WHATSAPP_WEBHOOK_UNAUTHORIZED",
       });
       return;
     }
+    recordWebhookKeyUse(matchedId);
   }
 
   // Ack immediately — Meta retries on slow/4xx/5xx.

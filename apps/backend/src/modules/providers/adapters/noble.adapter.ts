@@ -88,6 +88,19 @@ function noRecordIsFinal(json: NobleApiResponse, createdAt: Date | undefined, gr
   return Date.now() - createdAt.getTime() >= graceMs;
 }
 
+/**
+ * recharge_status answers tranStatus "Failed" (status 1 / RE0001) for an id the provider never
+ * received, which looks exactly like a real failure. Trust "Failed" only when the row names a
+ * real transaction or the recharge is old enough that it cannot still be in flight.
+ */
+const RECHARGE_FAILED_TRUST_AFTER_MS = 30 * 60 * 1000;
+
+function rechargeFailedIsFinal(row: Record<string, unknown>, createdAt: Date | undefined): boolean {
+  const hasId = (v: unknown) => typeof v === "string" ? v.trim() !== "" : typeof v === "number";
+  if (hasId(row.apiTransactionId) || hasId(row.operatorTransactionId)) return true;
+  return createdAt != null && Date.now() - createdAt.getTime() >= RECHARGE_FAILED_TRUST_AFTER_MS;
+}
+
 const AEPS_BANK_NAMES: Record<string, string> = {
   "607094": "STATE BANK OF INDIA",
   "607027": "PUNJAB NATIONAL BANK",
@@ -447,7 +460,11 @@ export class NobleAdapter implements ProviderAdapter {
           ? { statusBy: "ATI", apiTransactionId: apiTxnId, transactionId: "", transactionDate: "" }
           : { statusBy: "TI_TD", apiTransactionId: "", transactionId: ourId, transactionDate: istDate },
       );
-      return this.toResult(httpStatus, json, "Recharge status", null, {}, "status", params.createdAt);
+      const result = this.toResult(httpStatus, json, "Recharge status", null, {}, "status", params.createdAt);
+      if (result.status !== "failed" || rechargeFailedIsFinal(firstResponseRow(json), params.createdAt)) {
+        return result;
+      }
+      return { ...result, success: false, status: "pending" };
     }
     const [yyyy, mm, dd] = istDate.split("-");
     if (code === "UPI_CASH_POINT") {

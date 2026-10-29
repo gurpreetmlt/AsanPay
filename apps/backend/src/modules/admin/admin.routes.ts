@@ -7,6 +7,7 @@ import { HttpError } from "../../utils/httpError";
 import { KYC_STATUSES, TRANSACTION_STATUSES, USER_ROLES } from "@asanpay/shared-types";
 import { paiseToRupees } from "../../core/money";
 import { fetchProviderLiveBalance } from "../treasury/providerLiveBalance";
+import { adminProviderSessionRouter } from "./adminProviderSession.routes";
 import {
   getAdminStats,
   getAdminAlerts,
@@ -44,6 +45,7 @@ import {
 export const adminRouter = Router();
 
 adminRouter.use(requireAuth, requireRole("admin"));
+adminRouter.use(adminProviderSessionRouter);
 
 adminRouter.get("/stats", async (_req, res) => {
   sendSuccess(res, await getAdminStats());

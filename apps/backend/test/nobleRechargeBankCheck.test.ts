@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const noblePost = vi.fn();
 vi.mock("../src/modules/providers/noble/client", () => ({ noblePost: (...a: unknown[]) => noblePost(...a) }));
+vi.mock("../src/modules/verifications/verificationRouting.service", () => ({ isVerificationOn: async () => true }));
 vi.mock("../src/cache/redis", () => ({
   cacheGet: vi.fn(async () => null),
   cacheSet: vi.fn(async () => undefined),
@@ -63,14 +64,55 @@ describe("Noble recharge submit", () => {
 });
 
 describe("Noble recharge status", () => {
-  const check = (providerTxnId: string | null) =>
+  const check = (providerTxnId: string | null, createdAt = new Date()) =>
     adapter.checkStatus({
       providerTxnId,
       clientRef: "LKP2610280001AB",
       txnDate: "2026-10-27",
       serviceCode: "MOBILE_PREPAID",
-      createdAt: new Date(),
+      createdAt,
     });
+  const failedReply = (row: Record<string, unknown> = {}) => ({
+    httpStatus: 200,
+    json: { status: 1, statusCode: "RE0001", responseData: [{ tranStatus: "Failed", ...row }] },
+  });
+
+  it("keeps a fresh unknown-id 'Failed' pending (provider never received it)", async () => {
+    noblePost.mockResolvedValueOnce(failedReply({ apiTransactionId: "", operatorTransactionId: "" }));
+    const r = await check(null);
+    expect(r.status).toBe("pending");
+    expect(r.success).toBe(false);
+  });
+
+  it("fails when the 'Failed' row carries the provider transaction id", async () => {
+    noblePost.mockResolvedValueOnce(failedReply({ apiTransactionId: "2202231910362280426" }));
+    const r = await check(null);
+    expect(r.status).toBe("failed");
+  });
+
+  it("fails when the 'Failed' row carries the operator transaction id", async () => {
+    noblePost.mockResolvedValueOnce(failedReply({ operatorTransactionId: "OP123" }));
+    const r = await check(null);
+    expect(r.status).toBe("failed");
+  });
+
+  it("fails an id-less 'Failed' once the recharge is 30 minutes old", async () => {
+    noblePost.mockResolvedValueOnce(failedReply());
+    const r = await check(null, new Date(Date.now() - 31 * 60 * 1000));
+    expect(r.status).toBe("failed");
+  });
+
+  it("keeps an id-less 'Failed' pending at 29 minutes", async () => {
+    noblePost.mockResolvedValueOnce(failedReply());
+    const r = await check(null, new Date(Date.now() - 29 * 60 * 1000));
+    expect(r.status).toBe("pending");
+  });
+
+  it("treats Success as final even without ids", async () => {
+    noblePost.mockResolvedValueOnce({ httpStatus: 200, json: { status: 1, responseData: [{ tranStatus: "Success" }] } });
+    const r = await check(null);
+    expect(r.status).toBe("success");
+  });
 
   it("queries by apiTransactionId (ATI) when the provider id is known", async () => {
     noblePost.mockResolvedValueOnce({ httpStatus: 200, json: { status: 1, responseData: [{ tranStatus: "Success" }] } });

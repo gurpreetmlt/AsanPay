@@ -20,6 +20,7 @@ import { agentDeviceRouter } from "./modules/devices/agentDevice.routes";
 import { deviceRepairRouter } from "./modules/devices/deviceRepair.routes";
 import { disputeRouter } from "./modules/disputes/dispute.routes";
 import { adminRouter } from "./modules/admin/admin.routes";
+import { webhookKeysAdminRouter } from "./modules/webhookKeys/webhookKeys.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { earningsRouter } from "./modules/earnings/earnings.routes";
 import { onboardingRouter } from "./modules/onboarding/onboarding.routes";
@@ -168,6 +169,7 @@ export function createApp(): Express {
   app.use("/api/devices", agentDeviceRouter);
   app.use("/api/device-repair-requests", deviceRepairRouter);
   app.use("/api/disputes", disputeRouter);
+  app.use("/api/admin/webhook-keys", webhookKeysAdminRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/earnings", earningsRouter);

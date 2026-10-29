@@ -1,10 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
-import { env } from "../../../config/env";
 import { HttpError } from "../../../utils/httpError";
 import { sendSuccess } from "../../../utils/apiResponse";
-import { safeEqual } from "../../../utils/safeEqual";
 import { settleTxnFromProviderCallback } from "../../transactions/txn.service";
+import { isWebhookAuthConfigured, verifyWebhookToken } from "../../webhookKeys/webhookKeys.service";
 import { mapVyaparTxnStatus } from "./status";
 import type { ProviderResult } from "../types";
 
@@ -19,17 +18,19 @@ const callbackSchema = z.object({
   token: z.string().optional(),
 });
 
-function assertCallbackAuth(tokenFromQueryOrBody: string | undefined, headerToken: string | undefined): void {
-  const expected = env.VYAPARAPI_CALLBACK_SECRET?.trim();
-  if (!expected) {
+async function assertCallbackAuth(
+  tokenFromQueryOrBody: string | undefined,
+  headerToken: string | undefined,
+): Promise<void> {
+  if (!(await isWebhookAuthConfigured("vyaparapi"))) {
     throw new HttpError(
       503,
-      "VyaparAPI callback is not configured. Set VYAPARAPI_CALLBACK_SECRET on the backend.",
+      "VyaparAPI callback is not configured. Generate a callback key in Admin → Webhooks & keys.",
       "VYAPARAPI_CALLBACK_NOT_CONFIGURED",
     );
   }
   const got = (tokenFromQueryOrBody || headerToken || "").trim();
-  if (!safeEqual(got, expected)) {
+  if (!(await verifyWebhookToken("vyaparapi", got))) {
     throw new HttpError(401, "Invalid VyaparAPI callback token", "VYAPARAPI_CALLBACK_UNAUTHORIZED");
   }
 }
@@ -70,7 +71,7 @@ async function handleCallback(req: {
     throw new HttpError(400, msg, "VYAPARAPI_CALLBACK_INVALID");
   }
 
-  assertCallbackAuth(parsed.data.token, req.header("x-vyapar-token") ?? req.header("x-callback-token"));
+  await assertCallbackAuth(parsed.data.token, req.header("x-vyapar-token") ?? req.header("x-callback-token"));
 
   const result = toProviderResult(parsed.data);
   const outcome = await settleTxnFromProviderCallback(parsed.data.partnerid, result);

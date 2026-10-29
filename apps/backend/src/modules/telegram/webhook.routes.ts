@@ -1,28 +1,26 @@
 import { Router } from "express";
-import { env } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
 import { sendSuccess } from "../../utils/apiResponse";
 import { logger } from "../../utils/logger";
-import { safeEqual } from "../../utils/safeEqual";
+import { isWebhookAuthConfigured, verifyWebhookToken } from "../webhookKeys/webhookKeys.service";
 import { telegramSendMessage } from "./client";
 import { bindTelegramFromStartPayload } from "./link.service";
 
 export const telegramWebhookRouter = Router();
 
-function assertWebhookAuth(headerToken: string | undefined, queryToken: unknown): void {
-  const expected = env.TELEGRAM_WEBHOOK_SECRET?.trim();
-  if (!expected) {
+async function assertWebhookAuth(headerToken: string | undefined, queryToken: unknown): Promise<void> {
+  if (!(await isWebhookAuthConfigured("telegram"))) {
     throw new HttpError(
       503,
-      "Telegram webhook is not configured. Set TELEGRAM_WEBHOOK_SECRET on the backend.",
+      "Telegram webhook is not configured. Generate a Telegram key in Admin → Webhooks & keys.",
       "TELEGRAM_WEBHOOK_NOT_CONFIGURED",
     );
   }
   const got = headerToken?.trim() || (typeof queryToken === "string" ? queryToken : "");
-  if (!safeEqual(got, expected)) {
+  if (!(await verifyWebhookToken("telegram", got))) {
     throw new HttpError(
       401,
-      "Invalid Telegram webhook secret. X-Telegram-Bot-Api-Secret-Token must match TELEGRAM_WEBHOOK_SECRET.",
+      "Invalid Telegram webhook secret. X-Telegram-Bot-Api-Secret-Token must match an active Telegram key.",
       "TELEGRAM_WEBHOOK_UNAUTHORIZED",
     );
   }
@@ -36,7 +34,7 @@ type TgUpdate = {
 };
 
 telegramWebhookRouter.post("/", async (req, res) => {
-  assertWebhookAuth(req.header("x-telegram-bot-api-secret-token"), req.query.token);
+  await assertWebhookAuth(req.header("x-telegram-bot-api-secret-token"), req.query.token);
   const update = (req.body ?? {}) as TgUpdate;
   const chatId = update.message?.chat?.id != null ? String(update.message.chat.id) : "";
   const text = (update.message?.text ?? "").trim();
