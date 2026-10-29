@@ -33,8 +33,8 @@ export function SlabEditorModal({
   row,
   slab,
   initialDraft,
-  providerId,
-  providerName,
+  providerId: pageProviderId,
+  providers,
   onClose,
   onSave,
 }: {
@@ -42,14 +42,20 @@ export function SlabEditorModal({
   /** null = new slab. */
   slab: Slab | null;
   initialDraft: IncomeDraft;
+  /** Provider the rate card is showing (null = All providers). */
   providerId: string | null;
-  providerName: string;
+  providers: Array<{ id: string; name: string }>;
   onClose: () => void;
   onSave: (req: { title: string; changes: PendingChange[]; warnings: string[] }) => void;
 }) {
   const editing = Boolean(initialDraft.replacesId) || slab !== null;
   const initialSplit = slab ? slabSplitOf(slab) : EMPTY_SPLIT;
   const [draft, setDraft] = useState(initialDraft);
+  // An existing slab's values belong to the provider the page loaded, so only a brand-new slab can pick.
+  const canPickProvider = !editing;
+  const providerId = draft.providerId;
+  const nameOf = (id: string | null) => (id ? (providers.find((p) => p.id === id)?.name ?? "This provider") : "All providers");
+  const providerName = nameOf(providerId);
   const [modes, setModes] = useState<Record<SchemeRole, SplitMode>>(initialSplit.modes);
   const [values, setValues] = useState<Record<SchemeRole, string>>(initialSplit.values);
   const [example, setExample] = useState(() => exampleFor(initialDraft));
@@ -96,7 +102,7 @@ export function SlabEditorModal({
   return (
     <Modal
       title={editing ? "Edit slab" : "Add new slab"}
-      eyebrow={`${row.serviceName} · ${providerId ? providerName : "All providers"}`}
+      eyebrow={`${row.serviceName} · ${providerName}`}
       subtitle={
         initialDraft.replacesId
           ? `Now: ${slabLabel(initialDraft.minAmount || null, initialDraft.maxAmount || null)} → ${ruleLabel(initialDraft.ruleType, initialDraft.value, initialDraft.capAmount || null)}`
@@ -111,6 +117,48 @@ export function SlabEditorModal({
         className="rounded-2xl border p-4"
         style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, var(--admin-card) 100%)" }}
       >
+        <div className="mb-3">
+          <p className="mb-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
+            Provider
+          </p>
+          {canPickProvider ? (
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Provider for this slab">
+              {[{ id: null as string | null, name: "All providers" }, ...providers].map((p) => {
+                const active = providerId === p.id;
+                return (
+                  <button
+                    key={p.id ?? "all"}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setDraft((d) => ({ ...d, providerId: p.id }))}
+                    className="rounded-xl border-2 px-3 py-1.5 text-xs font-bold transition"
+                    style={{
+                      borderColor: active ? B.blueLight : B.border,
+                      background: active ? "rgba(42,92,221,0.08)" : "var(--admin-card)",
+                      color: active ? B.blueLight : B.blue,
+                    }}
+                  >
+                    {p.name}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm font-semibold" style={{ color: B.blue }}>
+              {providerName}
+              <span className="ml-2 text-[11px] font-normal" style={{ color: B.muted }}>
+                To set this slab for another provider, pick it in the Provider filter at the top.
+              </span>
+            </p>
+          )}
+          <p className="mt-1.5 text-[11px]" style={{ color: B.muted }}>
+            {providerId
+              ? `Used only when ${providerName} serves the transaction.`
+              : "Used for every provider that has no slab of its own for this range."}
+            {providerId !== pageProviderId ? ` The table shows it after you pick ${providerName} in the Provider filter.` : ""}
+          </p>
+        </div>
         <p className="mb-2 text-xs font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
           Slab · provider pays
         </p>

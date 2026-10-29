@@ -29,12 +29,15 @@ import { openBrandedPdf } from "@/lib/brandedExport";
 import { downloadCsv } from "@/lib/taxCommissionUtils";
 import {
   downloadRateCardWorkbook,
-  planRateCardImport,
-  planRateCardXlsxImport,
+  importRowsFromCsv,
+  importRowsFromXlsx,
+  mergeImportPlans,
+  planImportGroup,
   rateCardCsv,
   rateCardReport,
   sheetFillRequest,
   sheetReady,
+  splitImportByProvider,
 } from "./rateCardTransfer";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -165,6 +168,40 @@ function incomeRuleForSlab(row: ServiceRow, s: Slab) {
 }
 
 /** Something slab-level to remove: a provider income slab or a slab-only role share. */
+/** Row / select-all checkbox; clicks never open the slab editor behind it. */
+function PickBox({
+  checked,
+  indeterminate = false,
+  disabled = false,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  disabled?: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate && !checked;
+  }, [indeterminate, checked]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={onChange}
+      onClick={(e) => e.stopPropagation()}
+      aria-label={label}
+      title={label}
+      className="h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-35"
+      style={{ accentColor: B.blueLight }}
+    />
+  );
+}
+
 function canDeleteAll(row: ServiceRow): boolean {
   return row.providerIncomeRules.length > 0 || row.slabs.some((s) => s.roles.some((r) => r.shareSlab && r.shareId));
 }
@@ -248,7 +285,61 @@ export function RateCardScreen() {
   const { saveReq, setSaveReq, saving, runSave } = usePendingSave(() => {
     setVersion((v) => v + 1);
     setSlabEditor(null);
+    setPicked(new Set());
   });
+
+  /** Ticked slabs, keyed `${serviceId}|${slabKey}` — only slabs with provider income can be deleted. */
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const pickKey = (row: ServiceRow, s: Slab) => `${row.serviceId}|${slabKey(s)}`;
+  const deletableSlabs = (row: ServiceRow) => row.slabs.filter((s) => incomeRuleForSlab(row, s));
+  const pickedSlabs = (row: ServiceRow) => deletableSlabs(row).filter((s) => picked.has(pickKey(row, s)));
+
+  function togglePick(row: ServiceRow, s: Slab) {
+    const key = pickKey(row, s);
+    setPicked((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function togglePickAll(row: ServiceRow) {
+    const keys = deletableSlabs(row).map((s) => pickKey(row, s));
+    const allOn = keys.length > 0 && keys.every((k) => picked.has(k));
+    setPicked((cur) => {
+      const next = new Set(cur);
+      for (const k of keys) {
+        if (allOn) next.delete(k);
+        else next.add(k);
+      }
+      return next;
+    });
+  }
+
+  function clearPicks(row: ServiceRow) {
+    setPicked((cur) => new Set([...cur].filter((k) => !k.startsWith(`${row.serviceId}|`))));
+  }
+
+  function deletePicked(row: ServiceRow) {
+    const slabs = pickedSlabs(row);
+    if (slabs.length === 0) return;
+    if (slabs.length === row.slabs.length) {
+      setSaveReq(endAllSlabsRequest(row));
+      return;
+    }
+    const reqs = slabs
+      .map((s) => incomeRuleForSlab(row, s))
+      .filter((r): r is NonNullable<typeof r> => Boolean(r))
+      .map((r) => endSlabRequest(row, r));
+    setSaveReq({
+      title: `Delete ${slabs.length} slab${slabs.length === 1 ? "" : "s"} · ${row.serviceName}`,
+      changes: reqs.flatMap((r) => r.changes),
+      warnings: [
+        `Txns in the ${slabs.length} selected slab${slabs.length === 1 ? "" : "s"} get no provider income until another slab covers them.`,
+      ],
+    });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -357,9 +448,26 @@ export function RateCardScreen() {
     }
     let plan;
     try {
-      plan = isXlsx
-        ? planRateCardXlsxImport(await readXlsx(file), data, providerId || null, providerName)
-        : planRateCardImport(await file.text(), data, providerId || null, providerName);
+      const parsed = isXlsx ? importRowsFromXlsx(await readXlsx(file)) : importRowsFromCsv(await file.text());
+      if ("error" in parsed) {
+        setImportErrors([parsed.error]);
+        return;
+      }
+      const { groups, errors } = splitImportByProvider(parsed, data);
+      if (errors.length) {
+        setImportErrors(errors);
+        return;
+      }
+      // Each provider's rows are compared with that provider's saved slabs.
+      const plans = [];
+      for (const g of groups) {
+        const scoped =
+          g.providerId === data.providerId
+            ? data
+            : await fetchApi<RateCardData>("/admin/rate-card", g.providerId ? { providerId: g.providerId } : undefined);
+        plans.push(planImportGroup(g, scoped));
+      }
+      plan = mergeImportPlans(plans);
     } catch (err) {
       setImportErrors([err instanceof Error ? err.message : "Could not read this file. Save it again in Excel and retry."]);
       return;
@@ -749,6 +857,16 @@ export function RateCardScreen() {
                               <td colSpan={5} />
                               <td className="w-[150px] px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                                 <span className="inline-flex items-center justify-end">
+                                  {open && pickedSlabs(row).length > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => deletePicked(row)}
+                                      className="admin-btn-danger mr-1 inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-0.5 text-[11px] font-bold"
+                                      title={`Delete the ${pickedSlabs(row).length} selected slabs`}
+                                    >
+                                      <Trash2 size={12} /> Delete {pickedSlabs(row).length}
+                                    </button>
+                                  ) : null}
                                   {addSlabButton(row)}
                                   {canDeleteAll(row) ? (
                                     <IconAction
@@ -764,6 +882,19 @@ export function RateCardScreen() {
                             </tr>
                             {open ? (
                               <SlabHeaderRow
+                                lead={(() => {
+                                  const total = deletableSlabs(row).length;
+                                  const on = pickedSlabs(row).length;
+                                  return (
+                                    <PickBox
+                                      checked={total > 0 && on === total}
+                                      indeterminate={on > 0}
+                                      disabled={total === 0}
+                                      label={total === 0 ? "No slabs to select" : on === total ? "Clear selection" : "Select all slabs"}
+                                      onChange={() => togglePickAll(row)}
+                                    />
+                                  );
+                                })()}
                                 cells={[
                                   { label: "Slab" },
                                   { label: "Provider pays" },
@@ -805,6 +936,12 @@ export function RateCardScreen() {
                                   >
                                     <td className={`pl-[4.25rem] pr-3 text-xs ${dense ? "py-1" : "py-2"}`} style={{ color: B.muted }}>
                                       <span className="flex flex-wrap items-center gap-1.5">
+                                        <PickBox
+                                          checked={picked.has(pickKey(row, s))}
+                                          disabled={!incomeRuleForSlab(row, s)}
+                                          label={incomeRuleForSlab(row, s) ? "Select this slab" : "Nothing to delete — no provider income on this slab"}
+                                          onChange={() => togglePick(row, s)}
+                                        />
                                         {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
                                         <IssueTags
                                           loss={s.underwater ? 1 : 0}
@@ -822,6 +959,33 @@ export function RateCardScreen() {
                             {open ? (
                               <tr className="rc-slab-in border-t" style={{ borderColor: B.border, boxShadow: openBlockEdge("bottom") }}>
                                 <td colSpan={7} className="px-3 py-1.5">
+                                  {pickedSlabs(row).length > 0 ? (
+                                    <div
+                                      className="mb-1.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold"
+                                      style={{ borderColor: "#FCA5A5", background: "#FEF2F2", color: B.danger }}
+                                    >
+                                      <span>
+                                        {pickedSlabs(row).length} of {row.slabs.length} slab{row.slabs.length === 1 ? "" : "s"} selected
+                                      </span>
+                                      <span className="inline-flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => clearPicks(row)}
+                                          className="rounded-lg border px-2.5 py-1 text-xs font-semibold"
+                                          style={{ borderColor: B.border, color: B.muted, background: "var(--admin-card)" }}
+                                        >
+                                          Clear selection
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => deletePicked(row)}
+                                          className="admin-btn-danger inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold"
+                                        >
+                                          <Trash2 size={13} /> Delete selected
+                                        </button>
+                                      </span>
+                                    </div>
+                                  ) : null}
                                   <button
                                     type="button"
                                     onClick={() => setSlabEditor({ serviceId: row.serviceId, slabKey: null, draft: newSlabDraft(null) })}
@@ -866,7 +1030,7 @@ export function RateCardScreen() {
                 slab={slab}
                 initialDraft={slabEditor.draft}
                 providerId={providerId || null}
-                providerName={providerName}
+                providers={data.providers}
                 onClose={() => setSlabEditor(null)}
                 onSave={setSaveReq}
               />

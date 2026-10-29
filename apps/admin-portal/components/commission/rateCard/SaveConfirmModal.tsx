@@ -80,6 +80,9 @@ function CompareTable({ rows }: { rows: CompareRow[] }) {
                       <p className="font-bold" style={{ color: B.blue }}>
                         {r.service}
                       </p>
+                      <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: B.blueLight }}>
+                        {r.provider}
+                      </p>
                       <p className="flex items-center gap-1" style={{ color: B.muted }}>
                         {r.slab}
                         {r.isNew ? (

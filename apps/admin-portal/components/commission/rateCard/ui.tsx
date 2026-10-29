@@ -390,7 +390,7 @@ const CATEGORY_ROW_HEIGHT = 56;
 export type SlabHeaderCell = { label: string; title?: string; colSpan?: number };
 
 /** Column titles inside an open service, right above its slab rows. First cell is left-aligned. */
-export function SlabHeaderRow({ cells }: { cells: SlabHeaderCell[] }) {
+export function SlabHeaderRow({ cells, lead }: { cells: SlabHeaderCell[]; /** e.g. a select-all checkbox before the first title */ lead?: ReactNode }) {
   const edge = B.blueLight;
   return (
     <tr className="rc-slab-in text-[11px] uppercase tracking-wide" style={{ color: B.blueLight }}>
@@ -415,6 +415,7 @@ export function SlabHeaderRow({ cells }: { cells: SlabHeaderCell[] }) {
         >
           {i === 0 ? (
             <span className="inline-flex items-center gap-1.5">
+              {lead}
               <span className="h-2 w-2 rounded-full" style={{ background: B.blueLight }} />
               {c.label}
             </span>

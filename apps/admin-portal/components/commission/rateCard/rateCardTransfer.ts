@@ -27,6 +27,7 @@ import type { SplitMode } from "./ui";
 export const RATE_CARD_CSV_HEADER = [
   "Service",
   "Service code",
+  "Provider",
   "Slab from",
   "Slab to",
   "Provider pays",
@@ -48,6 +49,14 @@ const ROLE_KEY: Record<SchemeRole, string> = {
 };
 
 const num = (v: string | null | undefined) => (v == null || v === "" ? "" : String(Number(v)));
+
+export const ALL_PROVIDERS = "All providers";
+
+/** Provider cell for a slab: the saved income row's own provider, else the provider the card shows. */
+function providerCellOf(data: RateCardData, income: IncomeRule | null): string {
+  const id = income ? income.providerId : data.providerId;
+  return id ? (data.providers.find((p) => p.id === id)?.name ?? ALL_PROVIDERS) : ALL_PROVIDERS;
+}
 
 /** Saved provider income row behind a slab line: same bounds first, else the row covering its sample. */
 function incomeRuleOf(row: ServiceRow, s: Slab): IncomeRule | null {
@@ -79,6 +88,7 @@ export function rateCardCsvRows(data: RateCardData): string[][] {
       return [
         row.serviceName,
         row.serviceCode,
+        providerCellOf(data, income),
         num(s.minAmount),
         num(s.maxAmount),
         income ? (income.ruleType === "flat" ? num(income.value) : `${num(income.value)}%`) : "",
@@ -187,6 +197,7 @@ const SHEET_HEADER = [
   "SD type",
   "SD",
   "Company keeps",
+  "Provider",
 ];
 
 const head = (labels: string[]): XlsxCell[] => labels.map((v) => ({ v, s: "head" }));
@@ -198,7 +209,7 @@ function keepsFormula(r: number, incomeNow: number): string {
   return `ROUND(${provider}-${role("G", "H")}-${role("I", "J")}-${role("K", "L")},2)`;
 }
 
-function serviceSheet(row: ServiceRow): XlsxSheet {
+function serviceSheet(row: ServiceRow, data: RateCardData): XlsxSheet {
   const firstData = 4;
   const lastData = firstData + row.slabs.length - 1;
   const lastEditable = lastData + 100;
@@ -206,11 +217,12 @@ function serviceSheet(row: ServiceRow): XlsxSheet {
   return {
     name: row.serviceName,
     freezeRows: 3,
-    autoFilter: `A3:M${lastData}`,
-    widths: [11, 11, 14, 14, 13, 12, 14, 10, 16, 12, 12, 9, 15],
+    autoFilter: `A3:N${lastData}`,
+    widths: [11, 11, 14, 14, 13, 12, 14, 10, 16, 12, 12, 9, 15, 18],
     validations: [
       { sqref: `D${firstData}:D${lastEditable}`, list: [FLAT, PCT_OF_AMOUNT] },
       ...typeCols.map((c) => ({ sqref: `${c}${firstData}:${c}${lastEditable}`, list: [FLAT, SHARE] })),
+      { sqref: `N${firstData}:N${lastEditable}`, list: [ALL_PROVIDERS, ...data.providers.map((p) => p.name)] },
     ],
     highlights: ["D", ...typeCols].flatMap((c) => [
       { sqref: `${c}${firstData}:${c}${lastEditable}`, equals: FLAT, tone: "green" as const },
@@ -220,7 +232,7 @@ function serviceSheet(row: ServiceRow): XlsxSheet {
       [{ v: row.serviceName, s: "title" }, ...Array(11).fill(null), { v: row.serviceCode, s: "muted" }],
       [
         {
-          v: "Edit the white cells. Type: Flat ₹ = rupees per txn · Share % = % of what the provider pays · % of amount = provider rate on the txn. Blank = no change. Grey cells are worked out for you.",
+          v: "Edit the white cells. Type: Flat ₹ = rupees per txn · Share % = % of what the provider pays · % of amount = provider rate on the txn. Provider (last column) = who this slab is for. Blank = no change. Grey cells are worked out for you.",
           s: "note",
         },
       ],
@@ -242,6 +254,7 @@ function serviceSheet(row: ServiceRow): XlsxSheet {
           income?.capAmount ? Number(income.capAmount) : null,
           ...roleCells,
           { f: keepsFormula(firstData + i, Number(s.providerIncome ?? 0)), s: "info" },
+          providerCellOf(data, income),
         ];
       }),
     ],
@@ -257,8 +270,8 @@ export function rateCardWorkbookSheets(data: RateCardData, scopeName: string): X
   const generated = new Date().toLocaleString("en-IN");
   const summary: XlsxSheet = {
     name: "Summary",
-    freezeRows: 9,
-    autoFilter: `A9:F${9 + data.services.length}`,
+    freezeRows: 10,
+    autoFilter: `A10:F${10 + data.services.length}`,
     widths: [26, 20, 8, 20, 18, 22],
     rows: [
       [{ v: "Commission rate card", s: "title" }],
@@ -267,6 +280,12 @@ export function rateCardWorkbookSheets(data: RateCardData, scopeName: string): X
       [{ v: "How to use: open a service tab, change the white cells, save, then Rate card → Import.", s: "note" }],
       [{ v: "Type columns have a dropdown: Flat ₹ (green) or Share % / % of amount (blue). Use the filter arrows on the header row.", s: "note" }],
       [{ v: "Blank cell = keep what is saved. 0 = ₹0. Add a slab by filling a new row under the last one.", s: "note" }],
+      [
+        {
+          v: `Provider column: ${ALL_PROVIDERS} or a provider name (${data.providers.map((p) => p.name).join(", ") || "none yet"}). Blank = the provider picked on the rate card.`,
+          s: "note",
+        },
+      ],
       [{ v: "Company keeps (grey) updates by itself; copy it down for new rows.", s: "note" }],
       [],
       head(["Service", "Category", "Slabs", "Provider pays not set", "Slabs losing money", "Slabs with a role on ₹0"]),
@@ -283,7 +302,7 @@ export function rateCardWorkbookSheets(data: RateCardData, scopeName: string): X
       }),
     ],
   };
-  return [summary, ...data.services.map(serviceSheet)];
+  return [summary, ...data.services.map((row) => serviceSheet(row, data))];
 }
 
 // ── Fill "Provider pays" from the provider sheet (services with no provider income yet) ──
@@ -376,31 +395,24 @@ function parseBounds(get: (k: string) => string): { from: string; to: string } |
   return "bad";
 }
 
+/** Header row + data rows of an import file, with a "Row 5" / "Cash Withdraw tab, row 7" label per data row. */
+export type ImportRows = { rows: string[][]; labels: string[] };
+
 /**
- * Reads an edited rate card CSV and returns only the writes that differ from what is saved.
- * Accepts the export columns (Service, Slab from, Slab to, Provider pays, Retailer, Distributor, SD) with
- * "80%" for a percentage and a plain number for flat ₹, a single "Slab" text column, and the older
- * *_type / *_value template. Blank cells mean "leave as is"; 0 means ₹0. Nothing is written when any row is invalid.
+ * Edited rate card CSV. Accepts the export columns (Service, Provider, Slab from, Slab to, Provider pays,
+ * Retailer, Distributor, SD) with "80%" for a percentage and a plain number for flat ₹, a single "Slab"
+ * text column, and the older *_type / *_value template. Blank cells mean "leave as is"; 0 means ₹0.
  */
-export function planRateCardImport(
-  text: string,
-  data: RateCardData,
-  providerId: string | null,
-  providerName: string,
-): ImportPlan {
-  return planRows(parseCsv(text), null, data, providerId, providerName);
+export function importRowsFromCsv(text: string): ImportRows {
+  const rows = parseCsv(text);
+  return { rows, labels: rows.slice(1).map((_, i) => `Row ${i + 2}`) };
 }
 
 /**
- * Same as the CSV import, for the editable Excel workbook: every service tab (title row = service name,
- * last title cell = service code, header row with "Slab from") becomes rows of one import.
+ * Editable Excel workbook: every service tab (title row = service name, last title cell = service code,
+ * header row with "Slab from") becomes rows of one import.
  */
-export function planRateCardXlsxImport(
-  sheets: Array<{ name: string; rows: string[][] }>,
-  data: RateCardData,
-  providerId: string | null,
-  providerName: string,
-): ImportPlan {
+export function importRowsFromXlsx(sheets: Array<{ name: string; rows: string[][] }>): ImportRows | { error: string } {
   const header = ["Service", "Service code", ...SHEET_HEADER];
   const body: string[][] = [];
   const labels: string[] = [];
@@ -418,21 +430,68 @@ export function planRateCardXlsxImport(
     sheet.rows.slice(h + 1).forEach((row, i) => {
       const cells = SHEET_HEADER.map((label) => at(row, headerKey(label)));
       // Skip empty lines (only formula / example cells left).
-      if (!cells.some((c, ci) => c !== "" && !["Example amount", "Company keeps"].includes(SHEET_HEADER[ci]!))) return;
+      if (!cells.some((c, ci) => c !== "" && !["Example amount", "Company keeps", "Provider"].includes(SHEET_HEADER[ci]!))) return;
       body.push([name, code, ...cells]);
       labels.push(`${sheet.name} tab, row ${h + i + 2}`);
     });
   }
-  if (body.length === 0) {
-    return {
-      changes: [],
-      errors: ["No service tab with slabs was found. Use the workbook from Export → Excel."],
-      rowsRead: 0,
-      unchangedRows: 0,
-      compare: [],
-    };
-  }
-  return planRows([header, ...body], labels, data, providerId, providerName);
+  if (body.length === 0) return { error: "No service tab with slabs was found. Use the workbook from Export → Excel." };
+  return { rows: [header, ...body], labels };
+}
+
+/** Rows for one provider, planned against that provider's saved rate card. */
+export type ImportGroup = { providerId: string | null; providerName: string; rows: string[][]; labels: string[] };
+
+/**
+ * Splits import rows by the Provider column: "All providers", a provider name or code, or blank
+ * (= the provider the rate card is showing).
+ */
+export function splitImportByProvider(input: ImportRows, data: RateCardData): { groups: ImportGroup[]; errors: string[] } {
+  const [headRow, ...body] = input.rows;
+  if (!headRow) return { groups: [], errors: ["The file is empty. Export the rate card and edit that file."] };
+  const providerCol = headRow.map(headerKey).indexOf("provider");
+  const nameOf = (id: string | null) => (id ? (data.providers.find((p) => p.id === id)?.name ?? "This provider") : ALL_PROVIDERS);
+  const choices = [ALL_PROVIDERS, ...data.providers.map((p) => p.name)].join(", ");
+  const groups = new Map<string, ImportGroup>();
+  const errors: string[] = [];
+  body.forEach((cells, i) => {
+    const raw = providerCol >= 0 ? (cells[providerCol] ?? "").trim() : "";
+    let id: string | null;
+    if (raw === "") id = data.providerId;
+    else if (headerKey(raw) === headerKey(ALL_PROVIDERS) || headerKey(raw) === "all") id = null;
+    else {
+      const hit = data.providers.find((p) => headerKey(p.name) === headerKey(raw) || headerKey(p.code) === headerKey(raw));
+      if (!hit) {
+        if (errors.length < MAX_ERRORS) errors.push(`${input.labels[i]}: provider "${raw}" not found. Use one of: ${choices}.`);
+        return;
+      }
+      id = hit.id;
+    }
+    const key = id ?? "";
+    if (!groups.has(key)) groups.set(key, { providerId: id, providerName: nameOf(id), rows: [headRow], labels: [] });
+    const g = groups.get(key)!;
+    g.rows.push(cells);
+    g.labels.push(input.labels[i]!);
+  });
+  return { groups: [...groups.values()], errors };
+}
+
+/** Only the writes that differ from what is saved for this group's provider. */
+export function planImportGroup(group: ImportGroup, data: RateCardData): ImportPlan {
+  return planRows(group.rows, group.labels, data, group.providerId, group.providerName);
+}
+
+/** One plan from every provider's plan; nothing is written when any row anywhere is invalid. */
+export function mergeImportPlans(plans: ImportPlan[]): ImportPlan {
+  const errors = plans.flatMap((p) => p.errors).slice(0, MAX_ERRORS + 1);
+  const failed = errors.length > 0;
+  return {
+    changes: failed ? [] : plans.flatMap((p) => p.changes),
+    errors,
+    rowsRead: plans.reduce((n, p) => n + p.rowsRead, 0),
+    unchangedRows: plans.reduce((n, p) => n + p.unchangedRows, 0),
+    compare: failed ? [] : plans.flatMap((p) => p.compare),
+  };
 }
 
 /** "Flat ₹" / "flat" → flat; "Share %" / "% of amount" / "percent" → percent; "" → none. */
@@ -440,7 +499,7 @@ const typeIsPercent = (t: string) => /%|share|percent/i.test(t);
 
 function planRows(
   rows: string[][],
-  labels: string[] | null,
+  labels: string[],
   data: RateCardData,
   providerId: string | null,
   providerName: string,
@@ -468,7 +527,7 @@ function planRows(
 
   body.forEach((cells, i) => {
     if (errors.length >= MAX_ERRORS) return;
-    const at = labels?.[i] ?? `Row ${i + 2}`;
+    const at = labels[i] ?? `Row ${i + 2}`;
     const get = (key: string) => (col(key) >= 0 ? (cells[col(key)] ?? "").trim() : "");
 
     // Service: code first, else the name (an exported "Cash Withdraw · Banking Services" works too).
@@ -479,7 +538,7 @@ function planRows(
       errors.push(`${at}: service "${code || name}" not found. Use the service name or code from the export.`);
       return;
     }
-    const where = labels ? at : `${at} (${service.serviceName})`;
+    const where = at.includes(" tab, ") ? at : `${at} (${service.serviceName})`;
 
     const bounds = parseBounds(get);
     if (bounds === "bad" || (bounds.from && !isAmount(bounds.from)) || (bounds.to && !isAmount(bounds.to))) {
@@ -583,6 +642,7 @@ function planRows(
     else {
       compare.push({
         service: service.serviceName,
+        provider: providerName,
         slab: slabLabel(minAmount, maxAmount),
         isNew: !slab && !service.providerIncomeRules.some((r) => r.providerId === providerId && sameBounds(r)),
         fields: fields.length ? fields : [{ label: "Saved values", before: "—", after: `${rowChanges.length} update${rowChanges.length === 1 ? "" : "s"}` }],
