@@ -44,7 +44,7 @@ import { SlabEditorModal } from "./SlabEditorModal";
 import { TaxSummary } from "./TaxSummary";
 import { usePendingSave } from "./usePendingSave";
 import { draftOfIncome, endSlabRequest, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
-import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type ServiceRow, type Slab } from "./types";
+import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type SchemeRole, type ServiceRow, type Slab } from "./types";
 import { Btn, CategoryBlock, ServiceTable, Chip, SlabHeaderRow, openBlockEdge } from "./ui";
 
 type ShowFilter = "all" | "loss" | "unset";
@@ -66,6 +66,42 @@ function hasLossOrMissing(row: ServiceRow): boolean {
 /** A slab with no "Provider pays" yet. */
 function hasUnsetIncome(row: ServiceRow): boolean {
   return row.slabs.some((s) => s.providerIncome == null);
+}
+
+/** Problems that tint a row light red and get a tag next to the name (both densities). */
+function rowIssues(row: ServiceRow) {
+  const loss = row.slabs.filter((s) => s.underwater).length;
+  const unset = row.slabs.filter((s) => s.providerIncome == null).length;
+  const zeroRoles = [...new Set(row.slabs.flatMap((s) => s.missingRoles))];
+  return { loss, unset, zeroRoles, any: loss > 0 || unset > 0 || zeroRoles.length > 0 };
+}
+
+const ISSUE_BG = { even: "rgba(220,38,38,0.045)", odd: "rgba(220,38,38,0.075)" };
+const ISSUE_EDGE = "inset 3px 0 0 #F87171";
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+function IssueTags({ loss, unset, zeroRoles }: { loss: number; unset: number; zeroRoles: SchemeRole[] }) {
+  if (!loss && !unset && zeroRoles.length === 0) return null;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {loss > 0 ? (
+        <Chip tone="red" title="Company pays out more than the provider pays on these slabs">
+          <AlertTriangle size={11} /> Loss{loss > 1 ? ` · ${plural(loss, "slab")}` : ""}
+        </Chip>
+      ) : null}
+      {unset > 0 ? (
+        <Chip tone="red" title="Provider pays is not set — nobody earns until it is">
+          Not set{unset > 1 ? ` · ${plural(unset, "slab")}` : ""}
+        </Chip>
+      ) : null}
+      {zeroRoles.length > 0 ? (
+        <Chip tone="amber" title="These roles earn ₹0 on at least one slab">
+          ₹0: {zeroRoles.map((r) => ROLE_LABEL[r]).join(", ")}
+        </Chip>
+      ) : null}
+    </span>
+  );
 }
 
 function RoleCell({ r }: { r: RoleSplit | undefined }) {
@@ -158,7 +194,6 @@ function IconAction({
 
 function ServiceChips({ row }: { row: ServiceRow }) {
   const ref = row.reference;
-  const missing = new Set(row.slabs.flatMap((s) => s.missingRoles));
   return (
     <div className="mt-1 flex flex-wrap gap-1">
       {ref?.incomeRows && row.providerIncomeRules.length === 0 ? (
@@ -173,9 +208,6 @@ function ServiceChips({ row }: { row: ServiceRow }) {
       ) : null}
       {ref?.mode === "fixed" ? <Chip tone="muted">Fixed mode</Chip> : null}
       {row.tax.source === "service" ? <Chip tone="muted">Custom tax</Chip> : null}
-      {missing.size > 0 ? (
-        <Chip tone="red">No commission: {[...missing].map((r) => ROLE_LABEL[r]).join(", ")}</Chip>
-      ) : null}
     </div>
   );
 }
@@ -660,14 +692,23 @@ export function RateCardScreen() {
                         const open = expanded === row.serviceId;
                         const single = row.slabs.length === 1 ? row.slabs[0] : null;
                         const Icon = getServiceIcon(row.serviceCode);
+                        const issues = rowIssues(row);
                         return (
                           <ServiceTable key={row.serviceId} widths={["", "11%", "11%", "11%", "11%", "12%", "150px"]} open={open} head={<>
                             <tr
                               className="cursor-pointer border-t transition hover:brightness-[0.98]"
                               style={{
                                 borderColor: B.border,
-                                background: open ? ROW_BG.open : rowIndex % 2 ? ROW_BG.odd : ROW_BG.even,
-                                boxShadow: open ? openBlockEdge("top") : undefined,
+                                background: open
+                                  ? ROW_BG.open
+                                  : issues.any
+                                    ? rowIndex % 2
+                                      ? ISSUE_BG.odd
+                                      : ISSUE_BG.even
+                                    : rowIndex % 2
+                                      ? ROW_BG.odd
+                                      : ROW_BG.even,
+                                boxShadow: [open ? openBlockEdge("top") : null, issues.any ? ISSUE_EDGE : null].filter(Boolean).join(", ") || undefined,
                               }}
                               onClick={() => toggle(row)}
                               aria-expanded={open}
@@ -686,8 +727,9 @@ export function RateCardScreen() {
                                     <Icon size={dense ? 14 : 17} />
                                   </span>
                                   <div className="min-w-0">
-                                    <p className="font-semibold" style={{ color: B.blue }}>
+                                    <p className="flex flex-wrap items-center gap-1.5 font-semibold" style={{ color: B.blue }}>
                                       {row.serviceName}
+                                      <IssueTags {...issues} />
                                     </p>
                                     <p className="text-[11px]" style={{ color: B.muted }}>
                                       {single
@@ -716,13 +758,21 @@ export function RateCardScreen() {
                             ) : null}
 </>}>
                             {open
-                              ? row.slabs.map((s, slabIndex) => (
+                              ? row.slabs.map((s, slabIndex) => {
+                                  const bad = s.underwater || s.providerIncome == null || s.missingRoles.length > 0;
+                                  return (
                                   <tr
                                     key={slabKey(s)}
                                     className="rc-slab-in cursor-pointer border-t transition hover:brightness-[0.97]"
                                     style={{
                                       borderColor: B.border,
-                                      background: slabIndex % 2 ? ROW_BG.slabOdd : ROW_BG.slabEven,
+                                      background: bad
+                                        ? slabIndex % 2
+                                          ? ISSUE_BG.odd
+                                          : ISSUE_BG.even
+                                        : slabIndex % 2
+                                          ? ROW_BG.slabOdd
+                                          : ROW_BG.slabEven,
                                       boxShadow: openBlockEdge("middle"),
                                       animationDelay: `${Math.min(slabIndex, 12) * 18}ms`,
                                     }}
@@ -737,12 +787,20 @@ export function RateCardScreen() {
                                     }}
                                   >
                                     <td className={`pl-[4.25rem] pr-3 text-xs ${dense ? "py-1" : "py-2"}`} style={{ color: B.muted }}>
-                                      {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
+                                      <span className="flex flex-wrap items-center gap-1.5">
+                                        {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
+                                        <IssueTags
+                                          loss={s.underwater ? 1 : 0}
+                                          unset={s.providerIncome == null ? 1 : 0}
+                                          zeroRoles={s.missingRoles}
+                                        />
+                                      </span>
                                     </td>
                                     <SlabCells slab={s} dense={dense} />
                                     {slabActions(row, s)}
                                   </tr>
-                                ))
+                                  );
+                                })
                               : null}
                             {open ? (
                               <tr className="rc-slab-in border-t" style={{ borderColor: B.border, boxShadow: openBlockEdge("bottom") }}>
