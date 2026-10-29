@@ -10,6 +10,7 @@ import {
   pct,
   ruleLabel,
   slabLabel,
+  type CompareRow,
   type IncomeRule,
   type PendingChange,
   type RateCardData,
@@ -332,7 +333,18 @@ export type ImportPlan = {
   errors: string[];
   rowsRead: number;
   unchangedRows: number;
+  /** Before → after per slab that changes. */
+  compare: CompareRow[];
 };
+
+/** "80% share" / "₹0.50 flat" / "Not set" for one role on a slab. */
+function splitText(mode: SplitMode, value: string): string {
+  if (value.trim() === "") return "Not set";
+  return mode === "percent" ? `${pct(value)} share` : `${inr(value)} flat`;
+}
+
+const sameSplit = (a: SplitMode, av: string, b: SplitMode, bv: string) =>
+  (av.trim() === "" && bv.trim() === "") || (a === b && av.trim() !== "" && bv.trim() !== "" && Number(av) === Number(bv));
 
 const MAX_ERRORS = 25;
 
@@ -412,7 +424,13 @@ export function planRateCardXlsxImport(
     });
   }
   if (body.length === 0) {
-    return { changes: [], errors: ["No service tab with slabs was found. Use the workbook from Export → Excel."], rowsRead: 0, unchangedRows: 0 };
+    return {
+      changes: [],
+      errors: ["No service tab with slabs was found. Use the workbook from Export → Excel."],
+      rowsRead: 0,
+      unchangedRows: 0,
+      compare: [],
+    };
   }
   return planRows([header, ...body], labels, data, providerId, providerName);
 }
@@ -429,7 +447,8 @@ function planRows(
 ): ImportPlan {
   const errors: string[] = [];
   const changes: PendingChange[] = [];
-  const fail = (msg: string): ImportPlan => ({ changes, errors: [msg], rowsRead: 0, unchangedRows: 0 });
+  const compare: CompareRow[] = [];
+  const fail = (msg: string): ImportPlan => ({ changes, errors: [msg], rowsRead: 0, unchangedRows: 0, compare: [] });
   if (rows.length === 0) return fail("The file is empty. Export the rate card as CSV and edit that file.");
 
   const header = rows[0]!.map(headerKey);
@@ -481,6 +500,7 @@ function planRows(
     const sameBounds = (r: { minAmount: string | null; maxAmount: string | null }) =>
       amountBound(r.minAmount) === amountBound(minAmount) && amountBound(r.maxAmount) === amountBound(maxAmount);
     const rowChanges: PendingChange[] = [];
+    const fields: CompareRow["fields"] = [];
 
     // Provider pays: "13.95" flat, "0.465%" percent, or a type column ("Flat ₹" / "% of amount") + number.
     const pType = get("providertype");
@@ -515,7 +535,14 @@ function planRows(
         saved.ruleType === draft.ruleType &&
         Number(saved.value) === Number(draft.value) &&
         amountBound(saved.capAmount) === amountBound(draft.capAmount);
-      if (!same) rowChanges.push(...incomeChanges(service, draft, providerName));
+      if (!same) {
+        rowChanges.push(...incomeChanges(service, draft, providerName));
+        fields.push({
+          label: "Provider pays",
+          before: saved ? ruleLabel(saved.ruleType, saved.value, saved.capAmount) : "Not set",
+          after: ruleLabel(draft.ruleType, draft.value, draft.capAmount || null),
+        });
+      }
     }
 
     // Role split for this slab: "0.5" flat ₹ or "80%", or a type column ("Flat ₹" / "Share %") + number.
@@ -543,12 +570,28 @@ function planRows(
       next.modes[role] = parsed.mode;
       next.values[role] = parsed.value;
     }
-    rowChanges.push(...slabSplitChanges({ row: service, initial, next, providerId, minAmount, maxAmount }));
+    const splitChanges = slabSplitChanges({ row: service, initial, next, providerId, minAmount, maxAmount });
+    rowChanges.push(...splitChanges);
+    if (splitChanges.length > 0) {
+      for (const role of SCHEME_ROLES) {
+        const [a, av, b, bv] = [initial.modes[role], initial.values[role], next.modes[role], next.values[role]];
+        if (!sameSplit(a, av, b, bv)) fields.push({ label: ROLE_LABEL[role], before: splitText(a, av), after: splitText(b, bv) });
+      }
+    }
 
     if (rowChanges.length === 0) unchangedRows += 1;
+    else {
+      compare.push({
+        service: service.serviceName,
+        slab: slabLabel(minAmount, maxAmount),
+        isNew: !slab && !service.providerIncomeRules.some((r) => r.providerId === providerId && sameBounds(r)),
+        fields: fields.length ? fields : [{ label: "Saved values", before: "—", after: `${rowChanges.length} update${rowChanges.length === 1 ? "" : "s"}` }],
+      });
+    }
     changes.push(...rowChanges);
   });
 
   if (errors.length >= MAX_ERRORS) errors.push("Stopped after 25 problems — fix these and import again.");
-  return { changes: errors.length ? [] : changes, errors, rowsRead: body.length, unchangedRows };
+  const failed = errors.length > 0;
+  return { changes: failed ? [] : changes, errors, rowsRead: body.length, unchangedRows, compare: failed ? [] : compare };
 }

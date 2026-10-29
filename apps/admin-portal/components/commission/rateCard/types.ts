@@ -192,6 +192,14 @@ export type PendingChange = {
   body: Record<string, unknown>;
 };
 
+/** One slab in an import, as it is now and as the file will make it. */
+export type CompareRow = {
+  service: string;
+  slab: string;
+  isNew: boolean;
+  fields: Array<{ label: string; before: string; after: string }>;
+};
+
 export function inr(v: string | number | null | undefined): string {
   if (v == null || v === "") return "—";
   const n = Number(v);

@@ -4,9 +4,9 @@ import { useState } from "react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/api";
 import { apiErrorMessage } from "@/lib/taxCommissionUtils";
-import type { PendingChange } from "./types";
+import type { CompareRow, PendingChange } from "./types";
 
-export type SaveRequest = { title: string; changes: PendingChange[]; warnings: string[] };
+export type SaveRequest = { title: string; changes: PendingChange[]; warnings: string[]; compare?: CompareRow[] };
 
 /** Posts each change in order with the reason; `onSaved` runs when at least one change went through. */
 export function usePendingSave(onSaved: () => void) {

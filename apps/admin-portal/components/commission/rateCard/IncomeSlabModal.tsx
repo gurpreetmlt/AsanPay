@@ -4,7 +4,17 @@ import { useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { B } from "@/lib/brand";
-import { ruleLabel, slabLabel, type IncomeRule, type PendingChange, type RuleType, type ServiceRow } from "./types";
+import {
+  ROLE_LABEL,
+  inr,
+  pct,
+  ruleLabel,
+  slabLabel,
+  type IncomeRule,
+  type PendingChange,
+  type RuleType,
+  type ServiceRow,
+} from "./types";
 import { Btn, NumberField } from "./ui";
 
 export type IncomeDraft = {
@@ -107,6 +117,39 @@ export function endSlabRequest(row: ServiceRow, r: IncomeRule) {
       },
     ],
     warnings: [`Txns in ${slabLabel(r.minAmount, r.maxAmount)} get no provider income until another slab covers it.`],
+  };
+}
+
+/** Review popup request for ending every slab of a service: provider income slabs + slab-only role shares. */
+export function endAllSlabsRequest(row: ServiceRow) {
+  const svc = row.serviceName;
+  const changes: PendingChange[] = row.providerIncomeRules.map((r) => ({
+    label: `${svc} · end provider income slab`,
+    detail: `${slabLabel(r.minAmount, r.maxAmount)}: ${ruleLabel(r.ruleType, r.value, r.capAmount)}`,
+    method: "delete",
+    url: `/admin/rate-card/provider-income/${r.id}`,
+    body: {},
+  }));
+  const seen = new Set<string>();
+  for (const s of row.slabs) {
+    for (const r of s.roles) {
+      if (!r.shareSlab || !r.shareId || seen.has(r.shareId)) continue;
+      seen.add(r.shareId);
+      changes.push({
+        label: `${svc} · end ${ROLE_LABEL[r.role]} slab share`,
+        detail: `${slabLabel(s.minAmount, s.maxAmount)}: ${r.shareFlat != null ? `${inr(r.shareFlat)} flat` : pct(r.sharePercent)}`,
+        method: "delete",
+        url: `/admin/rate-card/shares/${r.shareId}`,
+        body: {},
+      });
+    }
+  }
+  return {
+    title: `Delete all slabs · ${svc}`,
+    changes,
+    warnings: [
+      `All ${row.slabs.length} slab${row.slabs.length === 1 ? "" : "s"} of ${svc} are removed. New ${svc} transactions get no provider income until you add slabs again. The service-wide default split stays.`,
+    ],
   };
 }
 

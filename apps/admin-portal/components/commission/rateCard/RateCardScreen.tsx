@@ -43,7 +43,7 @@ import { SaveConfirmModal } from "./SaveConfirmModal";
 import { SlabEditorModal } from "./SlabEditorModal";
 import { TaxSummary } from "./TaxSummary";
 import { usePendingSave } from "./usePendingSave";
-import { draftOfIncome, endSlabRequest, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
+import { draftOfIncome, endAllSlabsRequest, endSlabRequest, newIncomeKey, type IncomeDraft } from "./IncomeSlabModal";
 import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type RoleSplit, type SchemeRole, type ServiceRow, type Slab } from "./types";
 import { Btn, CategoryBlock, ServiceTable, Chip, SlabHeaderRow, openBlockEdge } from "./ui";
 
@@ -162,6 +162,11 @@ const slabKey = (s: Slab) => `${s.minAmount ?? ""}|${s.maxAmount ?? ""}`;
 /** The saved "Provider pays" row behind a slab line (same bounds), if any. */
 function incomeRuleForSlab(row: ServiceRow, s: Slab) {
   return row.providerIncomeRules.find((r) => r.minAmount === s.minAmount && r.maxAmount === s.maxAmount) ?? null;
+}
+
+/** Something slab-level to remove: a provider income slab or a slab-only role share. */
+function canDeleteAll(row: ServiceRow): boolean {
+  return row.providerIncomeRules.length > 0 || row.slabs.some((s) => s.roles.some((r) => r.shareSlab && r.shareId));
 }
 
 function IconAction({
@@ -368,10 +373,11 @@ export function RateCardScreen() {
       return;
     }
     setSaveReq({
-      title: "Import rate card",
+      title: "Import rate card — compare before saving",
       changes: plan.changes,
+      compare: plan.compare,
       warnings: [
-        `${plan.rowsRead} rows read · ${plan.unchangedRows} already match · ${plan.changes.length} changes to save. Slabs not in the file stay as they are.`,
+        `${plan.rowsRead} rows read · ${plan.unchangedRows} already match · ${plan.compare.length} slabs change. Slabs not in the file stay as they are.`,
       ],
     });
   }
@@ -742,7 +748,18 @@ export function RateCardScreen() {
                               </td>
                               <td colSpan={5} />
                               <td className="w-[150px] px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                                {addSlabButton(row)}
+                                <span className="inline-flex items-center justify-end">
+                                  {addSlabButton(row)}
+                                  {canDeleteAll(row) ? (
+                                    <IconAction
+                                      title={`Delete all ${row.slabs.length} slabs of ${row.serviceName}`}
+                                      tone="red"
+                                      onClick={() => setSaveReq(endAllSlabsRequest(row))}
+                                    >
+                                      <Trash2 size={14} />
+                                    </IconAction>
+                                  ) : null}
+                                </span>
                               </td>
                             </tr>
                             {open ? (
@@ -813,6 +830,16 @@ export function RateCardScreen() {
                                   >
                                     <Plus size={13} /> Add slab to {row.serviceName}
                                   </button>
+                                  {canDeleteAll(row) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSaveReq(endAllSlabsRequest(row))}
+                                      className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-xl border py-1.5 text-xs font-bold transition hover:bg-[#FEF2F2]"
+                                      style={{ borderColor: "#FCA5A5", color: B.danger }}
+                                    >
+                                      <Trash2 size={13} /> Delete all {row.slabs.length} slabs
+                                    </button>
+                                  ) : null}
                                 </td>
                               </tr>
                             ) : null}
@@ -852,6 +879,7 @@ export function RateCardScreen() {
           title={saveReq.title}
           changes={saveReq.changes}
           warnings={saveReq.warnings}
+          compare={saveReq.compare}
           busy={saving}
           onConfirm={(reason) => void runSave(reason)}
           onClose={() => setSaveReq(null)}
