@@ -25,15 +25,27 @@ Source: online API docs (Postman collection 45133648/2sB3QJPqzn), checked line b
 | CMS money flow | Noble calls **our** callback: `balance_check` → `balance_check_debit` (we debit our retailer's wallet and reply "Amount Debit Successful") → `transaction_post` (final, with UTR + commission, 15 min later). We are responsible for every success reply |
 | Penny drop | ₹1 financial transaction. Penniless `Failed` = verification failed, empty name |
 
+## Confirmed by our own tests (29 Oct, dev server)
+
+| Check | Result |
+|---|---|
+| Token generation | Max **5 tokens per day** ("Daily token generation limit exceeded") |
+| AEPS status, unknown id | `status -1`, `AG0003`, message "Error", description "No Records Found" |
+| AEPS `transactionId` length | 25 accepted, 31 rejected (`VF0003`) → max 25 |
+| Recharge status, unknown id | `status 1`, `RE0001`, `tranStatus: "Failed"` — same as a real failure |
+| Response time | 150–400 ms |
+
 ## Still to ask Noble (apisupport@noblewebstudio.com)
 
-1. What is our actual rate limit (requests per minute)? Can it be raised? Please whitelist our production server IP: ______
+0. Token generation is limited to **5 per day**. Exact token validity (expiry time)? When does the daily counter reset? Please raise it for production (at least 20 per day).
+0a. `recharge_status` returns `tranStatus: Failed` (`RE0001`) even for a `transactionId` you never received. How do we tell "not found" from a real failure (e.g. is `apiTransactionId` always present for a real transaction)?
+1. What is our actual rate limit (requests per minute)? Can it be raised? Please whitelist our production server IP: 65.1.118.51 (and keep 13.206.56.155 for testing)
 2. Please register our callback URLs (UPI QR, Recharge, CMS) **with `?token=<our secret>`** — the docs have no signature, so we authenticate callbacks by that token. How do we configure the callback URL?
 3. Can an AEPS submit return `status 0` when the bank result is unknown (bank timeout)? Please share the full AEPS error-code list.
 4. Is AEPS `AG0003` "No Records Found" final after some time (e.g. 60 min)? Same for DMT `DB0042`?
 5. What does `recharge_status` return for a `transactionId` you never received?
 6. CMS: besides us debiting our retailer, does Noble also debit **our Noble API balance**? When is the `commission` paid?
-7. Maximum AEPS `transactionId` length? Must the Generate-OTP `transactionId` equal the cash-withdrawal `transactionId`?
+7. Must the Generate-OTP `transactionId` equal the cash-withdrawal `transactionId`? (max length 25 confirmed by test)
 8. Recommended AEPS submit timeout (ours 40 s) and how soon the status API has the record?
 9. Airtel DMT eKYC: `merchantMobileNumber` (parameter table) or `merchantMobileNo` (examples)?
 10. Airtel DMT `validate_aadhar` returns `RS_OB_009` ("already registered") — continue to registration OTP or stop?

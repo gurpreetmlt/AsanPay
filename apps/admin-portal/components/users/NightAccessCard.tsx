@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
-import { Banknote, Fingerprint, Moon, Receipt, Send, Smartphone, type LucideIcon } from "lucide-react";
+import { Banknote, Clock, Fingerprint, Moon, Receipt, Send, Smartphone, type LucideIcon } from "lucide-react";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { Modal } from "@/components/ui/Modal";
@@ -10,6 +10,7 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { DateTimeField } from "@/components/ui/DateField";
 import { DetailSection } from "@/components/users/DetailSection";
+import { NightWindowForm } from "@/components/settings/NightWindowForm";
 
 type Group = "aeps" | "dmt" | "bbps" | "recharge" | "cms";
 type Row = {
@@ -46,6 +47,7 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
   const [until, setUntil] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [timingOpen, setTimingOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -120,16 +122,27 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(55,48,163,0.14)", color: "#3730A3" }}>
             <Moon size={15} />
           </span>
-          <p className="pt-1 text-xs leading-relaxed" style={{ color: "var(--admin-text)" }}>
-            {win && win.enabled ? (
-              <>
-                Services close every night from <strong>{win.startLabel}</strong> to <strong>{win.endLabel}</strong>
-                {win.closedNow ? " — closed right now." : "."} Turn a service on to keep it open for {agentName} (emergency).
-              </>
-            ) : (
-              "The night window is off in Platform settings — services are open all day."
-            )}
-          </p>
+          <div className="min-w-0 flex-1 pt-1">
+            <p className="text-xs leading-relaxed" style={{ color: "var(--admin-text)" }}>
+              {win && win.enabled ? (
+                <>
+                  Services close every night for all agents from <strong>{win.startLabel}</strong> to{" "}
+                  <strong>{win.endLabel}</strong>
+                  {win.closedNow ? " — closed right now." : "."} Turn a service on to keep it open for {agentName} (emergency).
+                </>
+              ) : (
+                "The night window is off — services are open all day for every agent."
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => setTimingOpen(true)}
+              className="mt-1.5 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition hover:bg-[rgba(55,48,163,0.1)]"
+              style={{ color: "#3730A3" }}
+            >
+              <Clock size={12} /> Change timing (all agents)
+            </button>
+          </div>
         </div>
 
         {!rows ? (
@@ -268,6 +281,25 @@ export function NightAccessCard({ userId, agentName }: { userId: string; agentNa
               </button>
             </div>
           </div>
+        </Modal>
+      ) : null}
+
+      {timingOpen ? (
+        <Modal
+          title="Night service timing"
+          eyebrow="All agents"
+          subtitle="AePS, DMT, BBPS, recharge and CMS close in this window every night (India time)."
+          icon={<Moon size={22} />}
+          iconTone="blue"
+          onClose={() => setTimingOpen(false)}
+        >
+          <NightWindowForm
+            onCancel={() => setTimingOpen(false)}
+            onSaved={(w) => {
+              setWin(w);
+              setTimingOpen(false);
+            }}
+          />
         </Modal>
       ) : null}
 
