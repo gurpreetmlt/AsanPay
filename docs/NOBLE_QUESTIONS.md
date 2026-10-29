@@ -1,44 +1,44 @@
-# Questions for Noble before go-live (28 Oct 2026)
+# Noble integration — answered vs still to ask (updated 29 Oct 2026)
 
-From a line-by-line check of our integration against the Noble API docs (`NobleWebStudio/`).
-Answers change money handling — share this list with the Noble integration team.
+Source: online API docs (Postman collection 45133648/2sB3QJPqzn), checked line by line.
 
-## Most urgent (money safety)
+## Answered by the online docs
 
-1. Does every AEPS cash withdrawal, cash deposit and Aadhaar Pay submit reply always include `tranStatus`?
-2. Can an AEPS submit return `status:0` when the bank result is unknown (bank timeout)? Which codes are final failures and which mean "check status later"? Please share the full AEPS error-code list.
-3. Is "No Records Found" always `AG0003` with that exact text for AEPS status checks? For DMT is it always `DB0042` with `status:-1`, and is it final one hour after submission?
-4. What does `recharge_status` return for a `transactionId` you never received, and after how long is that final? On `recharge_b2b`, can `status 0` without `tranStatus` ever mean the recharge was accepted or our balance was debited?
-5. What is the full response of `transaction_validate_otp` (DMT transfer)? Does it include `transactionStatus`? What are all possible `transactionStatus` values, and is `Refunded` final (who receives the refund)?
-6. Your sample token shows an IP whitelist and a limit of 5 requests per minute. Is that per account or per endpoint, and can it be raised? Please whitelist our production EC2 outgoing IP.
-7. Airtel CMS: is the collected amount debited from or credited to our Noble balance, when, and is `commission` paid to us? (CMS stays off until answered.)
-8. Do you send AEPS / DMT / recharge callbacks? If yes, the payload, and can you send a custom header (`X-Callback-Token`) or only a `?token=` query parameter?
+| Topic | What the docs say |
+|---|---|
+| Rate limit | Per client; over the limit returns `AE0022` / HTTP 429. Sample token shows 5 requests / minute |
+| IP whitelist | Server IP must be whitelisted against the Client ID; otherwise `AE0028`. Endpoints must be enabled per client (`AE0029`) |
+| Timestamp header | `X-Timestamp` in IST `yyyy-MM-ddTHH:mm:ss`, within ±15 s |
+| Request fields | Send every documented field; use `""` (never null / missing) or get `PM0002` |
+| Location | Real, live, inside India, 4 decimals; AEPS blocked beyond 20 km of KYC location; web must capture location via a mobile QR flow |
+| AEPS final status | `status=1` → `tranStatus` is final. `status=0` → request error. "No Records Found" = `status -1`, `AG0003` |
+| AEPS amounts | Cash withdrawal, Aadhaar Pay, cash deposit: ₹100–₹10,000. Balance / mini statement: amount 0 |
+| AEPS bank list | No API — Noble support sends the bank list |
+| Daily 2FA | ₹0.80 + GST, charged whenever `isChargeable=YES`, even on failure. Call Load Agent first |
+| Recon | `Status~TransactionID~RRN` (1 success, 0 failed), max 500 per call, upload after 11:00 PM, same `uniqueDateTransactionId` for a re-send of the same type + date. Mandatory for month-end commission |
+| DMT amounts | ₹100–₹5,000 per transfer. Remitter limit `mcmv` ₹25,000 / month, `mpt` ₹5,000 per txn, `mcv` used this month |
+| DMT status | `status 1/DB0031` Success, `0/DB0032` Failed, `-1` Pending. "No records found" = `status -1`, `DB0042`. Failed DMT is auto-refunded per bank policy |
+| DMT session | Airtel flow, Step-1 token and OTPs expire in 15 minutes. Steps 2, 4, 5, 7 need `token` in the body too |
+| Recharge status | Use only `tranStatus` (`Success` / `Failed` / `Pending`); if missing, call the status API (`statusBy` ATI or TI_TD, date YYYY-MM-DD) |
+| Recharge operators | Mobile: AIRTEL_B2B, BSNL_B2B, BSNLSTV_B2B, JIO_B2B, MTNLDELHI_B2B, MTNLMUMBAI_B2B, VI_B2B. DTH: AIRTELTV_B2B, D2H_B2B, DISHTV_B2B, JIOTV_B2B, SUNDIRECT_B2B, TATAPLAY_B2B. Circle 50 when unknown |
+| Callbacks | UPI QR (2 min after txn), Recharge (15 min), CMS (3 callbacks). No AEPS / DMT callbacks |
+| CMS money flow | Noble calls **our** callback: `balance_check` → `balance_check_debit` (we debit our retailer's wallet and reply "Amount Debit Successful") → `transaction_post` (final, with UTR + commission, 15 min later). We are responsible for every success reply |
+| Penny drop | ₹1 financial transaction. Penniless `Failed` = verification failed, empty name |
 
-## AEPS
+## Still to ask Noble (apisupport@noblewebstudio.com)
 
-9. Recommended submit timeout (ours is 40 s)? How soon after submit, and for how long, does the status API return a record?
-10. Is `transactionDate` our request date or your receipt date for a request sent around midnight IST? Is the 4-day status window for all AEPS products or only UPI QR?
-11. Maximum `transactionId` length for AEPS? Must the Generate-OTP `transactionId` match the later transaction's `transactionId`?
-12. Is there an AEPS bank-list API? Is `bankName` checked against `bankIn`?
-13. Exact mini-statement reply format (field names for date, narration, amount, credit/debit)?
-14. Recon (`reconData`): does `1` mean success and `0` failed? Is the middle field our `transactionId`? Does re-sending a day with the same `uniqueDateTransactionId` replace or duplicate it? When may failed records have an empty RRN?
-15. Is `ipAddress` `127.0.0.1` accepted when no public client IP is known, or should we send our server IP?
-16. Onboarding `dob` format: `DD/MM/YYYY` or `DD-MM-YYYY` (table and sample differ)? Allowed `businessNature` and `annualIncome` values? Does AEPS KYC accept face or iris?
-
-## DMT
-
-17. Per-transfer minimum ₹1 or ₹100? Paise allowed or whole rupees only?
-18. Actual per-remitter monthly and daily limits? What do `dcmv`, `mcmv` and `mpt` mean?
-19. eKYC: `merchantMobileNumber` (parameter table) or `merchantMobileNo` (sample body, which we send)?
-20. When `validate_aadhar` returns `RS_OB_009` ("Aadhaar already registered"), should we continue to the registration OTP?
-21. Must the transfer amount equal the amount used at transaction-OTP time?
-22. Is `bankName` validated or free text?
-23. Is the Step-1 token tied to one remitter session, and how long is it valid?
-
-## Recharge / bank check
-
-24. Full B2B operator code list — are `JIO_B2B`, `VI_B2B`, `BSNL_B2B`, `TATASKY_B2B`, `SUNTV_B2B`, `VIDEOCON_B2B` valid?
-25. Does `amount` accept decimals like `299.50`?
-26. Does a penniless `tranStatus: Failed` mean the account is invalid, or only that the lookup couldn't resolve it?
-27. Cost per hit for penny drop and penniless; is the ₹1 penny drop refunded?
-28. CMS `merchantId`: the retailer's mobile number or an id you assign? All possible CMS `tranStatus` values?
+1. What is our actual rate limit (requests per minute)? Can it be raised? Please whitelist our production server IP: ______
+2. Please register our callback URLs (UPI QR, Recharge, CMS) **with `?token=<our secret>`** — the docs have no signature, so we authenticate callbacks by that token. How do we configure the callback URL?
+3. Can an AEPS submit return `status 0` when the bank result is unknown (bank timeout)? Please share the full AEPS error-code list.
+4. Is AEPS `AG0003` "No Records Found" final after some time (e.g. 60 min)? Same for DMT `DB0042`?
+5. What does `recharge_status` return for a `transactionId` you never received?
+6. CMS: besides us debiting our retailer, does Noble also debit **our Noble API balance**? When is the `commission` paid?
+7. Maximum AEPS `transactionId` length? Must the Generate-OTP `transactionId` equal the cash-withdrawal `transactionId`?
+8. Recommended AEPS submit timeout (ours 40 s) and how soon the status API has the record?
+9. Airtel DMT eKYC: `merchantMobileNumber` (parameter table) or `merchantMobileNo` (examples)?
+10. Airtel DMT `validate_aadhar` returns `RS_OB_009` ("already registered") — continue to registration OTP or stop?
+11. Airtel DMT: must the transfer amount equal the transaction-OTP amount?
+12. Is `bankName` validated on beneficiary add / transfer?
+13. Does recharge `amount` accept decimals (e.g. 299.50)?
+14. Penny drop and penniless cost per hit; is the ₹1 penny drop refunded?
+15. CMS `merchantId` — retailer mobile or a Noble-assigned id? All CMS `tranStatus` values?
