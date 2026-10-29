@@ -1,13 +1,14 @@
 import { eq, gte, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
-import { bankNameChecks, tenants } from "../../db/postgres/schema";
-import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { auditLogs, bankNameChecks, tenants } from "../../db/postgres/schema";
+import { insertAuditLog, type InsertAuditLogInput } from "../../db/postgres/repositories/auditLog";
 import { env, isNobleConfigured } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
 import { logger } from "../../utils/logger";
 import { bestApiConfigured } from "../providers/bestapi/client";
 import { resolveTenantId } from "../fund-requests/tenant";
 import { asSettings } from "../tenants/tenantSettings.service";
+import { orderError, planBulkToggle, sameOrder, type BulkItem, type BulkSkip, type CheckState } from "./verificationRules";
 
 /**
  * Every verification / lookup API the platform buys from a provider, where it is used, the
@@ -32,8 +33,8 @@ type CheckDef = {
   section: "kyc" | "bank" | "service" | "recharge";
   usedIn: string[];
   apis: ApiDef[];
-  /** Fixed order (cheapest first) — admin can switch steps off but not reorder. */
-  fixedOrder: boolean;
+  /** Order is shown as Step 1, Step 2… (each step tried in turn) instead of Primary / Fallback. `apis` lists the default order. */
+  stepOrder: boolean;
   offMessage: string;
   /** "skip" = the flow carries on without this check when it is off. */
   offBehavior?: "block" | "skip";
@@ -49,7 +50,7 @@ export const VERIFICATION_CHECKS = {
     section: "kyc",
     usedIn: ["Agent signup → KYC step (web + app)"],
     apis: [{ provider: "bestapi", api: "PAN verify", endpoints: ["/api/gw/identity-verify/pan/pan-verify"] }],
-    fixedOrder: true,
+    stepOrder: true,
     offMessage: "PAN verification is turned off right now. Contact support.",
   },
   aadhaar_otp: {
@@ -63,7 +64,7 @@ export const VERIFICATION_CHECKS = {
         endpoints: ["/api/gw/identity/verification/aadhar-send-otp", "/api/gw/identity/verification/aadhar-otp-verify"],
       },
     ],
-    fixedOrder: true,
+    stepOrder: true,
     offMessage: "Aadhaar OTP verification is turned off right now. Contact support.",
   },
   bank_account: {
@@ -91,7 +92,7 @@ export const VERIFICATION_CHECKS = {
         cost: "Paid · sends ₹1",
       },
     ],
-    fixedOrder: true,
+    stepOrder: true,
     offMessage: "Bank account verification is turned off right now. Contact support.",
   },
   aeps_daily_2fa: {
@@ -99,7 +100,7 @@ export const VERIFICATION_CHECKS = {
     section: "service",
     usedIn: ["AePS", "Aadhaar Pay", "DMT — once a day before the first transaction"],
     apis: [{ provider: "noble", api: "Daily 2FA", endpoints: ["/v2.0/aeps/daily_2fa"] }],
-    fixedOrder: true,
+    stepOrder: true,
     offMessage: "Daily biometric verification is turned off right now. Contact support.",
   },
   dmt_remitter_otp: {
@@ -117,7 +118,7 @@ export const VERIFICATION_CHECKS = {
         ],
       },
     ],
-    fixedOrder: true,
+    stepOrder: true,
     offMessage: "New remitter registration is turned off right now. Contact support.",
   },
   dmt_remitter_ekyc: {
@@ -125,7 +126,7 @@ export const VERIFICATION_CHECKS = {
     section: "service",
     usedIn: ["DMT → remitter eKYC after registration"],
     apis: [{ provider: "noble", api: "Remitter eKYC", endpoints: ["/api/v1.0/airtel_dmt/sender_registration_ekyc"] }],
-    fixedOrder: true,
+    stepOrder: true,
     offMessage: "Remitter eKYC is turned off right now. Contact support.",
   },
   upi_cash_point_kyc: {
@@ -133,7 +134,7 @@ export const VERIFICATION_CHECKS = {
     section: "service",
     usedIn: ["UPI Cash Point → first-time agent biometric KYC"],
     apis: [{ provider: "noble", api: "UPI QR agent KYC", endpoints: ["/v2.0/aeps/upiqr_kyc"] }],
-    fixedOrder: true,
+    stepOrder: true,
     offMessage: "UPI Cash Point KYC is turned off right now. Contact support.",
   },
   mobile_operator: {
@@ -144,7 +145,7 @@ export const VERIFICATION_CHECKS = {
       { provider: "bestapi", api: "Mobile operator", endpoints: ["/api/gw/mobile/information/mobile-operators"] },
       { provider: "vyaparapi", api: "Mobile operator circle", endpoints: ["/public/mobile"] },
     ],
-    fixedOrder: false,
+    stepOrder: false,
     offMessage: "Operator lookup is turned off right now. Select the operator manually.",
     defaultOff: RECHARGE_LOOKUP_DEFAULT_OFF,
   },
@@ -156,7 +157,7 @@ export const VERIFICATION_CHECKS = {
       { provider: "bestapi", api: "Mobile plans", endpoints: ["/api/gw/mobile/information/mobile-plans"] },
       { provider: "vyaparapi", api: "Mobile plans", endpoints: ["/public/mobile/plans"] },
     ],
-    fixedOrder: false,
+    stepOrder: false,
     offMessage: "Plan list is turned off right now. Enter the recharge amount manually.",
     defaultOff: RECHARGE_LOOKUP_DEFAULT_OFF,
   },
@@ -168,7 +169,7 @@ export const VERIFICATION_CHECKS = {
       { provider: "bestapi", api: "R-offer", endpoints: ["/api/gw/mobile/information/roffer"] },
       { provider: "vyaparapi", api: "R-offer", endpoints: ["/public/mobile/roffer"] },
     ],
-    fixedOrder: false,
+    stepOrder: false,
     offMessage: "Special offers are turned off right now. Enter the recharge amount manually.",
     defaultOff: RECHARGE_LOOKUP_DEFAULT_OFF,
   },
@@ -180,7 +181,7 @@ export const VERIFICATION_CHECKS = {
       { provider: "bestapi", api: "DTH plans", endpoints: ["/api/gw/dth-services/dth-plans/dth-plan"] },
       { provider: "vyaparapi", api: "DTH plans", endpoints: ["/public/dth/plans"] },
     ],
-    fixedOrder: false,
+    stepOrder: false,
     offMessage: "DTH plan list is turned off right now. Enter the recharge amount manually.",
     defaultOff: RECHARGE_LOOKUP_DEFAULT_OFF,
   },
@@ -192,7 +193,7 @@ export const VERIFICATION_CHECKS = {
       { provider: "bestapi", api: "DTH customer info", endpoints: ["/api/gw/dth/information/customer"] },
       { provider: "vyaparapi", api: "DTH info", endpoints: ["/public/dth/info"] },
     ],
-    fixedOrder: false,
+    stepOrder: false,
     offMessage: "DTH customer info is turned off right now. You can still recharge with the subscriber number.",
     defaultOff: RECHARGE_LOOKUP_DEFAULT_OFF,
   },
@@ -201,7 +202,7 @@ export const VERIFICATION_CHECKS = {
     section: "recharge",
     usedIn: ["Mobile recharge sent via Noble → confirms the number's operator before paying"],
     apis: [{ provider: "noble", api: "Operator & circle", endpoints: ["/v1.0/recharge/operator_and_circle"] }],
-    fixedOrder: true,
+    stepOrder: true,
     offMessage: "Skipped — the recharge uses the operator the agent picked.",
     offBehavior: "skip",
   },
@@ -234,7 +235,7 @@ function resolveCheck(check: VerificationCheck, stored: StoredRouting): Resolved
   const all = d.apis.map((a) => a.provider);
   const s = stored[check];
   const known = (p: string): p is VerificationProvider => (all as string[]).includes(p);
-  const order = d.fixedOrder ? [...all] : [...new Set([...(s?.order ?? []).filter(known), ...all])];
+  const order = [...new Set([...(s?.order ?? []).filter(known), ...all])];
   const disabled = s ? (s.disabled ?? []).filter(known) : [...(d.defaultOff ?? [])];
   return { order, disabled };
 }
@@ -336,7 +337,7 @@ export async function listVerificationChecks() {
       label: d.label,
       section: d.section,
       usedIn: d.usedIn,
-      fixedOrder: d.fixedOrder,
+      stepOrder: d.stepOrder,
       offMessage: d.offMessage,
       offBehavior: d.offBehavior ?? "block",
       on: apis.some((a) => a.enabled),
@@ -386,8 +387,6 @@ export async function setVerificationProvider(
 
 /** PUT /admin/verifications/:check/primary — move one provider to the front. */
 export async function setVerificationPrimary(adminId: string, check: VerificationCheck, provider: VerificationProvider, reason: string) {
-  const d = def(check);
-  if (d.fixedOrder) throw new HttpError(422, `${d.label} runs in a fixed order`, "ORDER_FIXED");
   assertApiForCheck(check, provider);
   const before = resolveCheck(check, await storedRouting());
   const order = [provider, ...before.order.filter((p) => p !== provider)];
@@ -398,6 +397,124 @@ export async function setVerificationPrimary(adminId: string, check: Verificatio
     entityType: "verification",
     entityId: check,
     metadata: { check, before: before.order, after: order, reason },
+  });
+  return listVerificationChecks();
+}
+
+const providerName = (p: string) => VERIFICATION_PROVIDERS[p as VerificationProvider]?.name ?? p;
+
+/** Read-modify-write of the routing settings under a row lock, with its audit rows in the same transaction. */
+async function mutateRouting<T>(
+  change: (stored: StoredRouting) => { next: StoredRouting; audits: InsertAuditLogInput[]; result: T },
+): Promise<T> {
+  const tenantId = await resolveTenantId();
+  const result = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ settings: tenants.settings })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1)
+      .for("update");
+    const raw = asSettings(row?.settings).verificationRouting;
+    const { next, audits, result } = change(raw && typeof raw === "object" ? raw : {});
+    if (audits.length > 0) {
+      await tx
+        .update(tenants)
+        .set({ settings: sql`${tenants.settings} || ${JSON.stringify({ verificationRouting: next })}::jsonb` })
+        .where(eq(tenants.id, tenantId));
+      await tx.insert(auditLogs).values(
+        audits.map((a) => ({
+          userId: a.userId ?? null,
+          action: a.action,
+          entityType: a.entityType,
+          entityId: a.entityId ?? null,
+          metadata: a.metadata ?? {},
+        })),
+      );
+    }
+    return result;
+  });
+  cache = null;
+  return result;
+}
+
+/** POST /admin/verifications/bulk-toggle */
+export async function bulkToggleVerificationProviders(
+  adminId: string,
+  items: Array<{ check: VerificationCheck; provider: VerificationProvider }>,
+  enabled: boolean,
+  reason: string,
+): Promise<{ checks: Awaited<ReturnType<typeof listVerificationChecks>>; applied: BulkItem[]; skipped: BulkSkip[] }> {
+  const { applied, skipped } = await mutateRouting((stored) => {
+    const resolved = Object.fromEntries(VERIFICATION_CHECK_IDS.map((c) => [c, resolveCheck(c, stored)])) as Record<
+      VerificationCheck,
+      ResolvedCheck
+    >;
+    const states: Record<string, CheckState> = Object.fromEntries(
+      VERIFICATION_CHECK_IDS.map((c) => [
+        c,
+        { label: def(c).label, providers: def(c).apis.map((a) => a.provider), disabled: resolved[c].disabled },
+      ]),
+    );
+    const plan = planBulkToggle(items, enabled, states, providerName);
+    const next: StoredRouting = { ...stored };
+    for (const [check, disabled] of Object.entries(plan.disabled)) {
+      next[check] = { order: resolved[check as VerificationCheck].order, disabled };
+    }
+    const audits = plan.applied.map((item): InsertAuditLogInput => {
+      const after = plan.disabled[item.check]!;
+      return {
+        userId: adminId,
+        action: enabled ? "admin.verification_provider_on" : "admin.verification_provider_off",
+        entityType: "verification",
+        entityId: item.check,
+        metadata: {
+          check: item.check,
+          provider: item.provider,
+          reason,
+          bulk: true,
+          checkOn: resolved[item.check as VerificationCheck].order.some((p) => !after.includes(p)),
+        },
+      };
+    });
+    return { next, audits, result: { applied: plan.applied, skipped: plan.skipped } };
+  });
+  return { checks: await listVerificationChecks(), applied, skipped };
+}
+
+/** PUT /admin/verifications/order — save the provider / step order of one or more checks. */
+export async function setVerificationOrders(
+  adminId: string,
+  orders: Array<{ check: VerificationCheck; order: VerificationProvider[] }>,
+  reason: string,
+) {
+  const seen = new Set<VerificationCheck>();
+  for (const { check, order } of orders) {
+    const d = def(check);
+    if (seen.has(check)) throw new HttpError(422, `${d.label} is listed more than once`, "INVALID_ORDER");
+    seen.add(check);
+    const err = orderError(d.label, d.apis.map((a) => a.provider), order, providerName);
+    if (err) throw new HttpError(422, err, "INVALID_ORDER");
+  }
+  await mutateRouting((stored) => {
+    const next: StoredRouting = { ...stored };
+    const audits: InsertAuditLogInput[] = [];
+    for (const { check, order } of orders) {
+      const before = resolveCheck(check, stored);
+      if (sameOrder(before.order, order)) continue;
+      next[check] = { order, disabled: before.disabled };
+      audits.push({
+        userId: adminId,
+        action: "admin.verification_order_update",
+        entityType: "verification",
+        entityId: check,
+        metadata: { check, before: before.order, after: order, reason },
+      });
+    }
+    if (audits.length === 0) {
+      throw new HttpError(422, "The order is the same as before. Move an API up or down, then save.", "ORDER_UNCHANGED");
+    }
+    return { next, audits, result: null };
   });
   return listVerificationChecks();
 }

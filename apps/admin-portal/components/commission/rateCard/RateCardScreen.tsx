@@ -522,7 +522,7 @@ export function RateCardScreen() {
           e.stopPropagation();
           setSlabEditor({ serviceId: row.serviceId, slabKey: null, draft: newSlabDraft(null) });
         }}
-        className="mr-1 inline-flex items-center gap-0.5 whitespace-nowrap rounded-lg border px-1.5 py-0.5 text-[11px] font-bold transition hover:bg-[rgba(18,183,106,0.10)]"
+        className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-lg border px-1.5 py-0.5 text-[11px] font-bold transition hover:bg-[rgba(18,183,106,0.10)]"
         style={{ borderColor: "rgba(18,183,106,0.45)", color: B.greenDark }}
         title={`Add a new slab to ${row.serviceName}`}
       >
@@ -853,7 +853,8 @@ export function RateCardScreen() {
                               </td>
                               <td colSpan={5} />
                               <td className="w-[150px] px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                                <span className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">
+                                <span className="ml-auto flex items-center justify-end gap-1 whitespace-nowrap">
+                                  {addSlabButton(row)}
                                   {open && pickedSlabs(row).length > 0 ? (
                                     <button
                                       type="button"
@@ -861,10 +862,9 @@ export function RateCardScreen() {
                                       className="admin-btn-danger inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-0.5 text-[11px] font-bold"
                                       title={`Delete the ${pickedSlabs(row).length} selected slab${pickedSlabs(row).length === 1 ? "" : "s"}`}
                                     >
-                                      <Trash2 size={12} /> Delete {pickedSlabs(row).length} selected
+                                      <Trash2 size={12} /> Delete {pickedSlabs(row).length}
                                     </button>
                                   ) : null}
-                                  {addSlabButton(row)}
                                 </span>
                               </td>
                             </tr>

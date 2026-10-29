@@ -211,21 +211,46 @@ export default function ProvidersPage() {
       return;
     }
     const key = rowKey(categoryId, row.providerId);
-    setBusyRow((prev) => ({ ...prev, [key]: true }));
+    // Two providers on one rail never share a run order: the one already holding the number
+    // takes this provider's old number.
+    const holder = categories
+      .find((c) => c.categoryId === categoryId)
+      ?.providers.find((p) => p.providerId !== row.providerId && p.priority === priority);
+    const holderKey = holder ? rowKey(categoryId, holder.providerId) : null;
+    setBusyRow((prev) => ({ ...prev, [key]: true, ...(holderKey ? { [holderKey]: true } : {}) }));
     try {
       await api.patch(`/admin/providers/categories/${categoryId}/provider/${row.providerId}`, { priority });
+      if (holder) {
+        await api.patch(`/admin/providers/categories/${categoryId}/provider/${holder.providerId}`, {
+          priority: row.priority,
+        });
+      }
       setCategories((cs) =>
         cs.map((c) =>
           c.categoryId !== categoryId
             ? c
-            : { ...c, providers: c.providers.map((p) => (p.providerId === row.providerId ? { ...p, priority } : p)) },
+            : {
+                ...c,
+                providers: c.providers.map((p) =>
+                  p.providerId === row.providerId
+                    ? { ...p, priority }
+                    : holder && p.providerId === holder.providerId
+                      ? { ...p, priority: row.priority }
+                      : p,
+                ),
+              },
         ),
       );
-      toast.success("Run order saved");
+      toast.success(
+        holder
+          ? `Run order saved — ${row.providerName} is now ${priority}, ${holder.providerName} moved to ${row.priority}`
+          : "Run order saved",
+      );
     } catch (err) {
       toast.error(errMessage(err, "Run order was not saved. Try again."));
+      void load();
     } finally {
-      setBusyRow((prev) => ({ ...prev, [key]: false }));
+      setBusyRow((prev) => ({ ...prev, [key]: false, ...(holderKey ? { [holderKey]: false } : {}) }));
     }
   }
 
@@ -520,6 +545,7 @@ export default function ProvidersPage() {
                                 </td>
                                 <td className="px-4 py-2.5">
                                   <input
+                                    key={`${p.providerId}-${p.priority}`}
                                     type="number"
                                     min={0}
                                     defaultValue={p.priority}

@@ -300,6 +300,60 @@ adminRouter.put("/verifications/:check/primary", async (req, res) => {
   sendSuccess(res, await setVerificationPrimary(req.auth.sub, check, body.provider, body.reason), "Primary provider changed");
 });
 
+adminRouter.post("/verifications/bulk-toggle", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { bulkToggleVerificationProviders, VERIFICATION_CHECK_IDS, VERIFICATION_PROVIDERS } = await import(
+    "../verifications/verificationRouting.service"
+  );
+  const providerIds = Object.keys(VERIFICATION_PROVIDERS) as [keyof typeof VERIFICATION_PROVIDERS, ...(keyof typeof VERIFICATION_PROVIDERS)[]];
+  const body = parseBody(
+    z.object({
+      items: z
+        .array(
+          z.object({
+            check: z.enum(VERIFICATION_CHECK_IDS, { message: "Unknown verification check" }),
+            provider: z.enum(providerIds, { message: "Unknown verification provider" }),
+          }),
+        )
+        .min(1, "Select at least one verification API")
+        .max(100, "Select at most 100 verification APIs at once"),
+      enabled: z.boolean({ message: "Send enabled: true or false" }),
+      reason: reasonField,
+    }),
+    req.body,
+  );
+  const result = await bulkToggleVerificationProviders(req.auth.sub, body.items, body.enabled, body.reason);
+  const n = result.applied.length;
+  const message =
+    n === 0
+      ? "Nothing changed — every selected API was skipped"
+      : `${n} API${n === 1 ? "" : "s"} turned ${body.enabled ? "on" : "off"}${result.skipped.length ? ` · ${result.skipped.length} skipped` : ""}`;
+  sendSuccess(res, result, message);
+});
+
+adminRouter.put("/verifications/order", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setVerificationOrders, VERIFICATION_CHECK_IDS, VERIFICATION_PROVIDERS } = await import(
+    "../verifications/verificationRouting.service"
+  );
+  const providerIds = Object.keys(VERIFICATION_PROVIDERS) as [keyof typeof VERIFICATION_PROVIDERS, ...(keyof typeof VERIFICATION_PROVIDERS)[]];
+  const body = parseBody(
+    z.object({
+      orders: z
+        .array(
+          z.object({
+            check: z.enum(VERIFICATION_CHECK_IDS, { message: "Unknown verification check" }),
+            order: z.array(z.enum(providerIds, { message: "Unknown verification provider" })).min(1, "Order must list at least one API"),
+          }),
+        )
+        .min(1, "Send the order of at least one verification"),
+      reason: reasonField,
+    }),
+    req.body,
+  );
+  sendSuccess(res, await setVerificationOrders(req.auth.sub, body.orders, body.reason), "Order saved");
+});
+
 adminRouter.get("/users/:id/photo", async (req, res) => {
   const { getUserPhotoBytes } = await import("../account/profilePhoto.service");
   const photo = await getUserPhotoBytes(req.params.id);
