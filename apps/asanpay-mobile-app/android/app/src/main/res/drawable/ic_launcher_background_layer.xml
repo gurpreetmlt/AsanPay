@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Bevel rim: reversed-gradient base shows as a thin glossy edge around the inner panel (visible area is 18..90). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -9,10 +10,26 @@
         <aapt:attr name="android:fillColor">
             <gradient
                 android:type="linear"
-                android:startX="0"
-                android:startY="0"
-                android:endX="108"
-                android:endY="108">
+                android:startX="18"
+                android:startY="18"
+                android:endX="90"
+                android:endY="90">
+                <item android:offset="0" android:color="#FF0B2A9A" />
+                <item android:offset="1" android:color="#FF2A5CDD" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M37.5,19.5H70.5A18,18 0,0 1,88.5 37.5V70.5A18,18 0,0 1,70.5 88.5H37.5A18,18 0,0 1,19.5 70.5V37.5A18,18 0,0 1,37.5 19.5Z"
+        android:strokeColor="#FF0C298B"
+        android:strokeWidth="0.35">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="19.5"
+                android:startY="19.5"
+                android:endX="88.5"
+                android:endY="88.5">
                 <item android:offset="0" android:color="#FF2A5CDD" />
                 <item android:offset="1" android:color="#FF0B2A9A" />
             </gradient>

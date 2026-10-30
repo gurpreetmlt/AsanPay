@@ -28,8 +28,9 @@
                 </gradient>
             </aapt:attr>
         </path>
+        <!-- Wallet top gloss; below ~0.25 alpha it disappears at launcher icon size. -->
         <path
-            android:fillAlpha="0.14"
+            android:fillAlpha="0.26"
             android:fillColor="#FFFFFFFF"
             android:pathData="M212,130H120C105.641,130 94,136.716 94,145C94,153.284 105.641,160 120,160H212C226.359,160 238,153.284 238,145C238,136.716 226.359,130 212,130Z" />
         <path
