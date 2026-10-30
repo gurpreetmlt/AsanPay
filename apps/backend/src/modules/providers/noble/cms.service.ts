@@ -117,17 +117,8 @@ function publicRow(r: typeof cmsTransactions.$inferSelect) {
 
 export type CmsTxnRow = ReturnType<typeof publicRow>;
 
-/**
- * The provider debits the merchant through our wallet callbacks (balance check → debit → post).
- * Keep false until those callbacks post to the ledger; the UI shows Coming soon meanwhile.
- */
-export const CMS_WALLET_CALLBACKS_READY = false;
-
 /** Starts a collection for the retailer; merchant id is the retailer's registered mobile. */
 export async function startCashCollection(userId: string, provider: CmsProviderCode) {
-  if (!CMS_WALLET_CALLBACKS_READY) {
-    throw new HttpError(503, "Cash collection is coming soon. It is not available yet.", "CMS_COMING_SOON");
-  }
   if (!CMS_PROVIDERS.some((p) => p.code === provider)) {
     throw new HttpError(400, "This cash collection provider is not available", "CMS_PROVIDER_UNKNOWN");
   }

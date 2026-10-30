@@ -11,7 +11,6 @@ import { serviceBlockGuard } from "../../agentControls/agentControls.service";
 import { assertVerificationOn } from "../../verifications/verificationRouting.service";
 import {
   CMS_PROVIDERS,
-  CMS_WALLET_CALLBACKS_READY,
   checkCashCollection,
   listCashCollections,
   startCashCollection,
@@ -190,10 +189,7 @@ nobleRouter.post("/upi-qr/status", retailer, validateBody(upiStatusSchema), asyn
 
 // ── Cash Management (CMS) ───────────────────────────────────────────────
 nobleRouter.get("/cms/providers", retailer, (_req, res) => {
-  sendSuccess(
-    res,
-    CMS_PROVIDERS.map((p) => ({ ...p, live: CMS_WALLET_CALLBACKS_READY })),
-  );
+  sendSuccess(res, CMS_PROVIDERS);
 });
 
 nobleRouter.post("/cms/start", retailer, serviceWindowGuard("cms"), validateBody(cmsStartSchema), async (req, res) => {
