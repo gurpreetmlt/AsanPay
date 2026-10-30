@@ -2746,29 +2746,29 @@ function SignupPageInner() {
                     style={inputStyle}
                   />
                 </Field>
+                <Field label="Business Type *">
+                  <select
+                    value={draft.businessType}
+                    onChange={(e) => patch({ businessType: e.target.value })}
+                    className={inputCls}
+                    style={inputStyle}
+                  >
+                    <option value="">Select</option>
+                    {BUSINESS_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Business Category *">
+                  <MultiSelectDropdown
+                    values={splitBusinessCategories(draft.businessCategory)}
+                    options={BUSINESS_CATEGORIES}
+                    onChange={(v) => patch({ businessCategory: v.join(", ") })}
+                  />
+                </Field>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Business Type *">
-                    <select
-                      value={draft.businessType}
-                      onChange={(e) => patch({ businessType: e.target.value })}
-                      className={inputCls}
-                      style={inputStyle}
-                    >
-                      <option value="">Select</option>
-                      {BUSINESS_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Business Category *">
-                    <MultiSelectDropdown
-                      values={splitBusinessCategories(draft.businessCategory)}
-                      options={BUSINESS_CATEGORIES}
-                      onChange={(v) => patch({ businessCategory: v.join(", ") })}
-                    />
-                  </Field>
                   <Field label="Monthly Turnover *">
                     <select
                       value={draft.monthlyTurnover}

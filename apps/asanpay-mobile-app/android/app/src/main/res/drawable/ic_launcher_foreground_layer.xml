@@ -11,6 +11,19 @@
         android:scaleY="0.29"
         android:translateX="6"
         android:translateY="6">
+        <!-- Soft drop shadow: two offset copies of the wallet body (vectors have no blur). -->
+        <group android:translateY="9">
+            <path
+                android:fillAlpha="0.10"
+                android:fillColor="#FF06155A"
+                android:pathData="M212,130H120C105.641,130 94,141.641 94,156V216C94,230.359 105.641,242 120,242H212C226.359,242 238,230.359 238,216V156C238,141.641 226.359,130 212,130Z" />
+        </group>
+        <group android:translateY="4.5">
+            <path
+                android:fillAlpha="0.16"
+                android:fillColor="#FF06155A"
+                android:pathData="M212,130H120C105.641,130 94,141.641 94,156V216C94,230.359 105.641,242 120,242H212C226.359,242 238,230.359 238,216V156C238,141.641 226.359,130 212,130Z" />
+        </group>
         <path
             android:fillAlpha="0.38"
             android:fillColor="#FFFFFFFF"
