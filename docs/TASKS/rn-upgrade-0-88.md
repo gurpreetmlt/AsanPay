@@ -34,8 +34,8 @@ Reference diff: <https://react-native-community.github.io/upgrade-helper/?from=0
 
 | # | Phase | Status |
 |---|---|---|
-| 0 | Branch `rn-0.88` off `main`; confirm current release APK builds (baseline) | **CURRENT** |
-| 1 | JS deps: `react-native`, `react`, `@react-native/*`, `@react-native-community/cli*`, `@types/react` 19, metro / babel config per upgrade-helper | |
+| 0 | Branch `rn-0.88` off `main`; confirm current release APK builds (baseline) | done 30 Oct — branch pushed; baseline release APK installed OK on 0.77.3 |
+| 1 | JS deps: `react-native`, `react`, `@react-native/*`, `@react-native-community/cli*`, `@types/react` 19, metro / babel config per upgrade-helper | **CURRENT** |
 | 2 | Android native: Gradle wrapper 9.x, root + app `build.gradle`, `settings.gradle`, `gradle.properties` (edge-to-edge flag if template has it), `MainApplication.kt` (new host API), ProGuard; keep signing, brand key, in-app update, adaptive icon, FLAG_SECURE | |
 | 3 | Native libs: vision-camera 4→5 (`CardCameraModal`, `ScanQrModal`), async-storage 2→3 (3 files), webview 13→14, screens, safe-area-context 5, svg, image-picker 8, datetimepicker 9, jail-monkey 3; confirm biometrics / keychain / crop-picker / image-resizer / geolocation / linear-gradient / clipboard build | |
 | 4 | Custom modules: `RdServiceModule`, `MockLocationModule` work via interop layer — else convert to TurboModule | |
