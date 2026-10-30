@@ -723,14 +723,8 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtAddBeneficiary(
     params: DmtBeneficiaryParams,
   ): Promise<ProviderResult<{ beneficiaryId: string; referenceKey: string; validity: string }>> {
-    const bankName = await lookupIfscBankName(params.ifsc);
-    if (!bankName) {
-      throw new HttpError(
-        400,
-        "Bank not found for this IFSC. Check the IFSC code and try again.",
-        "DMT_BENE_IFSC_BANK_UNKNOWN",
-      );
-    }
+    const bankName =
+      (await lookupIfscBankName(params.ifsc)) || `BANK ${params.ifsc.trim().slice(0, 4).toUpperCase()}`;
     const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/bene/add", {
       remitterMobile: params.customerMobile,
       accountHolderName: params.name,

@@ -160,6 +160,9 @@ Jobs container migrate nahi chalata; sirf API chalata hai.
 
 **Admin first login:** Security → two-factor on karo → 10 recovery codes offline save karo.
 
+**Play Store release se pehle:** `apps/asanpay-mobile-app/android/app/build.gradle` → release
+`ENABLE_SECURE_SCREEN` wapas `"true"` karo (abhi testing ke liye screenshots allowed hain).
+
 ---
 
 ## Dhyan dene wali baatein

@@ -94,8 +94,9 @@ android {
             }
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-            // Release: no screenshots / screen recording of PIN, OTP and Aadhaar screens.
-            buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "true"
+            // Screenshots allowed during testing. Set back to "true" before the Play Store release:
+            // it blocks screenshots / screen recording of PIN, OTP and Aadhaar screens.
+            buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "false"
         }
     }
 }
