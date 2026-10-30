@@ -30,8 +30,11 @@ allprojects {
 
 // AsyncStorage (and other libs) still depend on legacy `react-native` maven artifact.
 // Force `react-android` so RN resources (catalyst_*, material) merge correctly.
+// App node_modules first, then the hoisted monorepo root (same order as Node resolution).
+def reactNativePackageJson = [file("../node_modules/react-native/package.json"), file("../../../node_modules/react-native/package.json")]
+    .find { it.exists() }
 def reactNativeVersion = new groovy.json.JsonSlurper()
-    .parse(file("../node_modules/react-native/package.json"))
+    .parse(reactNativePackageJson)
     .version
 subprojects { subproject ->
     subproject.configurations.configureEach {
