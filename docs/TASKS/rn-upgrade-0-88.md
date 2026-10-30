@@ -35,8 +35,8 @@ Reference diff: <https://react-native-community.github.io/upgrade-helper/?from=0
 | # | Phase | Status |
 |---|---|---|
 | 0 | Branch `rn-0.88` off `main`; confirm current release APK builds (baseline) | done 30 Oct — branch pushed; baseline release APK installed OK on 0.77.3 |
-| 1 | JS deps: `react-native`, `react`, `@react-native/*`, `@react-native-community/cli*`, `@types/react` 19, metro / babel config per upgrade-helper | **CURRENT** |
-| 2 | Android native: Gradle wrapper 9.x, root + app `build.gradle`, `settings.gradle`, `gradle.properties` (edge-to-edge flag if template has it), `MainApplication.kt` (new host API), ProGuard; keep signing, brand key, in-app update, adaptive icon, FLAG_SECURE | |
+| 1 | JS deps: `react-native`, `react`, `@react-native/*`, `@react-native-community/cli*`, `@types/react` 19, metro / babel config per upgrade-helper | done 30 Oct — RN 0.88.1, React 19.3.0, CLI 20.2.0, TS 6, `@react-native/jest-preset` (+ `jest.config.js`), `@types/jest`, lucide 0.469 → 0.577 (0.469 peer blocks React 19). Babel / metro unchanged (template same; metro pins still needed). Android build broken until phase 2 |
+| 2 | Android native: Gradle wrapper 9.x, root + app `build.gradle`, `settings.gradle`, `gradle.properties` (edge-to-edge flag if template has it), `MainApplication.kt` (new host API), ProGuard; keep signing, brand key, in-app update, adaptive icon, FLAG_SECURE | **CURRENT** |
 | 3 | Native libs: vision-camera 4→5 (`CardCameraModal`, `ScanQrModal`), async-storage 2→3 (3 files), webview 13→14, screens, safe-area-context 5, svg, image-picker 8, datetimepicker 9, jail-monkey 3; confirm biometrics / keychain / crop-picker / image-resizer / geolocation / linear-gradient / clipboard build | |
 | 4 | Custom modules: `RdServiceModule`, `MockLocationModule` work via interop layer — else convert to TurboModule | |
 | 5 | Monorepo cleanup: drop React-18 zustand copy in `link-navigation.sh`; one React 19 across repo | |
