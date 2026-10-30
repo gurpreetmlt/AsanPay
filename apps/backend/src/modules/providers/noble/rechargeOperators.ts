@@ -28,9 +28,9 @@ const MOBILE_OPERATORS: Record<string, MobileOperatorDef> = {
 const DTH_OPERATORS: Record<string, { label: string; code: string }> = {
   ATV: { label: "Airtel TV", code: "AIRTELTV_B2B" },
   DTV: { label: "Dish TV", code: "DISHTV_B2B" },
-  TTV: { label: "Tata Play", code: "TATASKY_B2B" },
-  STV: { label: "Sun TV", code: "SUNTV_B2B" },
-  VTV: { label: "Videocon d2h", code: "VIDEOCON_B2B" },
+  TTV: { label: "Tata Play", code: "TATAPLAY_B2B" },
+  STV: { label: "Sun Direct", code: "SUNDIRECT_B2B" },
+  VTV: { label: "d2h", code: "D2H_B2B" },
 };
 
 export interface DetectedOperatorCircle {

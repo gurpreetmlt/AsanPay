@@ -8,7 +8,13 @@ import type { ApiResponse, AuthUser } from "@asanpay/shared-types";
 import api from "@/lib/api";
 import { B, brand } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
-import { SECURITY_PAGE, markTotpSetupRequired, onlyDigits } from "@/lib/adminTotp";
+import {
+  SECURITY_PAGE,
+  formatRecoveryCode,
+  isRecoveryCodeComplete,
+  markTotpSetupRequired,
+  onlyDigits,
+} from "@/lib/adminTotp";
 import { ThemeTabs } from "@/components/theme/ThemeTabs";
 
 interface SessionData {
@@ -60,6 +66,8 @@ export default function AdminLoginPage() {
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
+  const [useRecovery, setUseRecovery] = useState(false);
+  const codeReady = useRecovery ? isRecoveryCodeComplete(code) : code.length === 6;
 
   useEffect(() => {
     if (accessToken) router.replace("/dashboard");
@@ -104,8 +112,12 @@ export default function AdminLoginPage() {
   async function onVerify(e: FormEvent) {
     e.preventDefault();
     if (!challengeToken) return;
-    if (code.length !== 6) {
-      setCodeError("Enter the 6-digit code from your authenticator app");
+    if (!codeReady) {
+      setCodeError(
+        useRecovery
+          ? "Enter a 10-character recovery code (e.g. ABCDE-23456)"
+          : "Enter the 6-digit code from your authenticator app",
+      );
       return;
     }
     setLoading(true);
@@ -136,6 +148,7 @@ export default function AdminLoginPage() {
     setChallengeToken(null);
     setCode("");
     setCodeError(null);
+    setUseRecovery(false);
     setPassword("");
   }
 
@@ -188,23 +201,25 @@ export default function AdminLoginPage() {
           <form onSubmit={onVerify} className="space-y-4" noValidate>
             <div>
               <label htmlFor="totp-code" className="mb-1.5 block text-sm" style={{ color: "var(--admin-muted)" }}>
-                6-digit code
+                {useRecovery ? "Recovery code" : "6-digit code"}
               </label>
               <input
                 id="totp-code"
                 autoFocus
-                autoComplete="one-time-code"
-                inputMode="numeric"
-                maxLength={6}
+                autoComplete={useRecovery ? "off" : "one-time-code"}
+                inputMode={useRecovery ? "text" : "numeric"}
+                maxLength={useRecovery ? 11 : 6}
                 value={code}
                 onChange={(e) => {
-                  setCode(onlyDigits(e.target.value));
+                  setCode(useRecovery ? formatRecoveryCode(e.target.value) : onlyDigits(e.target.value));
                   setCodeError(null);
                 }}
-                placeholder="123456"
+                placeholder={useRecovery ? "ABCDE-23456" : "123456"}
                 aria-invalid={Boolean(codeError)}
                 aria-describedby="totp-code-help"
-                className="w-full rounded-xl border px-4 py-3 text-center font-mono text-lg tracking-[0.4em] outline-none"
+                className={`w-full rounded-xl border px-4 py-3 text-center font-mono text-lg outline-none ${
+                  useRecovery ? "tracking-[0.2em]" : "tracking-[0.4em]"
+                }`}
                 style={{ ...inputStyle, borderColor: codeError ? B.danger : "var(--admin-border)" }}
               />
               <p
@@ -212,12 +227,27 @@ export default function AdminLoginPage() {
                 className="mt-1.5 text-xs"
                 style={{ color: codeError ? B.danger : "var(--admin-muted)" }}
               >
-                {codeError ?? "The code changes every 30 seconds."}
+                {codeError ??
+                  (useRecovery
+                    ? "One of the 10 codes you saved when you turned on two-factor login. Each works once."
+                    : "The code changes every 30 seconds.")}
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setUseRecovery((v) => !v);
+                  setCode("");
+                  setCodeError(null);
+                }}
+                className="mt-2 text-xs font-semibold"
+                style={{ color: B.blueLight }}
+              >
+                {useRecovery ? "Use the authenticator app code instead" : "Lost your phone? Use a recovery code"}
+              </button>
             </div>
             <button
               type="submit"
-              disabled={loading || code.length !== 6}
+              disabled={loading || !codeReady}
               className="admin-btn-primary w-full rounded-xl py-3.5 text-sm font-bold disabled:opacity-60"
             >
               {loading ? "Verifying…" : "Verify"}

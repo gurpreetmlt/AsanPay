@@ -78,11 +78,26 @@ const totpCodeSchema = z.preprocess(
     .regex(/^\d{6}$/, "Enter the 6-digit code from your authenticator app"),
 );
 
+/** Authenticator code or a one-time recovery code (`ABCDE-23456`). */
+const secondFactorCodeSchema = z.preprocess(
+  (v) => (typeof v === "string" ? v.trim().toUpperCase() : v),
+  z
+    .string({ message: "Enter the 6-digit code from your authenticator app, or a recovery code" })
+    .refine(
+      (s) => /^\d{6}$/.test(s.replace(/\s/g, "")) || /^[A-Z0-9]{10}$/.test(s.replace(/[\s-]/g, "")),
+      "Enter the 6-digit code from your authenticator app, or a 10-character recovery code (e.g. ABCDE-23456)",
+    ),
+);
+
 export const adminTotpVerifySchema = z.object({
   challengeToken: z
     .string({ message: "Your sign-in step has expired. Enter your username and password again." })
     .min(20, "Your sign-in step has expired. Enter your username and password again.")
     .max(2000),
+  code: secondFactorCodeSchema,
+});
+
+export const adminTotpBackupRegenerateSchema = z.object({
   code: totpCodeSchema,
 });
 export type AdminTotpVerifyInput = z.infer<typeof adminTotpVerifySchema>;
@@ -93,7 +108,7 @@ export const adminTotpEnableSchema = z.object({
 export type AdminTotpEnableInput = z.infer<typeof adminTotpEnableSchema>;
 
 export const adminTotpDisableSchema = z.object({
-  code: totpCodeSchema,
+  code: secondFactorCodeSchema,
   password: z
     .string({ message: "Enter your current admin password" })
     .min(1, "Enter your current admin password"),

@@ -73,6 +73,7 @@ interface DmtBeneficiary {
 
 interface DmtRemitterProfile {
   registered: boolean;
+  pidOptionWadh?: string;
   mobileNumber: string;
   firstName: string;
   lastName: string;
@@ -234,6 +235,7 @@ export default function DmtPage() {
   const [regOtp, setRegOtp] = useState("");
   const [regStep, setRegStep] = useState<"aadhaar" | "otp" | "kyc" | null>(null);
   const [regBusy, setRegBusy] = useState(false);
+  const [regKycWadh, setRegKycWadh] = useState("");
 
   // Banks + beneficiary add
   const [banks, setBanks] = useState<DmtBank[]>([]);
@@ -491,11 +493,15 @@ export default function DmtPage() {
     }
     setRegBusy(true);
     try {
-      await postProvider("/txn/dmt/remitter/register/verify", {
-        customerMobile: m,
-        otp: regOtp,
-        referenceKey: regReferenceKey,
-      });
+      const res = await postProvider<{ referenceId?: string; pidOptionWadh?: string }>(
+        "/txn/dmt/remitter/register/verify",
+        {
+          customerMobile: m,
+          otp: regOtp,
+          referenceKey: regReferenceKey,
+        },
+      );
+      setRegKycWadh(res.data?.pidOptionWadh?.trim() ?? "");
       toast.success("Remitter registered");
       setRegStep("kyc");
     } catch (err) {
@@ -513,7 +519,8 @@ export default function DmtPage() {
     }
     setRegBusy(true);
     try {
-      const biometricPayload = await captureFingerprintWeb();
+      const wadh = regKycWadh || profile?.pidOptionWadh?.trim() || "";
+      const biometricPayload = await captureFingerprintWeb(wadh ? { wadh } : undefined);
       await postProvider("/txn/dmt/remitter/kyc", {
         customerMobile: m,
         referenceKey: regReferenceKey,

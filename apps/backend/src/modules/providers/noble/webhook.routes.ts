@@ -12,6 +12,8 @@ import {
 
 export const nobleWebhookRouter = Router();
 
+const CMS_WALLET_ACTIONS = new Set(["balance_check", "balance_check_debit", "transaction_post"]);
+
 const TXN_REF_KEYS = [
   "clientRefId",
   "clientReferenceId",
@@ -97,6 +99,16 @@ nobleWebhookRouter.post("/callback", nobleCallbackLimiter, async (req, res) => {
     status: "received",
     durationMs: 0,
   }).catch((err: unknown) => logger.error({ err }, "failed to store AEPS provider callback"));
+
+  // Cash collection asks us to check / debit the merchant wallet; status "1" makes us liable for the
+  // amount. Until the wallet-debit handler exists, decline every such request so no money moves.
+  const action = typeof payload.action === "string" ? payload.action.trim().toLowerCase() : "";
+  if (CMS_WALLET_ACTIONS.has(action)) {
+    logger.warn({ txnRef, action }, "Cash collection wallet callback declined: not enabled");
+    recordWebhookDelivery({ provider: "noble", keyId, result: "ok", httpStatus: 200, ip, txnRef });
+    res.status(200).json({ status: "0", message: "Cash collection is not enabled for this merchant" });
+    return;
+  }
 
   recordWebhookDelivery({ provider: "noble", keyId, result: "ok", httpStatus: 200, ip, txnRef });
   res.status(200).json({ status: 1, statusCode: "SS0000", message: "Callback received" });

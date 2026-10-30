@@ -8,7 +8,8 @@ function envNumber(key: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-export const DMT_PER_TXN_LIMIT_RUPEES = envNumber("DMT_PER_TXN_LIMIT_RUPEES", 25_000);
+/** Provider caps a single Airtel DMT transfer at ₹5,000. */
+export const DMT_PER_TXN_LIMIT_RUPEES = envNumber("DMT_PER_TXN_LIMIT_RUPEES", 5_000);
 export const DMT_REMITTER_MONTHLY_LIMIT_RUPEES = envNumber("DMT_REMITTER_MONTHLY_LIMIT_RUPEES", 25_000);
 export const DMT_AGENT_DAILY_LIMIT_RUPEES = envNumber("DMT_AGENT_DAILY_LIMIT_RUPEES", 200_000);
 export const ADMIN_MANUAL_FUND_DAILY_LIMIT_RUPEES = envNumber("ADMIN_MANUAL_FUND_DAILY_LIMIT_RUPEES", 1_000_000);

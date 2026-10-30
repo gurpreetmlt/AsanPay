@@ -8,7 +8,14 @@ import jwt from "jsonwebtoken";
 import { encryptPII, decryptPII } from "../../utils/aes";
 import { allocateUid, hashToken } from "../../utils/uid";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
-import { buildOtpauthUrl, generateTotpSecret, verifyTotp } from "./adminTotp";
+import {
+  buildOtpauthUrl,
+  generateBackupCodes,
+  generateTotpSecret,
+  hashBackupCode,
+  isBackupCodeShape,
+  verifyTotp,
+} from "./adminTotp";
 import { HttpError } from "../../utils/httpError";
 import {
   env,
@@ -560,6 +567,63 @@ async function consumeAdminTotpCode(
 }
 
 const INCORRECT_TOTP_MESSAGE = "Incorrect 6-digit code. Check your authenticator app and try again.";
+const INCORRECT_BACKUP_MESSAGE =
+  "This recovery code is wrong or already used. Check the code (e.g. ABCDE-23456) and try again.";
+
+/** Removes a matching recovery code atomically; true when it existed and was unused. */
+async function consumeAdminBackupCode(
+  row: typeof users.$inferSelect,
+  code: string,
+  context: AuthContext,
+): Promise<boolean> {
+  const hash = hashBackupCode(code);
+  if (!(row.adminTotpBackupCodes ?? []).includes(hash)) return false;
+  const [updated] = await db
+    .update(users)
+    .set({
+      adminTotpBackupCodes: sql`${users.adminTotpBackupCodes} - ${hash}::text`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(users.id, row.id),
+        sql`${users.adminTotpBackupCodes} @> ${JSON.stringify([hash])}::jsonb`,
+      ),
+    )
+    .returning({ codes: users.adminTotpBackupCodes });
+  if (!updated) return false;
+  await insertAuditLog({
+    userId: row.id,
+    action: "auth.admin_totp_backup_code_used",
+    entityType: "user",
+    entityId: row.id,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: { remaining: updated.codes?.length ?? 0 },
+  });
+  return true;
+}
+
+/** Authenticator code, or a one-time recovery code when the input has that shape. */
+async function consumeAdminSecondFactor(
+  row: typeof users.$inferSelect,
+  code: string,
+  context: AuthContext,
+): Promise<"ok" | "totp_incorrect" | "backup_incorrect"> {
+  if (isBackupCodeShape(code)) {
+    return (await consumeAdminBackupCode(row, code, context)) ? "ok" : "backup_incorrect";
+  }
+  return (await consumeAdminTotpCode(row, code)) ? "ok" : "totp_incorrect";
+}
+
+async function storeNewBackupCodes(userId: string): Promise<string[]> {
+  const codes = generateBackupCodes();
+  await db
+    .update(users)
+    .set({ adminTotpBackupCodes: codes.map(hashBackupCode), updatedAt: new Date() })
+    .where(eq(users.id, userId));
+  return codes;
+}
 
 export async function verifyAdminTotpLogin(
   input: { challengeToken: string; code: string },
@@ -579,9 +643,14 @@ export async function verifyAdminTotpLogin(
     throw ADMIN_TOTP_CHALLENGE_EXPIRED;
   }
 
-  if (!(await consumeAdminTotpCode(row, input.code))) {
+  const factor = await consumeAdminSecondFactor(row, input.code, context);
+  if (factor !== "ok") {
     await recordAdminLoginFailure(row.id, context, "totp");
-    throw new HttpError(401, INCORRECT_TOTP_MESSAGE, "TOTP_INCORRECT");
+    throw new HttpError(
+      401,
+      factor === "backup_incorrect" ? INCORRECT_BACKUP_MESSAGE : INCORRECT_TOTP_MESSAGE,
+      "TOTP_INCORRECT",
+    );
   }
 
   return issueSession(row, context, "password");
@@ -613,6 +682,7 @@ export async function getAdminTotpStatus(userId: string): Promise<{
   enabledAt: string | null;
   pendingSetup: boolean;
   required: boolean;
+  backupCodesRemaining: number;
 }> {
   const row = await loadAdminForTotp(userId);
   const enabled = isAdminTotpEnabled(row);
@@ -621,7 +691,34 @@ export async function getAdminTotpStatus(userId: string): Promise<{
     enabledAt: enabled && row.adminTotpEnabledAt ? row.adminTotpEnabledAt.toISOString() : null,
     pendingSetup: !enabled && Boolean(row.adminTotpSecretEncrypted),
     required: isAdminTotpRequired(),
+    backupCodesRemaining: enabled ? (row.adminTotpBackupCodes?.length ?? 0) : 0,
   };
+}
+
+/** New recovery codes (old ones stop working). Needs a current authenticator code. */
+export async function regenerateAdminBackupCodes(
+  userId: string,
+  code: string,
+  context: AuthContext,
+): Promise<string[]> {
+  const row = await loadAdminForTotp(userId);
+  if (!isAdminTotpEnabled(row)) {
+    throw new HttpError(409, "Turn on two-factor login before creating recovery codes.", "TOTP_NOT_ENABLED");
+  }
+  if (!(await consumeAdminTotpCode(row, code))) {
+    throw new HttpError(422, INCORRECT_TOTP_MESSAGE, "TOTP_INCORRECT");
+  }
+  const codes = await storeNewBackupCodes(row.id);
+  await insertAuditLog({
+    userId: row.id,
+    action: "auth.admin_totp_backup_codes_regenerated",
+    entityType: "user",
+    entityId: row.id,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    metadata: { count: codes.length },
+  });
+  return codes;
 }
 
 export async function setupAdminTotp(
@@ -643,6 +740,7 @@ export async function setupAdminTotp(
       adminTotpSecretEncrypted: encryptPII(secretBase32),
       adminTotpEnabledAt: null,
       adminTotpLastStep: null,
+      adminTotpBackupCodes: null,
       updatedAt: new Date(),
     })
     .where(eq(users.id, row.id));
@@ -662,7 +760,8 @@ export async function setupAdminTotp(
 }
 
 // Wrong codes on authenticated endpoints return 422, not 401: the admin portal signs out on 401.
-export async function enableAdminTotp(userId: string, code: string, context: AuthContext): Promise<void> {
+/** Returns the one-time recovery codes — shown once, only hashes are stored. */
+export async function enableAdminTotp(userId: string, code: string, context: AuthContext): Promise<string[]> {
   const row = await loadAdminForTotp(userId);
   if (isAdminTotpEnabled(row)) {
     throw new HttpError(409, "Two-factor login is already on.", "TOTP_ALREADY_ENABLED");
@@ -677,6 +776,7 @@ export async function enableAdminTotp(userId: string, code: string, context: Aut
   if (!(await consumeAdminTotpCode(row, code, { enable: true }))) {
     throw new HttpError(422, INCORRECT_TOTP_MESSAGE, "TOTP_INCORRECT");
   }
+  const backupCodes = await storeNewBackupCodes(row.id);
   await insertAuditLog({
     userId: row.id,
     action: "auth.admin_totp_enabled",
@@ -684,8 +784,9 @@ export async function enableAdminTotp(userId: string, code: string, context: Aut
     entityId: row.id,
     ipAddress: context.ipAddress,
     userAgent: context.userAgent,
-    metadata: {},
+    metadata: { backupCodes: backupCodes.length },
   });
+  return backupCodes;
 }
 
 export async function disableAdminTotp(
@@ -700,8 +801,13 @@ export async function disableAdminTotp(
   if (!(await comparePassword(input.password, row.passwordHash))) {
     throw new HttpError(422, "Incorrect password. Enter your current admin password.", "PASSWORD_INCORRECT");
   }
-  if (!(await consumeAdminTotpCode(row, input.code))) {
-    throw new HttpError(422, INCORRECT_TOTP_MESSAGE, "TOTP_INCORRECT");
+  const factor = await consumeAdminSecondFactor(row, input.code, context);
+  if (factor !== "ok") {
+    throw new HttpError(
+      422,
+      factor === "backup_incorrect" ? INCORRECT_BACKUP_MESSAGE : INCORRECT_TOTP_MESSAGE,
+      "TOTP_INCORRECT",
+    );
   }
   await db
     .update(users)
@@ -709,6 +815,7 @@ export async function disableAdminTotp(
       adminTotpSecretEncrypted: null,
       adminTotpEnabledAt: null,
       adminTotpLastStep: null,
+      adminTotpBackupCodes: null,
       updatedAt: new Date(),
     })
     .where(eq(users.id, row.id));

@@ -10,7 +10,7 @@ COPY Frontend ./Frontend
 
 WORKDIR /app/Frontend
 
-RUN NODE_ENV=development npm install --include=dev
+RUN NODE_ENV=development npm ci --include=dev --no-audit --no-fund
 
 RUN npm run build
 

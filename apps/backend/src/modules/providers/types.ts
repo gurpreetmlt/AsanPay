@@ -360,7 +360,7 @@ export interface ProviderAdapter {
   /** Verify registration OTP — completes remitter registration; returns provider referenceId. */
   dmtRemitterRegisterVerify(
     params: DmtRemitterRegistrationVerifyParams,
-  ): Promise<ProviderResult<{ referenceId: string }>>;
+  ): Promise<ProviderResult<{ referenceId: string; pidOptionWadh?: string }>>;
   /** Remitter biometric/face eKYC — chargeable (pool debit); needed for full-KYC limits. */
   dmtRemitterKyc(params: DmtRemitterKycParams): Promise<ProviderResult<{ poolReferenceId: string }>>;
   /** Start beneficiary registration — sends OTP to remitter mobile; returns referenceKey for verify. */

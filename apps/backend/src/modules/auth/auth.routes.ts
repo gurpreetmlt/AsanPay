@@ -43,6 +43,7 @@ import {
   adminTotpSetup,
   adminTotpEnable,
   adminTotpDisable,
+  adminTotpBackupRegenerate,
 } from "./auth.controller";
 import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
@@ -58,6 +59,13 @@ authRouter.get("/admin/totp/status", requireAuth, requireRole("admin"), adminTot
 authRouter.post("/admin/totp/setup", requireAuth, requireRole("admin"), authLimiter, adminTotpSetup);
 authRouter.post("/admin/totp/enable", requireAuth, requireRole("admin"), authLimiter, adminTotpEnable);
 authRouter.post("/admin/totp/disable", requireAuth, requireRole("admin"), authLimiter, adminTotpDisable);
+authRouter.post(
+  "/admin/totp/backup-codes",
+  requireAuth,
+  requireRole("admin"),
+  authLimiter,
+  adminTotpBackupRegenerate,
+);
 authRouter.post("/logout", logout);
 authRouter.get("/me", requireAuth, me);
 authRouter.get("/upline", requireAuth, myUpline);

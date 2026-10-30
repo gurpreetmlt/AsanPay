@@ -32,7 +32,7 @@ import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import { formatInr } from "@/lib/walletLabels";
 
-type CmsProvider = { code: string; name: string; description: string; accent: string };
+type CmsProvider = { code: string; name: string; description: string; accent: string; live?: boolean };
 type CmsStatus = "initiated" | "pending" | "success" | "failed";
 type CmsTxn = {
   id: string;
@@ -178,6 +178,10 @@ export default function CmsPage() {
 
   async function initiate(p: CmsProvider) {
     if (startingCode) return;
+    if (p.live === false) {
+      toast(`${p.name} is coming soon. It is not available yet.`);
+      return;
+    }
     setStartingCode(p.code);
     try {
       const { data } = await api.post<ApiResponse<CmsTxn & { redirectionUrl: string }>>("/noble/cms/start", {
@@ -415,7 +419,7 @@ export default function CmsPage() {
                     style={{ color: p.accent }}
                   >
                     {startingCode === p.code ? <Loader2 size={16} className="animate-spin" /> : <PlayCircle size={16} />}
-                    Initiate
+                    {p.live === false ? "Coming soon" : "Initiate"}
                   </button>
                 </div>
               </div>

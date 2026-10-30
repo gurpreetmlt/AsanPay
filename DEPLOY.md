@@ -126,6 +126,42 @@ Public Port      : khaali — internet par kabhi mat kholna
 
 ---
 
+## 6. Production — `asanpay-production` EC2 + RDS
+
+Upar wala setup dev/staging hai. Production alag EC2 (`65.1.118.51`, Coolify) + private RDS
+(`asanpay-production-db`, PostgreSQL 18, encrypted, SSL required) par chalta hai.
+
+**Backend extra env (production):**
+
+```
+DATABASE_URL=postgres://<user>:<password>@<rds-endpoint>:5432/<db>
+DATABASE_SSL_CA_PATH=/etc/ssl/rds/global-bundle.pem
+DATABASE_POOL_MAX=10
+STRICT_PRODUCTION=true
+REQUIRE_TXN_PIN=true
+AGENT_PORTAL_URL=<production agent web address, not dev.>
+CORS_ORIGIN=<production web domains only, no localhost>
+ADMIN_TOTP_REQUIRED=true
+PROXY_SHARED_SECRET=<same value on API, admin-portal, agent-portal>
+```
+
+- `DATABASE_URL` mein `sslmode` mat likho — CA file se TLS verify hota hai.
+- `STRICT_PRODUCTION=true` → unsafe config (stub providers, biometric replay, signup test OTP,
+  localhost CORS, dev agent URL, RDS without CA) par API boot hi nahi hoga.
+  Boot fail ho to logs mein `Launch safety` line padho, setting theek karo.
+- JWT secrets + `AES_ENCRYPTION_KEY` production ke liye **naye** banao (dev wale reuse mat karo).
+  Password manager mein bhi rakho — Admin portal mein kabhi nahi.
+
+**Jobs service (second Coolify app, same Dockerfile):** same env as API + `PROCESS_ROLE=jobs`.
+Jobs container migrate nahi chalata; sirf API chalata hai.
+
+**Fresh production DB:** pehli baar API deploy hote hi migrations khud chalengi. Phir sirf
+`seed:admin`, `seed:catalog`, `seed:providers` (neeche "Database commands"). Test seeds kabhi nahi.
+
+**Admin first login:** Security → two-factor on karo → 10 recovery codes offline save karo.
+
+---
+
 ## Dhyan dene wali baatein
 
 **`NEXT_PUBLIC_*` par Build Variable ka tick zaroori hai.** Next.js inhe build ke waqt

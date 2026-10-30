@@ -34,6 +34,12 @@ import {
   AadhaarPaySetupCard,
   useAadhaarPaySession,
 } from "@/components/aeps/AadhaarPayFlow";
+import {
+  AepsCashConfirmModal,
+  AepsEnquiryResultModal,
+  type AepsEnquiryResult,
+} from "@/components/aeps/AepsCashFlow";
+import { extractApiError } from "@/lib/onboarding";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
 import { aepsBankLogoUrl } from "@/lib/bankLogo";
@@ -476,6 +482,8 @@ function AepsPageInner() {
   const [uiLayout, setUiLayout] = useState<AepsUiLayout>("3");
   const [liveIinByName, setLiveIinByName] = useState<Record<string, string>>({});
   const [apConfirmOpen, setApConfirmOpen] = useState(false);
+  const [cashConfirmOpen, setCashConfirmOpen] = useState(false);
+  const [enquiryResult, setEnquiryResult] = useState<AepsEnquiryResult | null>(null);
   const isAadhaarPay = tab === "Aadhaar Pay";
   const ap = useAadhaarPaySession(isAadhaarPay && agentAuthReady === true);
   const loc = useTxnLocation(agentAuthReady === true && !user?.aepsOnboardingRequired);
@@ -734,18 +742,65 @@ function AepsPageInner() {
       return;
     }
 
+    const aadhaarDigits = aadhaar.replace(/\D/g, "");
+    if (aadhaarDigits.length !== 12) {
+      toast.error("Enter the customer's 12-digit Aadhaar number");
+      return;
+    }
+    if (mobile.replace(/\D/g, "").length !== 10) {
+      toast.error("Enter a valid 10-digit mobile");
+      return;
+    }
+
+    if (tab === "Withdraw" || tab === "Deposit") {
+      if (!Number(amount) || Number(amount) <= 0) {
+        toast.error("Enter an amount greater than ₹0");
+        return;
+      }
+      setCashConfirmOpen(true);
+      return;
+    }
+
+    // Balance enquiry / mini statement: capture, then read. PID stays in memory only.
     setScanning(true);
+    let pidData: string;
     try {
-      const pidData = await captureFingerprintWeb();
-      void pidData; // Biometric payload kept in memory for this capture only (not persisted).
-      toast.success(`Fingerprint captured (${activeDevice.name})`);
-      // Keep PidData in memory only — never persist biometric XML to session/local storage.
+      pidData = await captureFingerprintWeb();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Capture failed";
       toast.error(msg, { duration: 12_000 });
       console.error("[AePS] capture failed", err);
       console.error("[AePS] RD probe log:\n", getRdProbeLog());
       void retryRdWarm();
+      setScanning(false);
+      return;
+    }
+    try {
+      const isMini = tab === "Mini Statement";
+      const { data } = await api.post<
+        ApiResponse<{
+          data?: {
+            balance?: string;
+            statement?: { date: string; narration: string; amount: string; type: "credit" | "debit" }[];
+          };
+        }>
+      >(isMini ? "/txn/aeps/mini-statement" : "/txn/aeps/balance-enquiry", {
+        aadhaarNumber: aadhaarDigits,
+        bankIin: selectedBankIin,
+        mobile,
+        biometricPayload: pidData,
+        ...(loc.fix ? { latitude: loc.fix.latitude, longitude: loc.fix.longitude } : {}),
+      });
+      if (!data.success) throw new Error(data.message);
+      setEnquiryResult({
+        kind: isMini ? "Mini Statement" : "Balance Enquiry",
+        bankName: selectedBank.name,
+        aadhaarLast4: aadhaarDigits.slice(-4),
+        balance: data.data?.data?.balance,
+        statement: data.data?.data?.statement,
+      });
+    } catch (err) {
+      toast.error(extractApiError(err, `${tab} failed. Check the details and try again.`), { duration: 10_000 });
     } finally {
       setScanning(false);
     }
@@ -1571,6 +1626,25 @@ function AepsPageInner() {
         location={loc.fix}
         onLocationUsed={loc.release}
       />
+
+      <AepsCashConfirmModal
+        open={cashConfirmOpen && (tab === "Withdraw" || tab === "Deposit") && Boolean(selectedBank)}
+        kind={tab === "Deposit" ? "Deposit" : "Withdraw"}
+        onClose={() => setCashConfirmOpen(false)}
+        onDone={() => {
+          setCashConfirmOpen(false);
+          setAmount("");
+        }}
+        bankName={selectedBank?.name ?? ""}
+        bankIin={selectedBankIin}
+        aadhaar={aadhaar.replace(/\D/g, "")}
+        mobile={mobile}
+        amount={amount}
+        location={loc.fix}
+        onLocationUsed={loc.release}
+      />
+
+      <AepsEnquiryResultModal result={enquiryResult} onClose={() => setEnquiryResult(null)} />
     </AppShell>
   );
 }

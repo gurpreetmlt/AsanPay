@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { AlertTriangle, Copy, KeyRound, ShieldCheck, ShieldOff, Smartphone } from "lucide-react";
+import { AlertTriangle, Copy, Download, KeyRound, LifeBuoy, ShieldCheck, ShieldOff, Smartphone } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -13,12 +13,15 @@ import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
 import { useAuthHydrated } from "@/lib/useAuthHydrated";
 import {
+  formatRecoveryCode,
   groupSecret,
+  isRecoveryCodeComplete,
   isTotpSetupRequiredFlag,
   markTotpSetupRequired,
   onlyDigits,
   type AdminTotpSetup,
   type AdminTotpStatus,
+  type AdminTotpWithBackupCodes,
 } from "@/lib/adminTotp";
 
 function errMsg(err: unknown, fallback: string): string {
@@ -36,6 +39,55 @@ async function copyText(value: string, label: string) {
 }
 
 const fieldClass = "w-full rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2";
+
+function downloadRecoveryCodes(codes: string[]) {
+  const body = [
+    "AsanPay admin — two-factor recovery codes",
+    `Created: ${new Date().toLocaleString("en-IN")}`,
+    "Each code works once. Keep this file offline (password manager or printed copy).",
+    "",
+    ...codes,
+    "",
+  ].join("\n");
+  const url = URL.createObjectURL(new Blob([body], { type: "text/plain" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "asanpay-admin-recovery-codes.txt";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function RecoveryCodeField({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label htmlFor={id} className="block space-y-1.5">
+      <span className="text-xs font-semibold" style={{ color: B.muted }}>
+        Recovery code
+      </span>
+      <input
+        id={id}
+        autoComplete="off"
+        autoCapitalize="characters"
+        maxLength={11}
+        value={value}
+        onChange={(e) => onChange(formatRecoveryCode(e.target.value))}
+        placeholder="ABCDE-23456"
+        className={`${fieldClass} text-center font-mono text-lg tracking-[0.2em]`}
+        style={{ borderColor: B.border, background: B.card, color: B.blue }}
+      />
+      <span className="block text-xs" style={{ color: B.muted }}>
+        One of the 10 codes you saved when you turned on two-factor login. Each code works once.
+      </span>
+    </label>
+  );
+}
 
 function CodeField({
   id,
@@ -93,6 +145,13 @@ export default function SecuritySettingsPage() {
   const [disablePassword, setDisablePassword] = useState("");
   const [disableError, setDisableError] = useState<string | null>(null);
   const [disabling, setDisabling] = useState(false);
+  const [disableWithRecovery, setDisableWithRecovery] = useState(false);
+
+  const [shownCodes, setShownCodes] = useState<string[] | null>(null);
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [regenCode, setRegenCode] = useState("");
+  const [regenError, setRegenError] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,15 +207,17 @@ export default function SecuritySettingsPage() {
     setEnabling(true);
     setEnableError(null);
     try {
-      const { data } = await api.post<ApiResponse<AdminTotpStatus>>("/auth/admin/totp/enable", {
+      const { data } = await api.post<ApiResponse<AdminTotpWithBackupCodes>>("/auth/admin/totp/enable", {
         code: enableCode,
       });
       if (!data.success) throw new Error(data.message);
-      setStatus(data.data);
+      const { backupCodes, ...nextStatus } = data.data;
+      setStatus(nextStatus);
       markTotpSetupRequired(false);
       setForcedByLogin(false);
       setSetup(null);
       setEnableCode("");
+      setShownCodes(backupCodes);
       toast.success("Two-factor login is on");
     } catch (err) {
       setEnableError(errMsg(err, "Incorrect 6-digit code. Check your authenticator app and try again."));
@@ -171,12 +232,19 @@ export default function SecuritySettingsPage() {
     setDisableCode("");
     setDisablePassword("");
     setDisableError(null);
+    setDisableWithRecovery(false);
   }
+
+  const disableCodeReady = disableWithRecovery ? isRecoveryCodeComplete(disableCode) : disableCode.length === 6;
 
   async function onDisable(e: FormEvent) {
     e.preventDefault();
-    if (disableCode.length !== 6) {
-      setDisableError("Enter the 6-digit code from your authenticator app");
+    if (!disableCodeReady) {
+      setDisableError(
+        disableWithRecovery
+          ? "Enter a 10-character recovery code (e.g. ABCDE-23456)"
+          : "Enter the 6-digit code from your authenticator app",
+      );
       return;
     }
     if (!disablePassword) {
@@ -199,6 +267,38 @@ export default function SecuritySettingsPage() {
       setDisableCode("");
     } finally {
       setDisabling(false);
+    }
+  }
+
+  function closeRegen() {
+    setRegenOpen(false);
+    setRegenCode("");
+    setRegenError(null);
+  }
+
+  async function onRegenerate(e: FormEvent) {
+    e.preventDefault();
+    if (regenCode.length !== 6) {
+      setRegenError("Enter the 6-digit code from your authenticator app");
+      return;
+    }
+    setRegenerating(true);
+    setRegenError(null);
+    try {
+      const { data } = await api.post<ApiResponse<AdminTotpWithBackupCodes>>("/auth/admin/totp/backup-codes", {
+        code: regenCode,
+      });
+      if (!data.success) throw new Error(data.message);
+      const { backupCodes, ...nextStatus } = data.data;
+      setStatus(nextStatus);
+      closeRegen();
+      setShownCodes(backupCodes);
+      toast.success("New recovery codes created. Old codes no longer work.");
+    } catch (err) {
+      setRegenError(errMsg(err, "Incorrect 6-digit code. Check your authenticator app and try again."));
+      setRegenCode("");
+    } finally {
+      setRegenerating(false);
     }
   }
 
@@ -288,6 +388,36 @@ export default function SecuritySettingsPage() {
                 </button>
               )}
             </div>
+            {status.enabled ? (
+              <div
+                className="mt-4 flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between"
+                style={{
+                  borderColor: (status.backupCodesRemaining ?? 0) <= 2 ? "rgba(217,119,6,0.4)" : B.border,
+                  background: (status.backupCodesRemaining ?? 0) <= 2 ? "rgba(217,119,6,0.06)" : "transparent",
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <LifeBuoy size={18} className="mt-0.5 shrink-0" style={{ color: B.blueLight }} />
+                  <div className="text-sm">
+                    <p className="font-semibold" style={{ color: B.blue }}>
+                      Recovery codes: {status.backupCodesRemaining ?? 0} left
+                    </p>
+                    <p className="text-xs" style={{ color: B.muted }}>
+                      {(status.backupCodesRemaining ?? 0) === 0
+                        ? "No codes left. If you lose your phone you cannot sign in. Create new codes now."
+                        : "Use one at sign-in if you lose your phone. Each code works once."}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRegenOpen(true)}
+                  className="admin-btn-primary shrink-0 rounded-xl px-4 py-2 text-sm font-semibold"
+                >
+                  New recovery codes
+                </button>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -381,8 +511,8 @@ export default function SecuritySettingsPage() {
                   className="mt-auto rounded-xl p-3 text-xs"
                   style={{ background: "rgba(42,92,221,0.08)", color: B.muted }}
                 >
-                  Keep this phone safe. If you lose it, another admin with database access must clear two-factor
-                  for this account before you can sign in.
+                  After you enable, you get 10 one-time recovery codes. Save them offline — they are the only way in
+                  if you lose this phone.
                 </div>
               </div>
             </div>
@@ -410,7 +540,7 @@ export default function SecuritySettingsPage() {
       {disableOpen ? (
         <Modal
           title="Turn off two-factor login"
-          subtitle="Enter a current code and your admin password. Sign-in will then need only the password."
+          subtitle="Enter a current code (or a recovery code) and your admin password. Sign-in will then need only the password."
           icon={<ShieldOff size={22} />}
           iconTone="red"
           onClose={closeDisable}
@@ -420,15 +550,38 @@ export default function SecuritySettingsPage() {
               className="space-y-3 rounded-2xl border p-4"
               style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, transparent 100%)" }}
             >
-              <CodeField
-                id="disable-code"
-                value={disableCode}
-                onChange={(v) => {
-                  setDisableCode(v);
+              {disableWithRecovery ? (
+                <RecoveryCodeField
+                  id="disable-recovery"
+                  value={disableCode}
+                  onChange={(v) => {
+                    setDisableCode(v);
+                    setDisableError(null);
+                  }}
+                />
+              ) : (
+                <CodeField
+                  id="disable-code"
+                  value={disableCode}
+                  onChange={(v) => {
+                    setDisableCode(v);
+                    setDisableError(null);
+                  }}
+                  error={null}
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setDisableWithRecovery((v) => !v);
+                  setDisableCode("");
                   setDisableError(null);
                 }}
-                error={null}
-              />
+                className="text-xs font-semibold"
+                style={{ color: B.blueLight }}
+              >
+                {disableWithRecovery ? "Use the authenticator app code instead" : "Lost your phone? Use a recovery code"}
+              </button>
               <label htmlFor="disable-password" className="block space-y-1.5">
                 <span className="text-xs font-semibold" style={{ color: B.muted }}>
                   Admin password
@@ -462,13 +615,111 @@ export default function SecuritySettingsPage() {
               </button>
               <button
                 type="submit"
-                disabled={disabling || disableCode.length !== 6 || !disablePassword}
+                disabled={disabling || !disableCodeReady || !disablePassword}
                 className="admin-btn-primary rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"
               >
                 {disabling ? "Verifying…" : "Verify and turn off"}
               </button>
             </div>
           </form>
+        </Modal>
+      ) : null}
+
+      {regenOpen ? (
+        <Modal
+          title="Create new recovery codes"
+          subtitle="Your old recovery codes stop working as soon as new ones are created."
+          icon={<LifeBuoy size={22} />}
+          iconTone="blue"
+          onClose={closeRegen}
+        >
+          <form onSubmit={onRegenerate} className="space-y-4">
+            <div
+              className="rounded-2xl border p-4"
+              style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, transparent 100%)" }}
+            >
+              <CodeField
+                id="regen-code"
+                value={regenCode}
+                onChange={(v) => {
+                  setRegenCode(v);
+                  setRegenError(null);
+                }}
+                error={regenError}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={closeRegen} className="admin-btn-danger rounded-xl py-2.5 text-sm font-semibold">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={regenerating || regenCode.length !== 6}
+                className="admin-btn-primary rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"
+              >
+                {regenerating ? "Creating…" : "Create codes"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {shownCodes ? (
+        <Modal
+          title="Save your recovery codes"
+          eyebrow="Shown once"
+          subtitle="Each code signs you in once if you lose your phone. They will not be shown again."
+          icon={<LifeBuoy size={22} />}
+          iconTone="green"
+          onClose={() => setShownCodes(null)}
+        >
+          <div className="space-y-4">
+            <div
+              className="grid grid-cols-2 gap-2 rounded-2xl border p-4"
+              style={{ borderColor: B.border, background: "linear-gradient(180deg, #F7F9FF 0%, transparent 100%)" }}
+            >
+              {shownCodes.map((c) => (
+                <p
+                  key={c}
+                  className="rounded-xl border px-3 py-2 text-center font-mono text-sm font-semibold tracking-wider"
+                  style={{ borderColor: B.border, background: "#fff", color: B.blue }}
+                >
+                  {c}
+                </p>
+              ))}
+            </div>
+            <div className="rounded-xl p-3 text-xs" style={{ background: "rgba(217,119,6,0.08)", color: B.muted }}>
+              Store them in a password manager or print them. Do not keep them on the same phone as the
+              authenticator app.
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => void copyText(shownCodes.join("\n"), "Recovery codes")}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-semibold"
+                style={{ borderColor: B.border, color: B.blue, background: B.card }}
+              >
+                <Copy size={14} />
+                Copy all
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadRecoveryCodes(shownCodes)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-semibold"
+                style={{ borderColor: B.border, color: B.blue, background: B.card }}
+              >
+                <Download size={14} />
+                Download .txt
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShownCodes(null)}
+              className="admin-btn-primary w-full rounded-xl py-2.5 text-sm font-semibold"
+            >
+              I have saved them
+            </button>
+          </div>
         </Modal>
       ) : null}
     </AdminShell>

@@ -54,6 +54,8 @@ export const users = pgTable(
     adminTotpSecretEncrypted: text("admin_totp_secret_encrypted"),
     adminTotpEnabledAt: timestamp("admin_totp_enabled_at", { withTimezone: true }),
     adminTotpLastStep: integer("admin_totp_last_step"),
+    /** SHA-256 hashes of unused one-time recovery codes. */
+    adminTotpBackupCodes: jsonb("admin_totp_backup_codes").$type<string[]>(),
     // Retailer's OWN biometric proof-of-presence at the counter — separate from the customer's
     // AEPS biometric. AEPS/DMT operations require this once per India calendar day.
     // Null = never agent-authed on record.

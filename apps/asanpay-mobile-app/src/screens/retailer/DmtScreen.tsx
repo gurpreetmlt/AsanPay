@@ -69,6 +69,7 @@ interface DmtBeneficiary {
 
 interface DmtRemitterProfile {
   registered: boolean;
+  pidOptionWadh?: string;
   mobileNumber: string;
   firstName: string;
   lastName: string;
@@ -167,6 +168,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
   const [regAadhaar, setRegAadhaar] = useState("");
   const [regOtp, setRegOtp] = useState("");
   const [regBusy, setRegBusy] = useState(false);
+  const [regKycWadh, setRegKycWadh] = useState("");
 
   const [banks, setBanks] = useState<DmtBank[]>([]);
   const [bankSearch, setBankSearch] = useState("");
@@ -388,11 +390,15 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
     }
     setRegBusy(true);
     try {
-      await postProvider("/txn/dmt/remitter/register/verify", {
-        customerMobile: m,
-        otp: regOtp,
-        referenceKey: regReferenceKey,
-      });
+      const res = await postProvider<{ referenceId?: string; pidOptionWadh?: string }>(
+        "/txn/dmt/remitter/register/verify",
+        {
+          customerMobile: m,
+          otp: regOtp,
+          referenceKey: regReferenceKey,
+        },
+      );
+      setRegKycWadh(res.data?.pidOptionWadh?.trim() ?? "");
       setRegStep("kyc");
       showAlert("Registered", "Complete remitter eKYC, or skip for later.");
     } catch (err) {
@@ -406,7 +412,8 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
     const m = mobile.replace(/\D/g, "");
     setRegBusy(true);
     try {
-      const biometricPayload = await captureFingerprint();
+      const wadh = regKycWadh || profile?.pidOptionWadh?.trim() || "";
+      const biometricPayload = await captureFingerprint(undefined, wadh ? { wadh } : undefined);
       await postProvider("/txn/dmt/remitter/kyc", {
         customerMobile: m,
         referenceKey: regReferenceKey,

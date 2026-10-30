@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isNobleConfigured } from "../../../config/env";
 import { HttpError } from "../../../utils/httpError";
+import { lookupIfscBankName } from "../../../utils/ifscBank";
 import {
   AIRTEL_DMT_KYC_FINGER_WADH,
   assertAirtelDmtAmount,
@@ -620,7 +621,7 @@ export class NobleAdapter implements ProviderAdapter {
     params: DmtRemitterRegistrationParams,
   ): Promise<ProviderResult<{ otpReference: string }>> {
     const merchant = await resolveAirtelMerchantCtx(params.retailerUserId);
-    const session = requireSessionToken(params.retailerUserId, params.customerMobile, params.referenceKey);
+    const session = await requireSessionToken(params.retailerUserId, params.customerMobile, params.referenceKey);
     const validate = await noblePost("dmt", "/api/v1.0/airtel_dmt/validate_aadhar", {
       mobileNumber: params.customerMobile,
       latitude: merchant.latitude,
@@ -642,7 +643,7 @@ export class NobleAdapter implements ProviderAdapter {
     if (!verifyToken) {
       throw new HttpError(502, "Registration OTP succeeded but token is missing", "NOBLE_DMT_OTP_TOKEN_MISSING");
     }
-    rememberDmtVerifyToken(params.retailerUserId, params.customerMobile, verifyToken);
+    await rememberDmtVerifyToken(params.retailerUserId, params.customerMobile, verifyToken);
     return {
       success: true,
       status: "success",
@@ -656,10 +657,10 @@ export class NobleAdapter implements ProviderAdapter {
 
   async dmtRemitterRegisterVerify(
     params: DmtRemitterRegistrationVerifyParams,
-  ): Promise<ProviderResult<{ referenceId: string }>> {
+  ): Promise<ProviderResult<{ referenceId: string; pidOptionWadh?: string }>> {
     assertSixDigitOtp(params.otp);
     const merchant = await resolveAirtelMerchantCtx(params.retailerUserId);
-    const verifyToken = requireVerifyToken(params.retailerUserId, params.customerMobile);
+    const verifyToken = await requireVerifyToken(params.retailerUserId, params.customerMobile);
     const { httpStatus, json } = await noblePost(
       "dmt",
       "/api/v1.0/airtel_dmt/sender_registration_validate_otp",
@@ -673,14 +674,14 @@ export class NobleAdapter implements ProviderAdapter {
     );
     assertNobleDmtOk(httpStatus, json, "Registration OTP verification failed");
     const accessToken = rowToken(json);
-    if (accessToken) rememberDmtAccessToken(params.retailerUserId, params.customerMobile, accessToken);
+    if (accessToken) await rememberDmtAccessToken(params.retailerUserId, params.customerMobile, accessToken);
     return {
       success: true,
       status: "success",
       providerTxnId: null,
       amount: null,
       message: String(json.description || json.message || "Remitter registered"),
-      data: { referenceId: accessToken || verifyToken },
+      data: { referenceId: accessToken || verifyToken, pidOptionWadh: AIRTEL_DMT_KYC_FINGER_WADH },
       raw: json as unknown as Record<string, unknown>,
     };
   }
@@ -690,7 +691,7 @@ export class NobleAdapter implements ProviderAdapter {
       latitude: params.latitude,
       longitude: params.longitude,
     });
-    const accessToken = requireAccessToken(
+    const accessToken = await requireAccessToken(
       params.retailerUserId,
       params.customerMobile,
       params.referenceKey,
@@ -722,12 +723,20 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtAddBeneficiary(
     params: DmtBeneficiaryParams,
   ): Promise<ProviderResult<{ beneficiaryId: string; referenceKey: string; validity: string }>> {
+    const bankName = await lookupIfscBankName(params.ifsc);
+    if (!bankName) {
+      throw new HttpError(
+        400,
+        "Bank not found for this IFSC. Check the IFSC code and try again.",
+        "DMT_BENE_IFSC_BANK_UNKNOWN",
+      );
+    }
     const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/bene/add", {
       remitterMobile: params.customerMobile,
       accountHolderName: params.name,
       accountNumber: params.accountNumber,
       ifsc: params.ifsc,
-      bankName: params.bankId ? `BANK ${params.bankId}` : "BANK",
+      bankName,
       beneficiaryMobile: params.beneficiaryMobile || params.customerMobile,
     });
     assertNobleDmtOk(httpStatus, json, "Add beneficiary failed");
@@ -826,7 +835,7 @@ export class NobleAdapter implements ProviderAdapter {
     if (!token) {
       throw new HttpError(502, "Transaction OTP succeeded but token is missing", "NOBLE_DMT_TXN_OTP_TOKEN");
     }
-    rememberDmtVerifyToken(params.retailerUserId, params.customerMobile, token);
+    await rememberDmtVerifyToken(params.retailerUserId, params.customerMobile, token);
     // Encode txn id into referenceKey so transfer can recover it (UI only stores referenceKey).
     const referenceKey = `${token}~${transactionId}`;
     return {

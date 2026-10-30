@@ -5,6 +5,11 @@ export interface AdminTotpStatus {
   enabledAt: string | null;
   pendingSetup: boolean;
   required: boolean;
+  backupCodesRemaining?: number;
+}
+
+export interface AdminTotpWithBackupCodes extends AdminTotpStatus {
+  backupCodes: string[];
 }
 
 export interface AdminTotpSetup {
@@ -32,4 +37,14 @@ export function groupSecret(secret: string): string {
 
 export function onlyDigits(value: string, max = 6): string {
   return value.replace(/\D/g, "").slice(0, max);
+}
+
+/** Recovery code input: `ABCDE-23456`, upper case, dash auto-inserted. */
+export function formatRecoveryCode(value: string): string {
+  const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+  return raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw;
+}
+
+export function isRecoveryCodeComplete(value: string): boolean {
+  return /^[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(value);
 }

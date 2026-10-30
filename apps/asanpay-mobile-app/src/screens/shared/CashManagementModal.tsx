@@ -27,7 +27,7 @@ import { colors, gradientDirection } from "../../theme/colors";
 // react-native-webview is hoisted to the repo root and type-checks against the web portal's React 19 types.
 const CmsWebView = WebView as unknown as React.ComponentType<WebViewProps & React.RefAttributes<WebView>>;
 
-type CmsProvider = { code: string; name: string; description: string; accent: string };
+type CmsProvider = { code: string; name: string; description: string; accent: string; live?: boolean };
 type CmsStatus = "initiated" | "pending" | "success" | "failed";
 type CmsTxn = {
   id: string;
@@ -118,6 +118,10 @@ export function CashManagementModal({ visible, onClose }: { visible: boolean; on
 
   async function initiate(p: CmsProvider) {
     if (startingCode) return;
+    if (p.live === false) {
+      showAlert("Coming soon", `${p.name} is coming soon. It is not available yet.`);
+      return;
+    }
     setStartingCode(p.code);
     try {
       const { data } = await api.post<ApiResponse<CmsTxn & { redirectionUrl: string }>>("/noble/cms/start", {
@@ -333,7 +337,9 @@ export function CashManagementModal({ visible, onClose }: { visible: boolean; on
                   ) : (
                     <CirclePlay size={18} color={p.accent} />
                   )}
-                  <Text style={[styles.initiateText, { color: p.accent }]}>Initiate</Text>
+                  <Text style={[styles.initiateText, { color: p.accent }]}>
+                    {p.live === false ? "Coming soon" : "Initiate"}
+                  </Text>
                 </Pressable>
               </LinearGradient>
             ))}

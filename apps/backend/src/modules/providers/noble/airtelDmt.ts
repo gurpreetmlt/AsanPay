@@ -1,13 +1,19 @@
-import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { isNobleConfigured } from "../../../config/env";
 import { db } from "../../../db/postgres";
-import { transactions, users } from "../../../db/postgres/schema";
+import { providerSessions, transactions, users } from "../../../db/postgres/schema";
+import { decryptPII, encryptPII } from "../../../utils/aes";
 import { HttpError } from "../../../utils/httpError";
 import { logger } from "../../../utils/logger";
 import { firstResponseRow, nobleOk, nobleTxnId } from "./aepsOps";
 import { noblePost, type NobleApiResponse } from "./client";
 
-/** In-memory session tokens for Airtel DMT multi-step flow (profile → register → verify → kyc → txn). */
+/**
+ * Session tokens for the Airtel DMT multi-step flow (profile → register → verify → kyc → txn).
+ * Stored encrypted in provider_sessions so a restart or a second API instance keeps the flow alive;
+ * the in-process map is only a read cache.
+ */
 type DmtTokenBag = {
   sessionToken: string;
   verifyToken?: string;
@@ -17,22 +23,75 @@ type DmtTokenBag = {
 
 const tokenBag = new Map<string, DmtTokenBag>();
 const TTL_MS = 55 * 60 * 1000;
+const BAG_CACHE_MAX = 5000;
 
 function bagKey(retailerUserId: string, mobile: string): string {
   return `${retailerUserId}:${mobile}`;
 }
 
-export function rememberDmtSession(retailerUserId: string, mobile: string, sessionToken: string): void {
-  tokenBag.set(bagKey(retailerUserId, mobile), {
-    sessionToken,
-    expiresAt: Date.now() + TTL_MS,
-  });
+/** provider_sessions.provider_code is varchar(40): `dmt:` + 32 hex chars. */
+function bagRowKey(key: string): string {
+  return `dmt:${createHash("sha256").update(key).digest("hex").slice(0, 32)}`;
 }
 
-export function rememberDmtVerifyToken(retailerUserId: string, mobile: string, verifyToken: string): void {
+function cacheBag(key: string, bag: DmtTokenBag): void {
+  if (!tokenBag.has(key) && tokenBag.size >= BAG_CACHE_MAX) {
+    const oldest = tokenBag.keys().next().value;
+    if (oldest !== undefined) tokenBag.delete(oldest);
+  }
+  tokenBag.set(key, bag);
+}
+
+async function loadBag(key: string): Promise<DmtTokenBag | null> {
+  const hit = tokenBag.get(key);
+  if (hit && hit.expiresAt >= Date.now()) return hit;
+  try {
+    const [row] = await db
+      .select({ tokenEncrypted: providerSessions.tokenEncrypted, expiresAt: providerSessions.expiresAt })
+      .from(providerSessions)
+      .where(eq(providerSessions.providerCode, bagRowKey(key)))
+      .limit(1);
+    if (!row || row.expiresAt.getTime() < Date.now()) return null;
+    const bag = JSON.parse(decryptPII(row.tokenEncrypted)) as DmtTokenBag;
+    cacheBag(key, bag);
+    return bag;
+  } catch (err) {
+    logger.warn({ err }, "DMT session read failed");
+    return null;
+  }
+}
+
+async function saveBag(key: string, bag: DmtTokenBag): Promise<void> {
+  cacheBag(key, bag);
+  const values = {
+    tokenEncrypted: encryptPII(JSON.stringify(bag)),
+    expiresAt: new Date(bag.expiresAt),
+    obtainedAt: new Date(),
+    obtainedBy: "api",
+  };
+  await db
+    .insert(providerSessions)
+    .values({ providerCode: bagRowKey(key), ...values })
+    .onConflictDoUpdate({ target: providerSessions.providerCode, set: values });
+  if (Math.random() < 0.05) {
+    await db
+      .delete(providerSessions)
+      .where(and(sql`${providerSessions.providerCode} like 'dmt:%'`, lt(providerSessions.expiresAt, new Date())));
+  }
+}
+
+export async function rememberDmtSession(retailerUserId: string, mobile: string, sessionToken: string): Promise<void> {
+  await saveBag(bagKey(retailerUserId, mobile), { sessionToken, expiresAt: Date.now() + TTL_MS });
+}
+
+export async function rememberDmtVerifyToken(
+  retailerUserId: string,
+  mobile: string,
+  verifyToken: string,
+): Promise<void> {
   const key = bagKey(retailerUserId, mobile);
-  const prev = tokenBag.get(key);
-  tokenBag.set(key, {
+  const prev = await loadBag(key);
+  await saveBag(key, {
     sessionToken: prev?.sessionToken ?? verifyToken,
     verifyToken,
     accessToken: prev?.accessToken,
@@ -40,10 +99,14 @@ export function rememberDmtVerifyToken(retailerUserId: string, mobile: string, v
   });
 }
 
-export function rememberDmtAccessToken(retailerUserId: string, mobile: string, accessToken: string): void {
+export async function rememberDmtAccessToken(
+  retailerUserId: string,
+  mobile: string,
+  accessToken: string,
+): Promise<void> {
   const key = bagKey(retailerUserId, mobile);
-  const prev = tokenBag.get(key);
-  tokenBag.set(key, {
+  const prev = await loadBag(key);
+  await saveBag(key, {
     sessionToken: prev?.sessionToken ?? accessToken,
     verifyToken: prev?.verifyToken,
     accessToken,
@@ -51,10 +114,9 @@ export function rememberDmtAccessToken(retailerUserId: string, mobile: string, a
   });
 }
 
-function readBag(retailerUserId: string, mobile: string): DmtTokenBag {
-  const key = bagKey(retailerUserId, mobile);
-  const bag = tokenBag.get(key);
-  if (!bag || bag.expiresAt < Date.now()) {
+async function readBag(retailerUserId: string, mobile: string): Promise<DmtTokenBag> {
+  const bag = await loadBag(bagKey(retailerUserId, mobile));
+  if (!bag) {
     throw new HttpError(
       422,
       "DMT session expired. Search the remitter again to continue.",
@@ -133,7 +195,7 @@ export async function airtelGetCustomer(
     merchantMobileNumber: merchant.merchantMobile,
   });
   const token = rowToken(json);
-  if (token) rememberDmtSession(retailerUserId, customerMobile, token);
+  if (token) await rememberDmtSession(retailerUserId, customerMobile, token);
   return { httpStatus, json, merchant };
 }
 
@@ -217,19 +279,23 @@ export async function dmtRemitterMobileForTxn(clientRef: string): Promise<string
   return typeof mobile === "string" && /^\d{10}$/.test(mobile) ? mobile : null;
 }
 
-export function requireSessionToken(retailerUserId: string, mobile: string, fallback?: string): string {
+export async function requireSessionToken(
+  retailerUserId: string,
+  mobile: string,
+  fallback?: string,
+): Promise<string> {
   if (fallback && fallback.length >= 8) {
-    const bag = tokenBag.get(bagKey(retailerUserId, mobile));
-    if (!bag || bag.expiresAt < Date.now()) {
-      rememberDmtSession(retailerUserId, mobile, fallback);
+    const bag = await loadBag(bagKey(retailerUserId, mobile));
+    if (!bag) {
+      await rememberDmtSession(retailerUserId, mobile, fallback);
       return fallback;
     }
   }
-  return readBag(retailerUserId, mobile).sessionToken;
+  return (await readBag(retailerUserId, mobile)).sessionToken;
 }
 
-export function requireVerifyToken(retailerUserId: string, mobile: string): string {
-  const bag = readBag(retailerUserId, mobile);
+export async function requireVerifyToken(retailerUserId: string, mobile: string): Promise<string> {
+  const bag = await readBag(retailerUserId, mobile);
   if (!bag.verifyToken) {
     throw new HttpError(
       422,
@@ -240,8 +306,12 @@ export function requireVerifyToken(retailerUserId: string, mobile: string): stri
   return bag.verifyToken;
 }
 
-export function requireAccessToken(retailerUserId: string, mobile: string, fallback?: string): string {
-  const bag = readBag(retailerUserId, mobile);
+export async function requireAccessToken(
+  retailerUserId: string,
+  mobile: string,
+  fallback?: string,
+): Promise<string> {
+  const bag = await readBag(retailerUserId, mobile);
   if (bag.accessToken) return bag.accessToken;
   if (fallback && fallback.length >= 8) return fallback;
   throw new HttpError(

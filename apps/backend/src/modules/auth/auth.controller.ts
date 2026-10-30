@@ -30,6 +30,7 @@ import {
   adminTotpVerifySchema,
   adminTotpEnableSchema,
   adminTotpDisableSchema,
+  adminTotpBackupRegenerateSchema,
 } from "./auth.validators";
 import {
   registerUser,
@@ -66,6 +67,7 @@ import {
   setupAdminTotp,
   enableAdminTotp,
   disableAdminTotp,
+  regenerateAdminBackupCodes,
 } from "./auth.service";
 import {
   requestEmailVerifyOtp,
@@ -125,11 +127,25 @@ export async function adminTotpSetup(req: Request, res: Response): Promise<void>
 export async function adminTotpEnable(req: Request, res: Response): Promise<void> {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const input = adminTotpEnableSchema.parse(req.body);
-  await enableAdminTotp(req.auth.sub, input.code, {
+  const backupCodes = await enableAdminTotp(req.auth.sub, input.code, {
     ipAddress: req.ip ?? null,
     userAgent: req.headers["user-agent"] ?? null,
   });
-  sendSuccess(res, await getAdminTotpStatus(req.auth.sub), "Two-factor login is on");
+  sendSuccess(res, { ...(await getAdminTotpStatus(req.auth.sub)), backupCodes }, "Two-factor login is on");
+}
+
+export async function adminTotpBackupRegenerate(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const input = adminTotpBackupRegenerateSchema.parse(req.body);
+  const backupCodes = await regenerateAdminBackupCodes(req.auth.sub, input.code, {
+    ipAddress: req.ip ?? null,
+    userAgent: req.headers["user-agent"] ?? null,
+  });
+  sendSuccess(
+    res,
+    { ...(await getAdminTotpStatus(req.auth.sub)), backupCodes },
+    "New recovery codes created. Old codes no longer work.",
+  );
 }
 
 export async function adminTotpDisable(req: Request, res: Response): Promise<void> {

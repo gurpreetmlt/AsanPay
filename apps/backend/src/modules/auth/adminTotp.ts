@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 /** RFC 6238 TOTP: HMAC-SHA1, 6 digits, 30 s step. Pure helpers — no DB / env access. */
 export const TOTP_DIGITS = 6;
@@ -95,6 +95,35 @@ export function verifyTotp(
     if (codesEqual(hotp(secret, step), candidate)) return step;
   }
   return null;
+}
+
+export const BACKUP_CODE_COUNT = 10;
+/** No 0/O/1/I so codes survive being read aloud or written down. */
+const BACKUP_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** Canonical form for hashing: upper case, no spaces or dashes. */
+export function normalizeBackupCode(input: string): string {
+  return input.toUpperCase().replace(/[\s-]/g, "");
+}
+
+export function isBackupCodeShape(input: string): boolean {
+  return /^[A-Z0-9]{10}$/.test(normalizeBackupCode(input));
+}
+
+export function hashBackupCode(input: string): string {
+  return createHash("sha256").update(normalizeBackupCode(input)).digest("hex");
+}
+
+/** `XXXXX-XXXXX` codes; store only `hashBackupCode` of each. */
+export function generateBackupCodes(count = BACKUP_CODE_COUNT): string[] {
+  const codes: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const bytes = randomBytes(10);
+    let raw = "";
+    for (const b of bytes) raw += BACKUP_ALPHABET[b % BACKUP_ALPHABET.length];
+    codes.push(`${raw.slice(0, 5)}-${raw.slice(5)}`);
+  }
+  return codes;
 }
 
 export function buildOtpauthUrl(secretBase32: string, issuer: string, account: string): string {
