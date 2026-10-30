@@ -47,9 +47,12 @@ export function ProfilePhotoSheet({ visible, name, onClose }: { visible: boolean
       cropperToolbarTitle: "Crop profile photo",
       cropperToolbarColor: "#FFFFFF",
       cropperToolbarWidgetColor: colors.blue,
-      cropperActiveWidgetColor: colors.blue,
+      // Bottom tab bar is dark — navy would make the active Rotate / Scale tab invisible.
+      cropperActiveWidgetColor: colors.greenLight,
       showCropGuidelines: true,
       hideBottomControls: false,
+      // Without this, pinch-zoom only works on the Scale tab (the cropper opens on Rotate).
+      enableRotationGesture: true,
     };
     let image: CroppedImage;
     try {

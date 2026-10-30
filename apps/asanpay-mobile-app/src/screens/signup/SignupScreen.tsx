@@ -1006,9 +1006,12 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
         cropperToolbarTitle: CROP_TITLE[slot],
         cropperToolbarColor: "#FFFFFF",
         cropperToolbarWidgetColor: colors.blue,
-        cropperActiveWidgetColor: colors.blue,
+        // Bottom tab bar is dark — navy would make the active Rotate / Scale tab invisible.
+        cropperActiveWidgetColor: colors.greenLight,
         showCropGuidelines: true,
         hideBottomControls: false,
+        // Without this, pinch-zoom only works on the Scale tab (the cropper opens on Rotate).
+        enableRotationGesture: true,
       });
     } catch (err) {
       if ((err as { code?: string })?.code === "E_PICKER_CANCELLED") return;
