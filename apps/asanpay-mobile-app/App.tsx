@@ -5,7 +5,6 @@ import { AppAlertHost } from "./src/components/AppAlert";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { ThemeProvider } from "./src/theme/ThemeContext";
-import { colors } from "./src/theme/colors";
 
 /** Long enough for one slow Y→A reveal (~1.6s) + brief hold. */
 const SPLASH_MS = 2600;
@@ -21,7 +20,7 @@ function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <StatusBar barStyle="light-content" backgroundColor={colors.blue} />
+        <StatusBar barStyle="light-content" />
         {showSplash ? <SplashScreen /> : <RootNavigator />}
         <AppAlertHost />
       </ThemeProvider>

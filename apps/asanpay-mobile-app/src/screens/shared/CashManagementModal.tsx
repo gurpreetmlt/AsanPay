@@ -236,7 +236,7 @@ export function CashManagementModal({ visible, onClose }: { visible: boolean; on
       navigationBarTranslucent
       onRequestClose={handleBack}
     >
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <StatusBar barStyle="light-content" />
       <View style={[styles.root, { backgroundColor: tokens.bg }]}>
         <LinearGradient
           colors={[...colors.gradient]}

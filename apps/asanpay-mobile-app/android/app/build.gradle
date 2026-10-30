@@ -49,8 +49,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Bump APP_VERSION_CODE / APP_VERSION_NAME in src/lib/appVersion.ts together with these.
-        versionCode 8
-        versionName "1.0.5"
+        versionCode 9
+        versionName "1.0.6"
         // true = FLAG_SECURE on every screen (no screenshots / blank recent-apps thumbnail). Debug
         // keeps screenshots for testing; the release build type turns it on.
         buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "false"
@@ -107,6 +107,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("com.google.android.play:app-update:2.1.0")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
