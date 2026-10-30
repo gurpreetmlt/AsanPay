@@ -243,7 +243,7 @@ export function SettlementBanksPanel({
         message?: string;
       }>("/settlements/banks/otp");
       setOtpSent(true);
-      const testOtp = data.data?.otp;
+      const testOtp = process.env.NODE_ENV !== "production" ? data.data?.otp : undefined;
       if (testOtp) {
         setOtp(testOtp);
         toast.success(`OTP ready: ${testOtp}`);

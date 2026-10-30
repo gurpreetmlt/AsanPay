@@ -861,35 +861,6 @@ function ProfileDetailRow({
   );
 }
 
-function LimitCard({
-  label,
-  used,
-  total,
-  pct,
-  tokens,
-}: {
-  label: string;
-  used: string;
-  total: string;
-  pct: number;
-  tokens: ReturnType<typeof useTheme>["tokens"];
-}) {
-  const barColor = pct >= 80 ? colors.danger : colors.green;
-  return (
-    <View style={[styles.limitCard, { borderColor: tokens.cardBorder, backgroundColor: tokens.card }]}>
-      <View style={styles.limitTop}>
-        <Text style={[styles.limitLabel, { color: tokens.sub }]}>{label}</Text>
-        <Text style={[styles.limitPct, { color: tokens.txt }]}>{pct}%</Text>
-      </View>
-      <Text style={[styles.limitUsed, { color: tokens.txt }]}>{used}</Text>
-      <Text style={[styles.limitOf, { color: tokens.mute }]}>of {total}</Text>
-      <View style={[styles.limitTrack, { backgroundColor: tokens.segTrack }]}>
-        <View style={[styles.limitFill, { width: `${Math.min(100, pct)}%`, backgroundColor: barColor }]} />
-      </View>
-    </View>
-  );
-}
-
 function ProfileModal({
   visible,
   onClose,
@@ -973,12 +944,6 @@ function ProfileModal({
     { label: "Account", value: profile?.bankAccountMasked || "—" },
   ];
 
-  const limits = [
-    { label: "Daily limit", used: "₹1,82,400", total: "₹2,00,000", pct: 91 },
-    { label: "Monthly limit", used: "₹8,40,000", total: "₹50,00,000", pct: 17 },
-    { label: "Max single", used: "₹25,000", total: "₹50,000", pct: 50 },
-  ];
-
   return (
     <ModalSheet visible={visible} title="Profile & KYC" icon={<UserCircle />} onClose={onClose}>
       <ScrollView
@@ -1030,13 +995,6 @@ function ProfileModal({
             <ChevronRight size={16} color={colors.blueFlat} />
           </Pressable>
         ) : null}
-
-        <Text style={[styles.sectionTiny, { color: tokens.sub, marginTop: 8 }]}>Transaction limits</Text>
-        <View style={styles.limitsWrap}>
-          {limits.map((l) => (
-            <LimitCard key={l.label} {...l} tokens={tokens} />
-          ))}
-        </View>
       </ScrollView>
     </ModalSheet>
   );
@@ -1567,20 +1525,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   linkTitle: { fontSize: 14, fontWeight: "800" },
-  limitsWrap: { gap: 10, marginTop: 4 },
-  limitCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  limitTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  limitLabel: { fontSize: 13, fontWeight: "600" },
-  limitPct: { fontSize: 12, fontWeight: "800" },
-  limitUsed: { fontSize: 14, fontWeight: "800", marginTop: 6 },
-  limitOf: { fontSize: 11, marginTop: 2 },
-  limitTrack: { height: 8, borderRadius: 999, marginTop: 10, overflow: "hidden" },
-  limitFill: { height: "100%", borderRadius: 999 },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",

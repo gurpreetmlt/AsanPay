@@ -143,7 +143,7 @@ export default function LoginPage() {
     } catch (err) {
       if (isPolicyRequiredError(err)) {
         onPolicyRequired();
-        toast.error(extractApiError(err, "Accept the Terms & Conditions, Privacy Policy and EULA to continue"));
+        toast.error(extractApiError(err, "Accept the Terms & Conditions and Privacy Policy to continue"));
         return;
       }
       const status = (err as { response?: { status?: number } })?.response?.status;
@@ -220,7 +220,7 @@ export default function LoginPage() {
       return;
     }
     if (!policyAccepted) {
-      toast.error("Tick the box to accept the Terms & Conditions, Privacy Policy and EULA");
+      toast.error("Tick the box to accept the Terms & Conditions and Privacy Policy");
       return;
     }
     setLoading(true);
@@ -827,10 +827,6 @@ export default function LoginPage() {
             <Fingerprint size={20} style={{ color: B.blue }} />
             Biometric Login
           </PrimaryButton>
-
-          <p className="text-center text-xs" style={{ color: B.muted }}>
-            New to AsanPay? Ask your Distributor to send you an invite link by email.
-          </p>
           </>
           )}
         </div>

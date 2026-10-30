@@ -2,16 +2,15 @@ import React, { useState } from "react";
 import { Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { Check, Download } from "lucide-react-native";
 import { PopupCloseButton } from "./PopupCloseButton";
-import { EULA_BODY, EULA_SUMMARY, PRIVACY_BODY, TERMS_BODY, buildLegalDownloadText } from "@asanpay/shared-types";
+import { PRIVACY_BODY, TERMS_BODY, buildLegalDownloadText } from "@asanpay/shared-types";
 import { colors } from "../theme/colors";
 import { showAlert } from "./AppAlert";
 
-type LegalDoc = "terms" | "privacy" | "eula";
+type LegalDoc = "terms" | "privacy";
 
 const DOCS: Record<LegalDoc, { title: string; body: string }> = {
   terms: { title: "Terms & Conditions", body: TERMS_BODY },
   privacy: { title: "Privacy Policy", body: PRIVACY_BODY },
-  eula: { title: "End User Licence Agreement (EULA)", body: EULA_BODY },
 };
 
 function LegalDocModal({ doc, onClose }: { doc: LegalDoc | null; onClose: () => void }) {
@@ -19,7 +18,7 @@ function LegalDocModal({ doc, onClose }: { doc: LegalDoc | null; onClose: () => 
 
   async function shareAll() {
     try {
-      await Share.share({ title: "AsanPay Terms, Privacy Policy and EULA", message: buildLegalDownloadText() });
+      await Share.share({ title: "AsanPay Terms and Privacy Policy", message: buildLegalDownloadText() });
     } catch {
       showAlert("Share failed", "Could not open the share sheet. Try again.");
     }
@@ -34,7 +33,6 @@ function LegalDocModal({ doc, onClose }: { doc: LegalDoc | null; onClose: () => 
             <PopupCloseButton onPress={onClose} />
           </View>
           <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 12 }}>
-            {doc === "eula" ? <Text style={styles.summary}>{EULA_SUMMARY}</Text> : null}
             <Text style={styles.bodyText}>{current?.body}</Text>
           </ScrollView>
           <View style={styles.footer}>
@@ -88,8 +86,7 @@ export function LoginPolicyConsent({
           {checked ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
         </View>
         <Text style={[styles.label, light && styles.labelLight]}>
-          I agree to the {link("terms", "Terms & Conditions")}, {link("privacy", "Privacy Policy")} and{" "}
-          {link("eula", "EULA")}.
+          I agree to the {link("terms", "Terms & Conditions")} and {link("privacy", "Privacy Policy")}.
         </Text>
       </Pressable>
       <LegalDocModal doc={openDoc} onClose={() => setOpenDoc(null)} />
@@ -141,17 +138,6 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: 15, fontWeight: "800", color: colors.blue, paddingRight: 8 },
   body: { paddingHorizontal: 16, paddingTop: 12 },
   bodyText: { fontSize: 12, lineHeight: 18, color: colors.blue },
-  summary: {
-    marginBottom: 14,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(36,204,130,.35)",
-    backgroundColor: "rgba(36,204,130,.08)",
-    fontSize: 13,
-    lineHeight: 19,
-    color: colors.blue,
-  },
   footer: {
     flexDirection: "row",
     alignItems: "center",

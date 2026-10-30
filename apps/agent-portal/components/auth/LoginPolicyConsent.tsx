@@ -2,15 +2,14 @@
 
 import { useState } from "react";
 import { Check, Download, X } from "lucide-react";
-import { EULA_BODY, EULA_SUMMARY, PRIVACY_BODY, TERMS_BODY, buildLegalDownloadText } from "@asanpay/shared-types";
+import { PRIVACY_BODY, TERMS_BODY, buildLegalDownloadText } from "@asanpay/shared-types";
 import { B } from "@/lib/brand";
 
-export type LegalDoc = "terms" | "privacy" | "eula";
+export type LegalDoc = "terms" | "privacy";
 
 const DOCS: Record<LegalDoc, { title: string; body: string }> = {
   terms: { title: "Terms & Conditions", body: TERMS_BODY },
   privacy: { title: "Privacy Policy", body: PRIVACY_BODY },
-  eula: { title: "End User Licence Agreement (EULA)", body: EULA_BODY },
 };
 
 function downloadLegalDocs() {
@@ -18,7 +17,7 @@ function downloadLegalDocs() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "AsanPay-Terms-Privacy-EULA.txt";
+  a.download = "AsanPay-Terms-Privacy.txt";
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -46,14 +45,6 @@ export function LegalDocModal({ doc, onClose }: { doc: LegalDoc; onClose: () => 
           className="flex-1 overflow-y-auto whitespace-pre-wrap px-5 py-4 text-xs leading-relaxed"
           style={{ color: B.blue }}
         >
-          {doc === "eula" ? (
-            <p
-              className="mb-4 rounded-xl border px-4 py-3 text-sm leading-relaxed"
-              style={{ borderColor: `${B.green}55`, background: `${B.green}10`, color: B.blue }}
-            >
-              {EULA_SUMMARY}
-            </p>
-          ) : null}
           {body}
         </div>
         <div className="flex justify-between gap-2 border-t px-5 py-3" style={{ borderColor: B.border, background: "#FAFBFF" }}>
@@ -129,8 +120,7 @@ export function LoginPolicyConsent({
           />
         </span>
         <span>
-          I agree to the {link("terms", "Terms & Conditions")}, {link("privacy", "Privacy Policy")} and{" "}
-          {link("eula", "EULA")}.
+          I agree to the {link("terms", "Terms & Conditions")} and {link("privacy", "Privacy Policy")}.
         </span>
       </label>
       {openDoc ? <LegalDocModal doc={openDoc} onClose={() => setOpenDoc(null)} /> : null}

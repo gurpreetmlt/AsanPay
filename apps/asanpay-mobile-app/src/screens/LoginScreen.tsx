@@ -138,7 +138,7 @@ export function LoginScreen() {
       return;
     }
     if (!policyAccepted) {
-      showAlert("Accept to continue", "Tick the box to accept the Terms & Conditions, Privacy Policy and EULA");
+      showAlert("Accept to continue", "Tick the box to accept the Terms & Conditions and Privacy Policy");
       return;
     }
     setLoading(true);
@@ -193,7 +193,7 @@ export function LoginScreen() {
     } catch (err) {
       if (isPolicyRequiredError(err)) {
         onPolicyRequired();
-        showAlert("Accept to continue", apiError(err, "Accept the Terms & Conditions, Privacy Policy and EULA"));
+        showAlert("Accept to continue", apiError(err, "Accept the Terms & Conditions and Privacy Policy"));
         return;
       }
       showAlert("Verification failed", apiError(err, "Invalid OTP"));
@@ -209,7 +209,7 @@ export function LoginScreen() {
       return;
     }
     if (!policyAccepted) {
-      showAlert("Accept to continue", "Tick the box to accept the Terms & Conditions, Privacy Policy and EULA");
+      showAlert("Accept to continue", "Tick the box to accept the Terms & Conditions and Privacy Policy");
       return;
     }
     setLoading(true);
@@ -761,12 +761,6 @@ export function LoginScreen() {
                 </>
                 )}
               </>
-          </View>
-
-          <View style={styles.signupRow}>
-            <Text style={[styles.signupText, { textAlign: "center" }]}>
-              New to AsanPay? Ask your Distributor to send you an invite link by email.
-            </Text>
           </View>
 
           {__DEV__ ? <Text style={styles.devHint}>Dev API: {API_BASE}</Text> : null}

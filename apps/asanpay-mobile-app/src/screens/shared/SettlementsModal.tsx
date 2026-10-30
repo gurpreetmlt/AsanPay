@@ -155,7 +155,7 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
         message?: string;
       }>("/settlements/banks/otp");
       setOtpSent(true);
-      const testOtp = res.data?.data?.otp;
+      const testOtp = __DEV__ ? res.data?.data?.otp : undefined;
       if (testOtp) {
         setOtp(testOtp);
         showAlert("OTP ready", `Use code ${testOtp}`);

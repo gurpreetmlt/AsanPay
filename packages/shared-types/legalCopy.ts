@@ -4,11 +4,23 @@
 
 export const LEGAL_VERSIONS = { terms: "1.1", privacy: "1.0", eula: "1.0" } as const;
 
-/** Single version string the client sends at login and the backend records per acceptance. */
-export const POLICY_VERSION = `T${LEGAL_VERSIONS.terms}-P${LEGAL_VERSIONS.privacy}-E${LEGAL_VERSIONS.eula}`;
+/**
+ * Single version string the client sends at login and the backend records per acceptance.
+ * The EULA is not shown for now, so login accepts Terms + Privacy only (EULA_BODY is kept for later).
+ */
+export const POLICY_VERSION = `T${LEGAL_VERSIONS.terms}-P${LEGAL_VERSIONS.privacy}`;
 
-/** Sign-up accepts Terms + Privacy only; the EULA is accepted at login. */
-export const SIGNUP_POLICY_VERSION = `T${LEGAL_VERSIONS.terms}-P${LEGAL_VERSIONS.privacy}`;
+/** Sign-up accepts the same Terms + Privacy bundle as login. */
+export const SIGNUP_POLICY_VERSION = POLICY_VERSION;
+
+/**
+ * Earlier bundles that already include the current Terms + Privacy. Older app builds still send
+ * these, and agents who accepted one are not asked again.
+ */
+export const POLICY_VERSIONS_COVERING_CURRENT: readonly string[] = [
+  POLICY_VERSION,
+  `T${LEGAL_VERSIONS.terms}-P${LEGAL_VERSIONS.privacy}-E${LEGAL_VERSIONS.eula}`,
+];
 
 export const TERMS_BODY = `Version 1.1  |  Effective Date: 26 October 2026
 
@@ -749,14 +761,6 @@ export function buildLegalDownloadText(): string {
     "================================",
     "",
     PRIVACY_BODY,
-    "",
-    "",
-    "ASANPAY — END USER LICENCE AGREEMENT (EULA)",
-    "================================",
-    "",
-    EULA_SUMMARY,
-    "",
-    EULA_BODY,
     "",
   ].join("\n");
 }

@@ -471,6 +471,7 @@ export {
   EULA_SUMMARY,
   LEGAL_VERSIONS,
   POLICY_VERSION,
+  POLICY_VERSIONS_COVERING_CURRENT,
   SIGNUP_POLICY_VERSION,
   buildLegalDownloadText,
   buildSignupLegalDownloadText,

@@ -930,7 +930,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
                   })
                 )}
 
-                <Text style={[styles.label, { marginTop: 8 }]}>AMOUNT (₹1 – ₹5,000)</Text>
+                <Text style={[styles.label, { marginTop: 8 }]}>AMOUNT (₹100 – ₹5,000)</Text>
                 <TextInput
                   value={amount}
                   onChangeText={(t) => {

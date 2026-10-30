@@ -135,7 +135,7 @@ export function TrustedUnlockScreen({ mobile, role, name, onFallbackToOtp }: Pro
       if (isPolicyRequiredError(err)) {
         showAlert(
           "Accept updated terms",
-          "Log in once with OTP or password and tick the box to accept the Terms & Conditions, Privacy Policy and EULA.",
+          "Log in once with OTP or password and tick the box to accept the Terms & Conditions and Privacy Policy.",
           [{ text: "Use OTP", style: "primary", onPress: onFallbackToOtp }],
         );
         return;

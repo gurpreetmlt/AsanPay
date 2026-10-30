@@ -1,5 +1,5 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
-import { eq, and, isNull, like, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, like, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import { auditLogs, users, userHierarchy, refreshTokens, policyAcceptances } from "../../db/postgres/schema";
 import { provisionWalletsForUser } from "../wallet/wallet.service";
@@ -60,7 +60,7 @@ import {
   isAdminRole,
   isAgentPortalRole,
   isFundRequestEnabled,
-  POLICY_VERSION,
+  POLICY_VERSIONS_COVERING_CURRENT,
   ROLE_LABELS,
   SIGNUP_POLICY_VERSION,
   signupPlaceholderName,
@@ -322,15 +322,21 @@ export async function ensurePolicyAccepted(
   if (!isAgentPortalRole(row.role)) return;
 
   try {
-    if (input.acceptedPolicyVersion === POLICY_VERSION) {
-      await recordPolicyAcceptance(row.id, POLICY_VERSION, input.policyChannel ?? "web", method, context);
+    const sent = input.acceptedPolicyVersion;
+    if (sent && POLICY_VERSIONS_COVERING_CURRENT.includes(sent)) {
+      await recordPolicyAcceptance(row.id, sent, input.policyChannel ?? "web", method, context);
       return;
     }
 
     const [existing] = await db
       .select({ id: policyAcceptances.id })
       .from(policyAcceptances)
-      .where(and(eq(policyAcceptances.userId, row.id), eq(policyAcceptances.policyVersion, POLICY_VERSION)))
+      .where(
+        and(
+          eq(policyAcceptances.userId, row.id),
+          inArray(policyAcceptances.policyVersion, [...POLICY_VERSIONS_COVERING_CURRENT]),
+        ),
+      )
       .limit(1);
     if (existing) return;
   } catch (err) {
@@ -344,7 +350,7 @@ export async function ensurePolicyAccepted(
 
   throw new HttpError(
     409,
-    "Tick “I agree to the Terms & Conditions, Privacy Policy and EULA” to continue. If you don't see the checkbox, update the AsanPay app.",
+    "Tick “I agree to the Terms & Conditions and Privacy Policy” to continue. If you don't see the checkbox, update the AsanPay app.",
     "POLICY_ACCEPTANCE_REQUIRED",
   );
 }

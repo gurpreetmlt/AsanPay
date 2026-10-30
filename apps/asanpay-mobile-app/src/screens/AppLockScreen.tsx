@@ -119,7 +119,7 @@ export function AppLockScreen({ onUnlock }: Props) {
       if (isPolicyRequiredError(err)) {
         showAlert(
           "Accept updated terms",
-          "Log in again and tick the box to accept the Terms & Conditions, Privacy Policy and EULA.",
+          "Log in again and tick the box to accept the Terms & Conditions and Privacy Policy.",
         );
         logout();
         return;
