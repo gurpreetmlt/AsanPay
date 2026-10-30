@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Check, ChevronLeft, Link2, Lock, Plus, Settings2, ShieldCheck, Users } from "lucide-react-native";
-import { ROLE_LABELS, type LinkedAccountSummary, type LinkedAccountsResponse } from "@asanpay/shared-types";
+import { ROLE_LABELS, type LinkedAccountSummary, type LinkedAccountsResponse, type UnlinkScope } from "@asanpay/shared-types";
 import { ModalSheet } from "../ModalSheet";
 import { showAlert } from "../AppAlert";
 import { apiError } from "../../utils/apiError";
@@ -101,27 +101,48 @@ export function LinkedAccountsHost({ view, onClose }: { view: LinkedAccountsView
     else closeAll();
   }
 
-  function confirmUnlink(target: LinkedAccountSummary) {
+  function confirmUnlink(target: LinkedAccountSummary, scope: UnlinkScope = "one") {
+    const count = accounts.length;
     const other = target.isCurrent ? others[0] : target;
-    showAlert(
-      other ? `Unlink ${other.roleLabel} account?` : "Unlink account?",
-      "You will need OTP and MPIN to link it again.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Unlink",
-          style: "destructive",
-          onPress: () => {
-            unlinkAccount(target.userId)
-              .then((res) => {
-                setData(res);
-                showAlert("Account unlinked", "You can link it again any time.");
-              })
-              .catch((err) => showAlert("Could not unlink", apiError(err, "Could not unlink the account")));
-          },
+    const copy =
+      scope === "all" && count > 2
+        ? {
+            title: `Unlink all ${count} accounts?`,
+            message: "Every account becomes separate. You will need OTP and MPIN to link them again.",
+            confirm: "Unlink all",
+          }
+        : count <= 2
+          ? {
+              title: other ? `Unlink ${other.roleLabel} account?` : "Unlink account?",
+              message: "You will need OTP and MPIN to link it again.",
+              confirm: "Unlink",
+            }
+          : target.isCurrent
+            ? {
+                title: "Leave the linked group?",
+                message: `This account stops switching to the other ${count - 1}. They stay linked to each other.`,
+                confirm: "Leave group",
+              }
+            : {
+                title: `Unlink ${target.roleLabel} account ${target.uid}?`,
+                message: "Your other accounts stay linked. You will need OTP and MPIN to link this one again.",
+                confirm: "Unlink",
+              };
+    showAlert(copy.title, copy.message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: copy.confirm,
+        style: "destructive",
+        onPress: () => {
+          unlinkAccount(target.userId, scope)
+            .then((res) => {
+              setData(res);
+              showAlert(scope === "all" ? "All accounts unlinked" : "Account unlinked", "You can link it again any time.");
+            })
+            .catch((err) => showAlert("Could not unlink", apiError(err, "Could not unlink the account")));
         },
-      ],
-    );
+      },
+    ]);
   }
 
   const listBody = loading && !data ? (
@@ -214,7 +235,9 @@ export function LinkedAccountsHost({ view, onClose }: { view: LinkedAccountsView
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle}>Your accounts</Text>
                   <Text style={laStyles.muted}>
-                    {accounts.length > 1 ? `${accounts.length} accounts connected to your verified identity` : "Only this account so far"}
+                    {accounts.length > 1
+                      ? `${accounts.length} of ${data?.maxLinked ?? 3} accounts connected to your verified identity`
+                      : "Only this account so far"}
                   </Text>
                 </View>
                 <View style={styles.mpinChip}>
@@ -222,6 +245,11 @@ export function LinkedAccountsHost({ view, onClose }: { view: LinkedAccountsView
                   <Text style={styles.mpinChipText}>Protected by MPIN</Text>
                 </View>
               </View>
+              {accounts.length > 2 && me ? (
+                <Pressable onPress={() => confirmUnlink(me, "all")} hitSlop={8} style={styles.unlinkAll}>
+                  <Text style={styles.unlink}>Unlink all</Text>
+                </Pressable>
+              ) : null}
               {listBody}
               {accounts.map((a) => (
                 <View key={a.userId} style={[styles.accountRow, styles.rowBorder]}>
@@ -255,7 +283,7 @@ export function LinkedAccountsHost({ view, onClose }: { view: LinkedAccountsView
                     {!a.isCurrent ? <SwitchPill account={a} onPress={() => openSwitch(a)} /> : null}
                     {accounts.length > 1 ? (
                       <Pressable onPress={() => confirmUnlink(a)} hitSlop={8} style={{ marginLeft: 16 }}>
-                        <Text style={styles.unlink}>Unlink</Text>
+                        <Text style={styles.unlink}>{a.isCurrent && accounts.length > 2 ? "Leave group" : "Unlink"}</Text>
                       </Pressable>
                     ) : null}
                   </View>
@@ -268,7 +296,8 @@ export function LinkedAccountsHost({ view, onClose }: { view: LinkedAccountsView
                   </View>
                   <Text style={styles.cardTitle}>No linked accounts yet</Text>
                   <Text style={[laStyles.muted, { textAlign: "center" }]}>
-                    Run a Distributor and a Retailer account? Link them once and switch with your MPIN.
+                    Run more than one role — Super Distributor, Distributor or Retailer? Link up to 3 accounts once and switch
+                    with your MPIN.
                   </Text>
                 </View>
               ) : null}
@@ -388,6 +417,7 @@ const styles = StyleSheet.create({
   footLabel: { fontSize: 10.5, color: colors.textMuted },
   footValue: { fontSize: 12.5, fontWeight: "800", color: colors.blue },
   unlink: { fontSize: 13, fontWeight: "800", color: colors.danger },
+  unlinkAll: { alignSelf: "flex-end", paddingHorizontal: 16, paddingBottom: 8 },
   empty: { alignItems: "center", gap: 6, paddingVertical: 22 },
   emptyIcon: {
     width: 56,

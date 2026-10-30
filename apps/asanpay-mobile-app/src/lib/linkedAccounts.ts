@@ -1,4 +1,4 @@
-import type { ApiResponse, AuthUser, LinkCheckResult, LinkedAccountsResponse, UserRole } from "@asanpay/shared-types";
+import type { ApiResponse, AuthUser, LinkCheckResult, LinkedAccountsResponse, UnlinkScope, UserRole } from "@asanpay/shared-types";
 import { api, setAuthHeader } from "./api";
 import { getDeviceId } from "./deviceId";
 import { setRememberedLogin } from "./rememberedLogin";
@@ -56,8 +56,9 @@ export async function switchToAccount(input: {
   return { session: res.data, message: res.message || "Account switched" };
 }
 
-export async function unlinkAccount(userId: string): Promise<LinkedAccountsResponse> {
-  const { data } = await api.delete<ApiResponse<LinkedAccountsResponse>>(`/linked-accounts/${userId}`);
+/** `one` removes that account from the group; `all` unlinks every account. */
+export async function unlinkAccount(userId: string, scope: UnlinkScope = "one"): Promise<LinkedAccountsResponse> {
+  const { data } = await api.delete<ApiResponse<LinkedAccountsResponse>>(`/linked-accounts/${userId}?scope=${scope}`);
   return unwrap(data).data;
 }
 

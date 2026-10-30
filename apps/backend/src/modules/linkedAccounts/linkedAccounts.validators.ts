@@ -38,3 +38,7 @@ export const switchSchema = z.object({
 export type SwitchInput = z.infer<typeof switchSchema>;
 
 export const unlinkParamSchema = z.object({ userId: userIdSchema });
+
+export const unlinkQuerySchema = z.object({
+  scope: z.enum(["one", "all"], { message: "Unlink scope must be one or all" }).optional().default("one"),
+});

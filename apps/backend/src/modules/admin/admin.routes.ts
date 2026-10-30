@@ -354,6 +354,11 @@ adminRouter.put("/verifications/order", async (req, res) => {
   sendSuccess(res, await setVerificationOrders(req.auth.sub, body.orders, body.reason), "Order saved");
 });
 
+adminRouter.get("/users/:id/linked-accounts", async (req, res) => {
+  const { listLinkedAccountsForAdmin } = await import("../linkedAccounts/linkedAccounts.service");
+  sendSuccess(res, await listLinkedAccountsForAdmin(req.params.id));
+});
+
 adminRouter.get("/users/:id/photo", async (req, res) => {
   const { getUserPhotoBytes } = await import("../account/profilePhoto.service");
   const photo = await getUserPhotoBytes(req.params.id);

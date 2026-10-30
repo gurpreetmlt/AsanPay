@@ -65,6 +65,7 @@ import { NightAccessCard } from "@/components/users/NightAccessCard";
 import { ServiceAccessCard } from "@/components/users/ServiceAccessCard";
 import { TxnLimitsCard } from "@/components/users/TxnLimitsCard";
 import { RoleAccountCard } from "@/components/users/RoleAccountCard";
+import { LinkedAccountsCard } from "@/components/users/LinkedAccountsCard";
 import { FundRequestSwitch } from "@/components/users/FundRequestSwitch";
 import { MoveAgentModal } from "@/components/users/MoveAgentModal";
 import api, { fetchApi } from "@/lib/api";
@@ -1431,6 +1432,7 @@ export default function AgentDetailPage() {
                 </div>
                 <div className="space-y-5">
                   {parentSection}
+                  <LinkedAccountsCard userId={agent.id} />
                   <DetailSection title="Quick actions" icon={SlidersHorizontal}>
                     <div className="grid gap-2">
                       <QuickAction icon={FileCheck2} label="Review KYC" hint="Documents, approve or reject" onClick={() => setTab("kyc")} />

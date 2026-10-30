@@ -31,6 +31,7 @@ import {
   type LinkIdentityChecks,
   type LinkedAccountSummary,
   type LinkedAccountsResponse,
+  type UnlinkScope,
 } from "@asanpay/shared-types";
 import type { LinkStartInput, LinkVerifyInput, SwitchInput, SwitchOtpInput } from "./linkedAccounts.validators";
 
@@ -48,7 +49,7 @@ const MSG = {
   identityMismatch: "This account belongs to a different PAN / Aadhaar and cannot be linked.",
   nameMismatch:
     "PAN and Aadhaar match, but the name on the other account is different. Contact support to correct the name, then try again.",
-  limit: `You can link only ${MAX_LINKED_ACCOUNTS} accounts (one Distributor and one Retailer).`,
+  limit: `You can link up to ${MAX_LINKED_ACCOUNTS} accounts — one Super Distributor, one Distributor and one Retailer.`,
   otpEvery24h: "For your security, verify with OTP once every 24 hours.",
   notLinked: "This account is not linked to you.",
 } as const;
@@ -116,26 +117,48 @@ function identityChecks(a: UserRow, b: UserRow): LinkIdentityChecks {
 
 type LinkBlock = { status: number; message: string; code: string; reason: string };
 
-/** First rule that stops `caller` linking `target`, in the order the user should fix them. */
+/** Accounts already in the caller's group (the caller alone when not linked yet). */
+async function groupMembers(caller: UserRow): Promise<UserRow[]> {
+  const link = await findLink(caller.id);
+  if (!link) return [caller];
+  const ids = (await loadGroup(link.groupId)).map((g) => g.userId);
+  const rows = await db.select().from(users).where(inArray(users.id, ids));
+  return rows.length ? rows : [caller];
+}
+
+/**
+ * First rule that stops `caller` adding `target` to their group, in the order the user should fix
+ * them. Identity is checked against every account already in the group, not only the caller.
+ */
 async function linkBlocker(caller: UserRow, target: UserRow): Promise<LinkBlock | null> {
   if (!target.isActive) {
     return { status: 403, message: "The other account is inactive. Contact support.", code: "ACCOUNT_INACTIVE", reason: "inactive" };
   }
-  if (!hasVerifiedKyc(caller) || !hasVerifiedKyc(target)) {
+  const members = await groupMembers(caller);
+  if (!members.every(hasVerifiedKyc) || !hasVerifiedKyc(target)) {
     return { status: 409, message: MSG.kycRequired, code: "KYC_REQUIRED", reason: "kyc_not_verified" };
   }
-  const checks = identityChecks(caller, target);
-  if (!checks.pan || !checks.aadhaar) {
-    return { status: 403, message: MSG.identityMismatch, code: "IDENTITY_MISMATCH", reason: "identity_mismatch" };
+  for (const m of members) {
+    const checks = identityChecks(m, target);
+    if (!checks.pan || !checks.aadhaar) {
+      return { status: 403, message: MSG.identityMismatch, code: "IDENTITY_MISMATCH", reason: "identity_mismatch" };
+    }
+    if (!checks.name) {
+      return { status: 403, message: MSG.nameMismatch, code: "NAME_MISMATCH", reason: "name_mismatch" };
+    }
   }
-  if (!checks.name) {
-    return { status: 403, message: MSG.nameMismatch, code: "NAME_MISMATCH", reason: "name_mismatch" };
+  if (members.some((m) => m.id === target.id)) {
+    return { status: 409, message: "This account is already linked to you.", code: "ALREADY_LINKED", reason: "already_linked" };
   }
-  if (target.role === caller.role) {
-    const label = ROLE_LABELS[caller.role] ?? caller.role;
+  const sameRole = members.find((m) => m.role === target.role);
+  if (sameRole) {
+    const label = ROLE_LABELS[target.role] ?? target.role;
     return {
       status: 422,
-      message: `Both accounts are ${label} accounts. You can link only accounts with different roles (for example one Distributor and one Retailer).`,
+      message:
+        sameRole.id === caller.id
+          ? `Both accounts are ${label} accounts. You can link only one account per role (one Super Distributor, one Distributor and one Retailer).`
+          : `Your linked accounts already include a ${label} account (${sameRole.uid}). You can link only one account per role.`,
       code: "SAME_ROLE",
       reason: "same_role",
     };
@@ -148,7 +171,7 @@ async function linkBlocker(caller: UserRow, target: UserRow): Promise<LinkBlock 
       reason: "target_linked",
     };
   }
-  if (await findLink(caller.id)) {
+  if (members.length >= MAX_LINKED_ACCOUNTS) {
     return { status: 409, message: MSG.limit, code: "LINK_LIMIT", reason: "limit" };
   }
   return null;
@@ -339,7 +362,7 @@ async function loadLinkTarget(callerId: string, mobile: string): Promise<{ calle
   if (!hasVerifiedKyc(caller)) {
     throw new HttpError(409, MSG.kycRequired, "KYC_REQUIRED");
   }
-  if (await findLink(callerId)) {
+  if ((await groupMembers(caller)).length >= MAX_LINKED_ACCOUNTS) {
     throw new HttpError(409, MSG.limit, "LINK_LIMIT");
   }
   if (mobile === caller.mobile) {
@@ -468,11 +491,26 @@ export async function verifyLink(
   }
 
   const now = new Date();
-  const groupId = randomUUID();
+  const existing = await findLink(caller.id);
+  const groupId = existing?.groupId ?? randomUUID();
   try {
     await db.transaction(async (tx) => {
+      // Two links into the same group at once must not push it past the cap or duplicate a role.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`link_group:${groupId}`}))`);
+      const current = await tx.select({ userId: linkedAccounts.userId }).from(linkedAccounts).where(eq(linkedAccounts.groupId, groupId));
+      if (existing && current.length === 0) throw new HttpError(409, MSG.notLinked, "NOT_LINKED");
+      if (current.length >= MAX_LINKED_ACCOUNTS) throw new HttpError(409, MSG.limit, "LINK_LIMIT");
+      if (current.length > 0) {
+        const roles = await tx
+          .select({ role: users.role })
+          .from(users)
+          .where(inArray(users.id, current.map((c) => c.userId)));
+        if (roles.some((r) => r.role === target.role)) {
+          throw new HttpError(422, "Your linked accounts already include an account with this role.", "SAME_ROLE");
+        }
+      }
       await tx.insert(linkedAccounts).values([
-        { groupId, userId: caller.id, linkedByUserId: caller.id, linkMethod: "otp", otpVerifiedAt: now },
+        ...(existing ? [] : [{ groupId, userId: caller.id, linkedByUserId: caller.id, linkMethod: "otp", otpVerifiedAt: now }]),
         { groupId, userId: target.id, linkedByUserId: caller.id, linkMethod: "otp", otpVerifiedAt: now },
       ]);
     });
@@ -483,20 +521,24 @@ export async function verifyLink(
     throw err;
   }
 
-  for (const [self, other] of [
-    [caller, target],
-    [target, caller],
-  ] as const) {
-    await insertAuditLog({
-      userId: self.id,
-      action: "linked_accounts.linked",
-      entityType: "user",
-      entityId: other.id,
-      ipAddress: context.ipAddress,
-      userAgent: context.userAgent,
-      metadata: { groupId, otherUid: other.uid, linkedBy: caller.uid, method: "otp" },
-    });
-    notifyAccountLinkChange({ userId: self.id, event: "linked", otherAccountLabel: accountLabel(other) });
+  // The new account is linked to everyone already in the group.
+  const others = (await groupMembers(caller)).filter((m) => m.id !== target.id);
+  for (const other of others) {
+    for (const [self, peer] of [
+      [other, target],
+      [target, other],
+    ] as const) {
+      await insertAuditLog({
+        userId: self.id,
+        action: "linked_accounts.linked",
+        entityType: "user",
+        entityId: peer.id,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+        metadata: { groupId, otherUid: peer.uid, linkedBy: caller.uid, method: "otp" },
+      });
+      notifyAccountLinkChange({ userId: self.id, event: "linked", otherAccountLabel: accountLabel(peer) });
+    }
   }
 
   return listLinkedAccounts(caller.id);
@@ -651,10 +693,44 @@ export async function switchAccount(
   return { ...session, otpVerified: Boolean(otpRecord) };
 }
 
+/** Admin agent page: every account in this agent's linked group (read-only, no PAN / Aadhaar). */
+export async function listLinkedAccountsForAdmin(userId: string) {
+  const link = await findLink(userId);
+  if (!link) return { linked: false, accounts: [] as const, maxLinked: MAX_LINKED_ACCOUNTS };
+  const group = await loadGroup(link.groupId);
+  const rows = await db
+    .select({ id: users.id, uid: users.uid, name: users.name, role: users.role, isActive: users.isActive, kycStatus: users.kycStatus })
+    .from(users)
+    .where(inArray(users.id, group.map((g) => g.userId)));
+  const order = ["super_distributor", "distributor", "retailer"];
+  return {
+    linked: true,
+    maxLinked: MAX_LINKED_ACCOUNTS,
+    accounts: rows
+      .map((r) => ({
+        userId: r.id,
+        uid: r.uid,
+        name: r.name,
+        role: r.role,
+        roleLabel: ROLE_LABELS[r.role] ?? r.role,
+        isActive: r.isActive,
+        kycVerified: r.kycStatus === "verified",
+        isThis: r.id === userId,
+        linkedAt: group.find((g) => g.userId === r.id)?.createdAt.toISOString() ?? null,
+      }))
+      .sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role)),
+  };
+}
+
+/**
+ * `one`: takes `userId` out of the group (the caller itself = leave the group); the rest stay linked.
+ * A group left with a single account is removed. `all`: breaks the whole group.
+ */
 export async function unlinkAccount(
   callerId: string,
   userId: string,
   context: AuthContext,
+  scope: UnlinkScope = "one",
 ): Promise<LinkedAccountsResponse> {
   await loadActiveAgent(callerId);
   const [callerLink, targetLink] = await Promise.all([findLink(callerId), findLink(userId)]);
@@ -662,26 +738,35 @@ export async function unlinkAccount(
     throw new HttpError(404, MSG.notLinked, "NOT_LINKED");
   }
 
-  const group = await loadGroup(callerLink.groupId);
+  const groupId = callerLink.groupId;
+  const group = await loadGroup(groupId);
   const members = await db
     .select()
     .from(users)
     .where(inArray(users.id, group.map((g) => g.userId)));
 
-  await db.delete(linkedAccounts).where(eq(linkedAccounts.groupId, callerLink.groupId));
+  const leaving = scope === "all" || group.length <= 2 ? members : members.filter((m) => m.id === userId);
+  if (leaving.length === members.length) {
+    await db.delete(linkedAccounts).where(eq(linkedAccounts.groupId, groupId));
+  } else {
+    await db.delete(linkedAccounts).where(and(eq(linkedAccounts.groupId, groupId), eq(linkedAccounts.userId, userId)));
+  }
 
+  // Every pair that is no longer linked gets an audit row and an email on both sides.
+  const leavingIds = new Set(leaving.map((m) => m.id));
   for (const self of members) {
-    const others = members.filter((m) => m.id !== self.id);
+    const lost = members.filter((m) => m.id !== self.id && (leavingIds.has(self.id) || leavingIds.has(m.id)));
+    if (lost.length === 0) continue;
     await insertAuditLog({
       userId: self.id,
       action: "linked_accounts.unlinked",
       entityType: "user",
-      entityId: others[0]?.id ?? null,
+      entityId: lost[0]?.id ?? null,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
-      metadata: { groupId: callerLink.groupId, unlinkedBy: callerId, otherUids: others.map((o) => o.uid) },
+      metadata: { groupId, unlinkedBy: callerId, scope, otherUids: lost.map((o) => o.uid) },
     });
-    for (const other of others) {
+    for (const other of lost) {
       notifyAccountLinkChange({ userId: self.id, event: "unlinked", otherAccountLabel: accountLabel(other) });
     }
   }

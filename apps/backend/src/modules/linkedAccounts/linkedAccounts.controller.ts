@@ -8,6 +8,7 @@ import {
   switchOtpSchema,
   switchSchema,
   unlinkParamSchema,
+  unlinkQuerySchema,
 } from "./linkedAccounts.validators";
 import {
   checkLink,
@@ -62,5 +63,10 @@ export async function switchTo(req: Request, res: Response): Promise<void> {
 
 export async function unlink(req: Request, res: Response): Promise<void> {
   const { userId } = unlinkParamSchema.parse(req.params);
-  sendSuccess(res, await unlinkAccount(callerId(req), userId, context(req)), "Account unlinked");
+  const { scope } = unlinkQuerySchema.parse(req.query);
+  sendSuccess(
+    res,
+    await unlinkAccount(callerId(req), userId, context(req), scope),
+    scope === "all" ? "All accounts unlinked" : "Account unlinked",
+  );
 }

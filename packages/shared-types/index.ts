@@ -78,8 +78,11 @@ export interface AuthUser {
   fundRequestEnabled: boolean;
 }
 
-/** Max accounts in one linked group (one Distributor + one Retailer). */
-export const MAX_LINKED_ACCOUNTS = 2;
+/** Max accounts in one linked group: one per agent role (Super Distributor, Distributor, Retailer). */
+export const MAX_LINKED_ACCOUNTS = 3;
+
+/** DELETE /api/linked-accounts/:userId?scope= — `one` removes that account, `all` breaks the whole group. */
+export type UnlinkScope = "one" | "all";
 
 /** GET /api/linked-accounts row. Never carries PAN / Aadhaar. */
 export interface LinkedAccountSummary {

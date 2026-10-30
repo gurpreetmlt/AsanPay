@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, ChevronDown, Link2, Lock, Plus, ShieldCheck, Users } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { ROLE_LABELS, type LinkedAccountSummary, type LinkedAccountsResponse } from "@asanpay/shared-types";
+import { ROLE_LABELS, type LinkedAccountSummary, type LinkedAccountsResponse, type UnlinkScope } from "@asanpay/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -89,7 +89,7 @@ function AccountRow({
           ) : null}
           {linkedCount > 1 ? (
             <button type="button" onClick={onUnlink} className="text-xs font-bold" style={{ color: "#DC2626" }}>
-              Unlink
+              {account.isCurrent && linkedCount > 2 ? "Leave group" : "Unlink"}
             </button>
           ) : null}
         </div>
@@ -107,7 +107,7 @@ export default function LinkedAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
   const [switchTarget, setSwitchTarget] = useState<LinkedAccountSummary | null>(null);
-  const [unlinkTarget, setUnlinkTarget] = useState<LinkedAccountSummary | null>(null);
+  const [unlinkTarget, setUnlinkTarget] = useState<{ account: LinkedAccountSummary; scope: UnlinkScope } | null>(null);
   const [unlinking, setUnlinking] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
 
@@ -131,8 +131,8 @@ export default function LinkedAccountsPage() {
     if (!unlinkTarget) return;
     setUnlinking(true);
     try {
-      setData(await unlinkAccount(unlinkTarget.userId));
-      toast.success("Account unlinked");
+      setData(await unlinkAccount(unlinkTarget.account.userId, unlinkTarget.scope));
+      toast.success(unlinkTarget.scope === "all" ? "All accounts unlinked" : "Account unlinked");
       setUnlinkTarget(null);
     } catch (err) {
       toast.error(extractApiError(err, "Could not unlink the account"));
@@ -154,7 +154,35 @@ export default function LinkedAccountsPage() {
     uid: user.uid,
     mobileMasked: current?.mobileMasked,
   };
-  const unlinkOther = unlinkTarget?.isCurrent ? accounts.find((a) => !a.isCurrent) : unlinkTarget;
+  const unlinkCopy = (() => {
+    if (!unlinkTarget) return null;
+    const { account, scope } = unlinkTarget;
+    if (scope === "all" || linkedCount <= 2) {
+      const other = account.isCurrent ? accounts.find((a) => !a.isCurrent) : account;
+      return scope === "all" && linkedCount > 2
+        ? {
+            title: `Unlink all ${linkedCount} accounts?`,
+            message: "Every account becomes separate. You will need OTP and MPIN to link them again.",
+            confirm: "Unlink all",
+          }
+        : {
+            title: other ? `Unlink ${other.roleLabel} account?` : "Unlink account?",
+            message: "You will need OTP and MPIN to link it again.",
+            confirm: "Unlink",
+          };
+    }
+    return account.isCurrent
+      ? {
+          title: "Leave the linked group?",
+          message: `This account stops switching to the other ${linkedCount - 1}. They stay linked to each other.`,
+          confirm: "Leave group",
+        }
+      : {
+          title: `Unlink ${account.roleLabel} account ${account.uid}?`,
+          message: "Your other accounts stay linked. You will need OTP and MPIN to link this one again.",
+          confirm: "Unlink",
+        };
+  })();
 
   return (
     <AppShell>
@@ -205,13 +233,25 @@ export default function LinkedAccountsPage() {
                 {loading
                   ? "Loading…"
                   : linkedCount > 1
-                    ? `${linkedCount} accounts connected to your verified identity`
+                    ? `${linkedCount} of ${data?.maxLinked ?? 3} accounts connected to your verified identity`
                     : "Only this account so far"}
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: "#E7F8EF", color: B.greenDark }}>
-              <ShieldCheck size={13} /> Protected by MPIN
-            </span>
+            <div className="flex items-center gap-2">
+              {linkedCount > 2 && current ? (
+                <button
+                  type="button"
+                  onClick={() => setUnlinkTarget({ account: current, scope: "all" })}
+                  className="rounded-full border px-3 py-1 text-[11px] font-bold transition hover:bg-[#FEF2F2]"
+                  style={{ borderColor: "#FCA5A5", color: "#DC2626" }}
+                >
+                  Unlink all
+                </button>
+              ) : null}
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: "#E7F8EF", color: B.greenDark }}>
+                <ShieldCheck size={13} /> Protected by MPIN
+              </span>
+            </div>
           </div>
 
           {loading ? (
@@ -237,7 +277,7 @@ export default function LinkedAccountsPage() {
                   account={a}
                   linkedCount={linkedCount}
                   onSwitch={() => setSwitchTarget(a)}
-                  onUnlink={() => setUnlinkTarget(a)}
+                  onUnlink={() => setUnlinkTarget({ account: a, scope: "one" })}
                 />
               ))}
               {linkedCount <= 1 ? (
@@ -249,7 +289,8 @@ export default function LinkedAccountsPage() {
                     No linked accounts yet
                   </p>
                   <p className="max-w-sm text-xs" style={{ color: B.muted }}>
-                    Run a Distributor and a Retailer account? Link them once and switch with your MPIN.
+                    Run more than one role — Super Distributor, Distributor or Retailer? Link up to 3 accounts once and
+                    switch with your MPIN.
                   </p>
                   {canLinkMore ? (
                     <PrimaryButton variant="success" size="sm" onClick={() => setLinking(true)}>
@@ -281,7 +322,10 @@ export default function LinkedAccountsPage() {
           </button>
           {howOpen ? (
             <ol className="mt-4 list-decimal space-y-1.5 pl-16 text-xs" style={{ color: B.muted }}>
-              <li>Enter the mobile number of your other AsanPay account. We check that its verified PAN, Aadhaar and name match yours.</li>
+              <li>
+                Enter the mobile number of your other AsanPay account. We check that its verified PAN, Aadhaar and name match
+                every account you have already linked. One account per role, up to 3.
+              </li>
               <li>Confirm the OTP sent to that number and enter that account&apos;s MPIN.</li>
               <li>Switch any time with that account&apos;s MPIN. Once every 24 hours we also ask for an OTP.</li>
               <li>Wallets, ledgers, commission and daily 2FA stay separate for each account.</li>
@@ -301,11 +345,11 @@ export default function LinkedAccountsPage() {
         />
       ) : null}
       {switchTarget ? <SwitchFlow target={switchTarget} current={currentFace} onClose={() => setSwitchTarget(null)} /> : null}
-      {unlinkTarget ? (
+      {unlinkTarget && unlinkCopy ? (
         <ConfirmModal
-          title={unlinkOther ? `Unlink ${unlinkOther.roleLabel} account?` : "Unlink account?"}
-          message="You will need OTP and MPIN to link it again."
-          confirmLabel="Unlink"
+          title={unlinkCopy.title}
+          message={unlinkCopy.message}
+          confirmLabel={unlinkCopy.confirm}
           busy={unlinking}
           busyLabel="Unlinking…"
           tone="danger"
