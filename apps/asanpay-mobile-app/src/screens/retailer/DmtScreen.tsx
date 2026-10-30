@@ -33,6 +33,7 @@ import { useAuthStore } from "../../store/auth";
 import { OnboardingPendingBanner } from "../../components/OnboardingPendingBanner";
 import { NobleAgentOnboardModal } from "../shared/NobleAgentOnboardModal";
 import { BankNameCheck } from "../../components/BankNameCheck";
+import { DmtRailChips, useDmtRails } from "../../components/DmtRailChips";
 import type { AepsGeoTag } from "../../lib/geoCapture";
 import { LOCATION_REQUIRED_MESSAGE, requireTxnLocation } from "../../lib/txnLocation";
 
@@ -169,6 +170,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
   const [regOtp, setRegOtp] = useState("");
   const [regBusy, setRegBusy] = useState(false);
   const [regKycWadh, setRegKycWadh] = useState("");
+  const dmtRails = useDmtRails();
 
   const [banks, setBanks] = useState<DmtBank[]>([]);
   const [bankSearch, setBankSearch] = useState("");
@@ -771,6 +773,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
           </View>
         ) : (
           <>
+            <DmtRailChips rails={dmtRails.rails} selected={dmtRails.selected} onSelect={dmtRails.setSelected} />
             <View style={styles.tabRow}>
               {TABS.map((item) => {
                 const active = item === tab;

@@ -46,6 +46,8 @@ export interface TenantSettings {
   nightWindow?: { enabled?: boolean; start?: string; end?: string };
   /** Platform money limits in ₹ (see limits/platformLimits.service). */
   moneyLimits?: Record<string, number>;
+  /** DMT bank rails: priority order + rails switched off (see providers/dmtRails.service). */
+  dmtRails?: { order?: string[]; disabled?: string[] };
   /** Per verification check: provider order + providers switched off (see verificationRouting.service). */
   verificationRouting?: Record<string, { order?: string[]; disabled?: string[] }>;
 }
@@ -56,7 +58,7 @@ const BANK_CHECK_PRICE_MAX = 50;
 const toRupees2 = (n: number) => Math.round(n * 100) / 100;
 
 export type ResolvedTenantSettings = Required<
-  Omit<TenantSettings, "promoSlides" | "promoAssets" | "geofence" | "nightWindow" | "verificationRouting" | "moneyLimits">
+  Omit<TenantSettings, "promoSlides" | "promoAssets" | "geofence" | "nightWindow" | "verificationRouting" | "moneyLimits" | "dmtRails">
 > & { geofence: GeofenceLimits };
 
 export type SupportContacts = {

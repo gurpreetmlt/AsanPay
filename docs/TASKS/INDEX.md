@@ -24,6 +24,7 @@
 | — | Bank account check on signup, settlement + company banks (PL-23 / PL-24) | M | [settlement-bank-penny-drop.md](settlement-bank-penny-drop.md) |
 | — | **Noble-only queue** (remove old rails, finish provider) | XL ⚠️ 1 phase/chat | [noble-only-queue.md](noble-only-queue.md) |
 | — | Cash collection (CMS) wallet callbacks | M | [cms-wallet-callbacks.md](cms-wallet-callbacks.md) |
+| — | DMT bank rails — Airtel / Jio / Fino with admin priority (PL-35) | L ⚠️ 1 phase/chat | [dmt-rails.md](dmt-rails.md) |
 | — | **Compliance queue** (KYC data, agreements, onboarding states, AEPS re-KYC, audit) | XL ⚠️ 1 phase/chat | [compliance-queue.md](compliance-queue.md) |
 | — | **Agent controls queue** (PL-31: services & limits, security, wallet/commission holds, activity) | XL ⚠️ 1 phase/chat | [agent-controls-queue.md](agent-controls-queue.md) |
 

@@ -26,6 +26,7 @@ import {
   type DmtUiLayout,
 } from "@/components/dmt/DmtLayoutPicker";
 import { DmtLayout2 } from "@/components/dmt/DmtLayout2";
+import { DmtRailChips, useDmtRails } from "@/components/dmt/DmtRailChips";
 import { BankNameCheck } from "@/components/dmt/BankNameCheck";
 import { B } from "@/lib/brand";
 import api from "@/lib/api";
@@ -236,6 +237,7 @@ export default function DmtPage() {
   const [regStep, setRegStep] = useState<"aadhaar" | "otp" | "kyc" | null>(null);
   const [regBusy, setRegBusy] = useState(false);
   const [regKycWadh, setRegKycWadh] = useState("");
+  const dmtRails = useDmtRails();
 
   // Banks + beneficiary add
   const [banks, setBanks] = useState<DmtBank[]>([]);
@@ -914,6 +916,8 @@ export default function DmtPage() {
         </div>
 
         {onboardingPending ? <OnboardingPendingBanner next="/dmt" /> : <TxnLocationStrip loc={loc} />}
+
+        <DmtRailChips rails={dmtRails.rails} selected={dmtRails.selected} onSelect={dmtRails.setSelected} />
 
         {layout2Transfer ? (
           <div className="mb-4">

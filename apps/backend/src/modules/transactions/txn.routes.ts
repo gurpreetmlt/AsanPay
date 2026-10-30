@@ -70,6 +70,7 @@ import {
 } from "./txn.validators";
 import { walletTxnLimiter } from "../../middleware/rateLimiter";
 import { serviceWindowGuard } from "../serviceWindow/serviceWindow.service";
+import { sendSuccess } from "../../utils/apiResponse";
 
 export const txnRouter = Router();
 
@@ -114,6 +115,14 @@ txnRouter.post("/bbps/fetch-bill", retailerOnly, serviceWindowGuard("bbps"), val
 txnRouter.post("/bbps/pay", retailerOnly, serviceWindowGuard("bbps"), walletTxnLimiter, validateBody(bbpsPayBillSchema), bbpsPayBill);
 
 txnRouter.get("/dmt/banks", retailerOnly, dmtBankList);
+txnRouter.get("/dmt/rails", retailerOnly, async (_req, res) => {
+  const { listAgentDmtRails } = await import("../providers/dmtRails.service");
+  const rails = await listAgentDmtRails();
+  sendSuccess(
+    res,
+    rails.map(({ code, name, shortName, live, priority }) => ({ code, name, shortName, live, priority })),
+  );
+});
 txnRouter.post("/dmt/remitter/profile", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtRemitterProfileSchema), dmtRemitterProfile);
 txnRouter.post("/dmt/remitter/register", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtRemitterRegisterSchema), dmtRemitterRegister);
 txnRouter.post("/dmt/remitter/register/verify", retailerOnly, serviceWindowGuard("dmt"), validateBody(dmtRemitterRegisterVerifySchema), dmtRemitterRegisterVerify);

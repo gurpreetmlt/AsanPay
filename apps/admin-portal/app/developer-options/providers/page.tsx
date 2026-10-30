@@ -22,6 +22,7 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { Modal } from "@/components/ui/Modal";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { VerificationsPanel, type VerificationCheck } from "@/components/providers/VerificationsPanel";
+import { DmtRailsCard } from "@/components/providers/DmtRailsCard";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { useAuthStore } from "@/lib/store";
@@ -417,6 +418,7 @@ export default function ProvidersPage() {
         </div>
 
         <div className={tab === "rails" ? "mt-4 space-y-3" : "hidden"}>
+          <DmtRailsCard />
           <p className="text-xs" style={{ color: B.muted }}>
             One card per rail. Open a rail to switch a provider for every service in it, or open its service list to move a single
             biller. Lower run order is tried first.

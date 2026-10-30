@@ -118,6 +118,24 @@ adminRouter.put("/service-window", async (req, res) => {
   sendSuccess(res, await setNightWindow(req.auth.sub, body, body.reason), "Night service window saved");
 });
 
+adminRouter.get("/dmt-rails", async (_req, res) => {
+  const { listDmtRails } = await import("../providers/dmtRails.service");
+  sendSuccess(res, await listDmtRails());
+});
+
+adminRouter.put("/dmt-rails", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setDmtRails } = await import("../providers/dmtRails.service");
+  const body = z
+    .object({
+      order: z.array(z.string().min(1).max(20)).min(1).max(10),
+      disabled: z.array(z.string().min(1).max(20)).max(10),
+      reason: z.string().trim().min(3, "Enter a reason (at least 3 characters)").max(300),
+    })
+    .parse(req.body);
+  sendSuccess(res, await setDmtRails(req.auth.sub, body, body.reason), "DMT bank rails saved");
+});
+
 adminRouter.get("/money-limits", async (_req, res) => {
   const { getPlatformMoneyLimits, PLATFORM_MONEY_LIMIT_DEFAULTS } = await import("../limits/platformLimits.service");
   sendSuccess(res, { limits: await getPlatformMoneyLimits(), defaults: PLATFORM_MONEY_LIMIT_DEFAULTS });
