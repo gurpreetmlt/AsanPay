@@ -153,7 +153,7 @@ const s = StyleSheet.create({
   camera: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24 },
   msg: { color: "#fff", fontSize: 14, textAlign: "center" },
-  frameWrap: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 14 },
+  frameWrap: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", gap: 14 },
   frame: { width: "88%", aspectRatio: CARD_ASPECT, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.45)" },
   corner: { position: "absolute", width: CORNER, height: CORNER, borderColor: "#fff" },
   tl: { top: -2, left: -2, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 },

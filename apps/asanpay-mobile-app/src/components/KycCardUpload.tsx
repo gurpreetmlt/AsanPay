@@ -344,7 +344,7 @@ const st = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
   },
-  center: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 8 },
+  center: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", gap: 8 },
   scanLine: {
     position: "absolute",
     top: 0,
@@ -416,7 +416,7 @@ const st = StyleSheet.create({
   iconAction: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   actionDivider: { width: 1, height: 16, backgroundColor: "rgba(15,23,42,0.15)", marginHorizontal: 2 },
   failPanel: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     margin: 10,
     borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.88)",

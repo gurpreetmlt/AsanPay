@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import type { TextInputInstance } from "react-native";
 import { colors } from "../theme/colors";
 
 interface PinInputProps {
@@ -19,7 +20,7 @@ interface PinInputProps {
  * one is currently receiving keystrokes.
  */
 export function PinInput({ length = 4, value, onChange, autoFocus = true, masked = true }: PinInputProps) {
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const [focused, setFocused] = useState(false);
   const digits = value.padEnd(length, " ").slice(0, length).split("");
   const cursorIndex = Math.min(value.length, length - 1);
@@ -95,7 +96,7 @@ const styles = StyleSheet.create({
   dot: { fontSize: 22, color: colors.text, fontWeight: "800" },
   /** Full hit area over boxes — must stay tappable on Android */
   input: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     opacity: 0.02,
     fontSize: 1,
     color: "transparent",

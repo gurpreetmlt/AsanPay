@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { TextInputInstance } from "react-native";
 import Geolocation from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Calendar, Check, CheckCircle2, MapPin, X } from "lucide-react-native";
@@ -290,7 +291,7 @@ export function SignupScreen({ onBack, initialRole }: SignupScreenProps) {
   const [panVerifyBusy, setPanVerifyBusy] = useState(false);
   const [panVerifyFailed, setPanVerifyFailed] = useState(false);
   const panAutoAttemptRef = useRef("");
-  const panInputRef = useRef<TextInput>(null);
+  const panInputRef = useRef<TextInputInstance>(null);
 
   const stepIndex = draft.stepIndex;
   const needsUpline = draft.role !== "super_distributor" && draft.role !== "direct_retailer";

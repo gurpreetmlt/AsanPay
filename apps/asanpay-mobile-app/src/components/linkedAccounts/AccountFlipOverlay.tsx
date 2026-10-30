@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   body: { padding: 16 },
   scene: { width: "100%", height: 84 },
   face: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,

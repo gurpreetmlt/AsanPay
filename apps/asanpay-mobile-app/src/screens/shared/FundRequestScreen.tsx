@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { launchCamera, launchImageLibrary } from "react-native-image-picker";
 import Clipboard from "@react-native-clipboard/clipboard";
@@ -1023,7 +1024,7 @@ function WheelColumn({
   /** Remount/resync when sheet opens — never while user is scrolling. */
   resetKey: string | number | boolean;
 }) {
-  const ref = useRef<ScrollView>(null);
+  const ref = useRef<ScrollViewInstance>(null);
   const draggingRef = useRef(false);
   const indexRef = useRef(index);
   indexRef.current = index;
@@ -1731,7 +1732,9 @@ function ConfirmStep({
             <BankCardSlider banks={banks} myVan={myVan} />
           </View>
 
-          <Modal visible={formOpen} animationType="slide" onRequestClose={() => !saving && setFormOpen(false)}>
+          <Modal visible={formOpen} animationType="slide" onRequestClose={() => {
+            if (!saving) setFormOpen(false);
+          }}>
             <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bg }]}>
               <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 <ScreenTop title="Create fund request" onBack={() => !saving && setFormOpen(false)} />
@@ -1858,7 +1861,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bankMenuRoot: { flex: 1, justifyContent: "center", padding: 24 },
-  bankMenuScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
+  bankMenuScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(15,23,42,0.45)" },
   bankMenuSheet: {
     borderRadius: 16,
     borderWidth: 1,
@@ -1879,7 +1882,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   receiptSourceRoot: { flex: 1, justifyContent: "flex-end" },
-  receiptSourceScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
+  receiptSourceScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(15,23,42,0.45)" },
   receiptSourceSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -1905,7 +1908,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   dtKav: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(15,23,42,0.45)" },
-  dtBackdropFill: { ...StyleSheet.absoluteFillObject },
+  dtBackdropFill: { ...StyleSheet.absoluteFill },
   dtSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -1941,7 +1944,7 @@ const styles = StyleSheet.create({
   },
   dtTimeTriggerValue: { fontSize: 20, fontWeight: "800", letterSpacing: 0.3 },
   wheelSheetRoot: { flex: 1, justifyContent: "flex-end" },
-  wheelSheetScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
+  wheelSheetScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(15,23,42,0.45)" },
   wheelSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
