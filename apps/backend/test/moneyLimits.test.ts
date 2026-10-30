@@ -88,7 +88,7 @@ describe("manual top-up daily cap", () => {
   it("allows up to the cap and rejects beyond it", () => {
     expect(() => assertManualFundDailyCap(rs(900_000), rs(100_000), 1_000_000)).not.toThrow();
     expect(() => assertManualFundDailyCap(rs(900_000), rs(100_000) + 1, 1_000_000)).toThrowError(
-      "Daily manual top-up limit of ₹10,00,000 reached. A second admin must approve further top-ups tomorrow or raise the limit.",
+      "Daily manual top-up limit of ₹10,00,000 reached. Raise it in Platform Settings → Money limits, or top up again tomorrow.",
     );
   });
 });

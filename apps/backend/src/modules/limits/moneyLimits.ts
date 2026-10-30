@@ -1,18 +1,11 @@
 import { HttpError } from "../../utils/httpError";
 
-/** Positive number from an optional env override, otherwise the default. */
-function envNumber(key: string, fallback: number): number {
-  const raw = process.env[key];
-  if (raw == null || raw.trim() === "") return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
+// Defaults only — admin changes them in Platform Settings → Money limits (platformLimits.service).
 /** Provider caps a single Airtel DMT transfer at ₹5,000. */
-export const DMT_PER_TXN_LIMIT_RUPEES = envNumber("DMT_PER_TXN_LIMIT_RUPEES", 5_000);
-export const DMT_REMITTER_MONTHLY_LIMIT_RUPEES = envNumber("DMT_REMITTER_MONTHLY_LIMIT_RUPEES", 25_000);
-export const DMT_AGENT_DAILY_LIMIT_RUPEES = envNumber("DMT_AGENT_DAILY_LIMIT_RUPEES", 200_000);
-export const ADMIN_MANUAL_FUND_DAILY_LIMIT_RUPEES = envNumber("ADMIN_MANUAL_FUND_DAILY_LIMIT_RUPEES", 1_000_000);
+export const DMT_PER_TXN_LIMIT_RUPEES = 5_000;
+export const DMT_REMITTER_MONTHLY_LIMIT_RUPEES = 25_000;
+export const DMT_AGENT_DAILY_LIMIT_RUPEES = 200_000;
+export const ADMIN_MANUAL_FUND_DAILY_LIMIT_RUPEES = 1_000_000;
 
 /** Money-transfer service codes; every one shares the same remitter / agent limits. */
 export const DMT_SERVICE_CODES = ["dmt", "DMT", "MONEY_TRANSFER"] as const;
@@ -124,7 +117,7 @@ export function assertManualFundDailyCap(
   if (todayPaise + amountPaise > Math.round(capRupees * 100)) {
     throw new HttpError(
       422,
-      `Daily manual top-up limit of ${formatRupees(capRupees)} reached. A second admin must approve further top-ups tomorrow or raise the limit.`,
+      `Daily manual top-up limit of ${formatRupees(capRupees)} reached. Raise it in Platform Settings → Money limits, or top up again tomorrow.`,
       "MANUAL_FUND_DAILY_LIMIT_EXCEEDED",
     );
   }

@@ -118,6 +118,29 @@ adminRouter.put("/service-window", async (req, res) => {
   sendSuccess(res, await setNightWindow(req.auth.sub, body, body.reason), "Night service window saved");
 });
 
+adminRouter.get("/money-limits", async (_req, res) => {
+  const { getPlatformMoneyLimits, PLATFORM_MONEY_LIMIT_DEFAULTS } = await import("../limits/platformLimits.service");
+  sendSuccess(res, { limits: await getPlatformMoneyLimits(), defaults: PLATFORM_MONEY_LIMIT_DEFAULTS });
+});
+
+adminRouter.put("/money-limits", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { setPlatformMoneyLimits } = await import("../limits/platformLimits.service");
+  const rupees = (label: string) =>
+    z.coerce.number({ message: `Enter ${label} in ₹` }).positive(`${label} must be more than ₹0`);
+  const body = z
+    .object({
+      dmtPerTxnRupees: rupees("DMT per transfer"),
+      dmtRemitterMonthlyRupees: rupees("DMT per remitter per month"),
+      dmtAgentDailyRupees: rupees("DMT per agent per day"),
+      adminManualFundDailyRupees: rupees("Admin manual top-up per day"),
+      reason: z.string().trim().min(3, "Enter a reason (at least 3 characters)").max(300),
+    })
+    .parse(req.body);
+  const { reason, ...limits } = body;
+  sendSuccess(res, await setPlatformMoneyLimits(req.auth.sub, limits, reason), "Money limits saved");
+});
+
 adminRouter.get("/users/:id/night-access", async (req, res) => {
   const { listNightAccess } = await import("../serviceWindow/serviceWindow.service");
   sendSuccess(res, await listNightAccess(req.params.id));

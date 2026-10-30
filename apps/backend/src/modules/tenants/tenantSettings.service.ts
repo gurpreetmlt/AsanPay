@@ -44,6 +44,8 @@ export interface TenantSettings {
   bankCheckPennyDropPriceRupees?: number;
   /** Night service window (see serviceWindow.service). */
   nightWindow?: { enabled?: boolean; start?: string; end?: string };
+  /** Platform money limits in ₹ (see limits/platformLimits.service). */
+  moneyLimits?: Record<string, number>;
   /** Per verification check: provider order + providers switched off (see verificationRouting.service). */
   verificationRouting?: Record<string, { order?: string[]; disabled?: string[] }>;
 }
@@ -54,7 +56,7 @@ const BANK_CHECK_PRICE_MAX = 50;
 const toRupees2 = (n: number) => Math.round(n * 100) / 100;
 
 export type ResolvedTenantSettings = Required<
-  Omit<TenantSettings, "promoSlides" | "promoAssets" | "geofence" | "nightWindow" | "verificationRouting">
+  Omit<TenantSettings, "promoSlides" | "promoAssets" | "geofence" | "nightWindow" | "verificationRouting" | "moneyLimits">
 > & { geofence: GeofenceLimits };
 
 export type SupportContacts = {

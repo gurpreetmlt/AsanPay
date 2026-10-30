@@ -7,10 +7,9 @@ import type { Tx } from "../../core/ledger/types";
 import { HttpError } from "../../utils/httpError";
 import { resolveServiceTxnType } from "../wallet/wallet.ledger";
 import { toPaise } from "../wallet/decimal";
+import { getPlatformMoneyLimits } from "../limits/platformLimits.service";
 import {
-  DMT_AGENT_DAILY_LIMIT_RUPEES,
   DMT_LIMIT_STATUSES,
-  DMT_PER_TXN_LIMIT_RUPEES,
   formatRupees,
   isDmtServiceCode,
   istDayStart,
@@ -176,21 +175,25 @@ interface PlatformDefault {
   perTxnRupees: number | null;
   dailyRupees: number | null;
   monthlyRupees: number | null;
+  /** Hard cap from the service catalog (max amount); an agent limit can never go above it. */
+  catalogMaxRupees: number | null;
 }
 
 async function platformDefaults(): Promise<Record<AgentServiceGroup, PlatformDefault>> {
-  const rows = await catalog();
+  const [rows, money] = await Promise.all([catalog(), getPlatformMoneyLimits()]);
   const out = {} as Record<AgentServiceGroup, PlatformDefault>;
   for (const group of AGENT_SERVICE_GROUPS) {
     const maxes = rows
       .filter((r) => r.group === group && r.isActive && r.maxAmount != null)
       .map((r) => Number(r.maxAmount));
-    let perTxn = maxes.length > 0 ? Math.max(...maxes) : null;
-    if (group === "dmt") perTxn = perTxn == null ? DMT_PER_TXN_LIMIT_RUPEES : Math.min(perTxn, DMT_PER_TXN_LIMIT_RUPEES);
+    const catalogMax = maxes.length > 0 ? Math.max(...maxes) : null;
+    let perTxn = catalogMax;
+    if (group === "dmt") perTxn = catalogMax == null ? money.dmtPerTxnRupees : Math.min(catalogMax, money.dmtPerTxnRupees);
     out[group] = {
       perTxnRupees: perTxn,
-      dailyRupees: group === "dmt" ? DMT_AGENT_DAILY_LIMIT_RUPEES : null,
+      dailyRupees: group === "dmt" ? money.dmtAgentDailyRupees : null,
       monthlyRupees: null,
+      catalogMaxRupees: catalogMax,
     };
   }
   return out;
@@ -251,10 +254,13 @@ export async function setAgentLimit(
   checkAmountField("Monthly limit", monthlyRupees);
 
   const platform = (await platformDefaults())[group];
-  if (perTxnRupees != null && platform.perTxnRupees != null && perTxnRupees > platform.perTxnRupees) {
+  // DMT: an agent may go above the platform default (that default is a choice in Money limits);
+  // every service stays under the catalog max amount.
+  const ceiling = group === "dmt" ? platform.catalogMaxRupees : platform.perTxnRupees;
+  if (perTxnRupees != null && ceiling != null && perTxnRupees > ceiling) {
     throw new HttpError(
       422,
-      `Per transaction limit cannot be more than the platform maximum ${formatRupees(platform.perTxnRupees)} for ${AGENT_SERVICE_LABEL[group]}`,
+      `Per transaction limit cannot be more than the service maximum ${formatRupees(ceiling)} for ${AGENT_SERVICE_LABEL[group]}`,
       "LIMIT_ABOVE_PLATFORM",
     );
   }

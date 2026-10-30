@@ -14,6 +14,7 @@ import {
   ledgerEntries,
 } from "../../db/postgres/schema";
 import { assertManualFundDailyCap, istDayStart } from "../limits/moneyLimits";
+import { getPlatformMoneyLimits } from "../limits/platformLimits.service";
 import { transferBetweenWallets, fundWallet } from "./wallet.ledger";
 import { toPaise } from "./decimal";
 import { HttpError } from "../../utils/httpError";
@@ -437,7 +438,8 @@ async function assertAdminManualFundDailyCap(tx: Tx, adminId: string, amountPais
         sql`(${journals.idemKey} LIKE 'LEGACY:%:ALLOC' OR ${journals.idemKey} LIKE 'LEGACY:%:FUND')`,
       ),
     );
-  assertManualFundDailyCap(Number(row?.total ?? 0), amountPaise);
+  const { adminManualFundDailyRupees } = await getPlatformMoneyLimits();
+  assertManualFundDailyCap(Number(row?.total ?? 0), amountPaise, adminManualFundDailyRupees);
 }
 
 // Admin-only entry point for money entering the system from outside (bank reconciliation).

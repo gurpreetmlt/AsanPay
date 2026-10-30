@@ -42,6 +42,7 @@ import {
   istMonthStart,
   type DmtLimits,
 } from "../limits/moneyLimits";
+import { getPlatformMoneyLimits } from "../limits/platformLimits.service";
 import {
   assertAgentPerTxnLimit,
   assertAgentPeriodLimitsInTx,
@@ -334,10 +335,15 @@ export async function executeServiceTxn(input: ExecuteTxnInput): Promise<TxnOutc
   const agentLimit = serviceGroup ? await getAgentLimit(actor.id, serviceGroup) : null;
   if (serviceGroup && amount != null) assertAgentPerTxnLimit(serviceGroup, agentLimit, amount);
   const isDmtDebit = direction === "debit" && isDmtServiceCode(serviceCode);
-  const dmtLimits: DmtLimits = {
-    ...DEFAULT_DMT_LIMITS,
-    agentDailyRupees: agentLimit?.dailyRupees ?? DEFAULT_DMT_LIMITS.agentDailyRupees,
-  };
+  const platform = isDmtServiceCode(serviceCode) ? await getPlatformMoneyLimits() : null;
+  // An agent's own DMT limit replaces the platform value (higher or lower); remitter cap stays platform-wide.
+  const dmtLimits: DmtLimits = platform
+    ? {
+        perTxnRupees: agentLimit?.perTxnRupees ?? platform.dmtPerTxnRupees,
+        remitterMonthlyRupees: platform.dmtRemitterMonthlyRupees,
+        agentDailyRupees: agentLimit?.dailyRupees ?? platform.dmtAgentDailyRupees,
+      }
+    : DEFAULT_DMT_LIMITS;
   void checkFraudPatterns(actor, service.id, amount);
   void checkDailyLimit(actor, amount);
   if (amount != null) void evaluateVelocitySpike(actor.id, amount);

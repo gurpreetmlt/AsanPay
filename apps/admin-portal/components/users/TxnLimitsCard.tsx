@@ -10,7 +10,8 @@ import { DetailSection } from "@/components/users/DetailSection";
 import { SERVICE_ICON, type ServiceGroup } from "@/components/users/ServiceAccessCard";
 
 type Limits = { perTxnRupees: number | null; dailyRupees: number | null; monthlyRupees: number | null };
-type Row = { group: ServiceGroup; label: string; platform: Limits; custom: Limits | null; reason: string | null; updatedAt: string | null };
+type Platform = Limits & { catalogMaxRupees?: number | null };
+type Row = { group: ServiceGroup; label: string; platform: Platform; custom: Limits | null; reason: string | null; updatedAt: string | null };
 type Field = keyof Limits;
 
 const FIELDS: Array<{ key: Field; label: string; short: string }> = [
@@ -33,7 +34,7 @@ function fieldError(label: string, raw: string): string | null {
   return null;
 }
 
-function draftErrors(d: Draft, platform: Limits): Partial<Record<Field, string>> {
+function draftErrors(d: Draft, platform: Platform, group: ServiceGroup): Partial<Record<Field, string>> {
   const out: Partial<Record<Field, string>> = {};
   for (const f of FIELDS) {
     const e = fieldError(f.label, d[f.key]);
@@ -43,8 +44,10 @@ function draftErrors(d: Draft, platform: Limits): Partial<Record<Field, string>>
   const per = n("perTxnRupees");
   const day = n("dailyRupees");
   const month = n("monthlyRupees");
-  if (per != null && platform.perTxnRupees != null && per > platform.perTxnRupees) {
-    out.perTxnRupees = `Cannot be more than the platform maximum ${inr(platform.perTxnRupees)}`;
+  // DMT can go above the platform default for one agent; only the service maximum is a hard cap.
+  const ceiling = group === "dmt" ? (platform.catalogMaxRupees ?? null) : platform.perTxnRupees;
+  if (per != null && ceiling != null && per > ceiling) {
+    out.perTxnRupees = `Cannot be more than the service maximum ${inr(ceiling)}`;
   }
   if (per != null && day != null && day < per && !out.dailyRupees) out.dailyRupees = "Daily limit must be at least the per transaction limit";
   if (day != null && month != null && month < day && !out.monthlyRupees) out.monthlyRupees = "Monthly limit must be at least the daily limit";
@@ -79,7 +82,7 @@ export function TxnLimitsCard({ userId, agentName }: { userId: string; agentName
     setEditing(r);
   }
 
-  const errors = editing ? draftErrors(draft, editing.platform) : {};
+  const errors = editing ? draftErrors(draft, editing.platform, editing.group) : {};
   const empty = FIELDS.every((f) => !draft[f.key].trim());
   const reasonError = reason.trim().length < 3 ? "Enter a reason (at least 3 characters)" : null;
   const canSave = !!editing && !empty && Object.keys(errors).length === 0 && !reasonError;
