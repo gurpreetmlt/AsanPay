@@ -1,4 +1,4 @@
-import { NativeModules, PermissionsAndroid, Platform } from "react-native";
+import { NativeModules, PermissionsAndroid, Platform, TurboModuleRegistry } from "react-native";
 import Geolocation, { type GeolocationResponse } from "@react-native-community/geolocation";
 import type { SignupGeoFix } from "./signupDraft";
 
@@ -35,7 +35,7 @@ type JailMonkeyApi = { isJailBroken(): boolean; canMockLocation(): boolean };
 
 /** jail-monkey only when its native module is linked — requiring it without the APK rebuild would crash. */
 function jailMonkey(): JailMonkeyApi | null {
-  if (!(NativeModules as Record<string, unknown>).JailMonkey) return null;
+  if (!TurboModuleRegistry.get("JailMonkey") && !(NativeModules as Record<string, unknown>).JailMonkey) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require("jail-monkey") as { default?: JailMonkeyApi } & JailMonkeyApi;

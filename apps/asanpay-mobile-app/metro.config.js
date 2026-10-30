@@ -8,8 +8,8 @@ const mobileModules = path.resolve(projectRoot, "node_modules");
 const rootModules = path.resolve(workspaceRoot, "node_modules");
 
 /**
- * Monorepo hoisting loads duplicate RN libs from the repo root (e.g. safe-area-context 5.x
- * while this app uses 4.14.1). Two copies register the same native view → crash after login.
+ * Monorepo hoisting can leave duplicate RN libs at the repo root with a different version than
+ * this app's copy. Two copies register the same native view → crash after login.
  */
 const PINNED_PACKAGES = [
   "react",
@@ -23,21 +23,17 @@ const PINNED_PACKAGES = [
   "@react-native-async-storage/async-storage",
 ];
 
-function mobilePackagePath(moduleName) {
-  if (moduleName.startsWith("react/") || moduleName.startsWith("react-native/")) {
-    return path.join(mobileModules, moduleName);
+function isPinned(moduleName) {
+  if (moduleName.startsWith("react/") || moduleName.startsWith("react-native/")) return true;
+  if (moduleName.startsWith("@react-navigation/") || PINNED_PACKAGES.includes(moduleName)) {
+    return fs.existsSync(path.join(mobileModules, moduleName));
   }
-  if (moduleName.startsWith("@react-navigation/")) {
-    const local = path.join(mobileModules, moduleName);
-    if (fs.existsSync(local)) return local;
-    return null;
-  }
-  if (PINNED_PACKAGES.includes(moduleName)) {
-    const local = path.join(mobileModules, moduleName);
-    if (fs.existsSync(local)) return local;
-  }
-  return null;
+  return false;
 }
+
+// Resolving by name (not by file path) keeps package.json "exports" subpaths working,
+// e.g. react-native/react-private-interface → src/react-private-interface.js.
+const mobileOrigin = path.join(projectRoot, "index.js");
 
 const config = getDefaultConfig(projectRoot);
 
@@ -63,9 +59,8 @@ config.resolver.extraNodeModules = {
 };
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  const pinned = mobilePackagePath(moduleName);
-  if (pinned) {
-    return context.resolveRequest(context, pinned, platform);
+  if (isPinned(moduleName)) {
+    return context.resolveRequest({ ...context, originModulePath: mobileOrigin }, moduleName, platform);
   }
   return context.resolveRequest(context, moduleName, platform);
 };
