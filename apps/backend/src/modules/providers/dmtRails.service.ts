@@ -1,5 +1,4 @@
 import { eq, sql } from "drizzle-orm";
-import { env } from "../../config/env";
 import { db } from "../../db/postgres";
 import { tenants, users } from "../../db/postgres/schema";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
@@ -10,7 +9,7 @@ import { asSettings } from "../tenants/tenantSettings.service";
 /**
  * DMT bank rails the agent can pick on the money transfer screen, in admin priority order
  * (Admin → API Providers → DMT bank rails). `live: false` rails show as Coming soon; a `pilot`
- * rail has its flow built and is live only for retailers listed in DMT_PILOT_MOBILES.
+ * rail has its flow built and is live only for the test retailers admin lists on the same card.
  */
 export const DMT_RAILS = [
   { code: "airtel", name: "Airtel Payments Bank", shortName: "Airtel", live: true, pilot: false },
@@ -36,10 +35,18 @@ export interface DmtRailRow {
   priority: number;
 }
 
-type Stored = { order?: string[]; disabled?: string[] };
+type Stored = { order?: string[]; disabled?: string[]; pilotMobiles?: string[] };
+
+export interface DmtRailSettings {
+  rails: DmtRailRow[];
+  /** Retailer login mobiles that may use `pilot` rails before they go live for everyone. */
+  pilotMobiles: string[];
+}
 
 const CACHE_MS = 30_000;
-let cache: { at: number; value: DmtRailRow[] } | null = null;
+let cache: { at: number; value: DmtRailSettings } | null = null;
+
+const MOBILE_RE = /^[6-9]\d{9}$/;
 
 const isRail = (code: string): code is DmtRailCode => DMT_RAILS.some((r) => r.code === code);
 
@@ -53,18 +60,26 @@ function build(stored: Stored): DmtRailRow[] {
   });
 }
 
-/** Every rail in priority order (admin view). */
-export async function listDmtRails(): Promise<DmtRailRow[]> {
+/** Every rail in priority order + the pilot retailer list (admin view). */
+export async function getDmtRailSettings(): Promise<DmtRailSettings> {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.value;
   const tenantId = await resolveTenantId();
   const [row] = await db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
-  const value = build((asSettings(row?.settings).dmtRails ?? {}) as Stored);
+  const stored = (asSettings(row?.settings).dmtRails ?? {}) as Stored;
+  const value: DmtRailSettings = {
+    rails: build(stored),
+    pilotMobiles: (stored.pilotMobiles ?? []).filter((m) => MOBILE_RE.test(m)),
+  };
   cache = { at: Date.now(), value };
   return value;
 }
 
+export async function listDmtRails(): Promise<DmtRailRow[]> {
+  return (await getDmtRailSettings()).rails;
+}
+
 async function isPilotRetailer(userId: string): Promise<boolean> {
-  const pilots = env.DMT_PILOT_MOBILES;
+  const pilots = (await getDmtRailSettings()).pilotMobiles;
   if (pilots.length === 0) return false;
   const [user] = await db.select({ mobile: users.mobile }).from(users).where(eq(users.id, userId)).limit(1);
   return Boolean(user?.mobile && pilots.includes(user.mobile));
@@ -101,9 +116,13 @@ export async function assertDmtRailUsable(code: DmtRailCode, userId: string): Pr
 
 export async function setDmtRails(
   adminId: string,
-  input: { order: string[]; disabled: string[] },
+  input: { order: string[]; disabled: string[]; pilotMobiles?: string[] },
   reason: string,
-): Promise<DmtRailRow[]> {
+): Promise<DmtRailSettings> {
+  const badMobile = input.pilotMobiles?.find((m) => !MOBILE_RE.test(m));
+  if (badMobile !== undefined) {
+    throw new HttpError(422, `Test retailer mobile "${badMobile}" is not a valid 10-digit mobile`, "DMT_PILOT_MOBILE_INVALID");
+  }
   const unknown = [...input.order, ...input.disabled].find((c) => !isRail(c));
   if (unknown) throw new HttpError(422, `Unknown DMT rail "${unknown}"`, "DMT_RAIL_UNKNOWN");
   if (new Set(input.order).size !== input.order.length) {
@@ -117,8 +136,13 @@ export async function setDmtRails(
       "DMT_RAIL_NONE_LIVE",
     );
   }
-  const before = await listDmtRails();
-  const stored: Stored = { order: next.map((r) => r.code), disabled: next.filter((r) => !r.enabled).map((r) => r.code) };
+  const before = await getDmtRailSettings();
+  const pilotMobiles = input.pilotMobiles ? [...new Set(input.pilotMobiles)] : before.pilotMobiles;
+  const stored: Stored = {
+    order: next.map((r) => r.code),
+    disabled: next.filter((r) => !r.enabled).map((r) => r.code),
+    pilotMobiles,
+  };
   const tenantId = await resolveTenantId();
   await db
     .update(tenants)
@@ -131,10 +155,12 @@ export async function setDmtRails(
     entityType: "tenant",
     entityId: tenantId,
     metadata: {
-      before: before.map((r) => ({ code: r.code, enabled: r.enabled })),
+      before: before.rails.map((r) => ({ code: r.code, enabled: r.enabled })),
       after: next.map((r) => ({ code: r.code, enabled: r.enabled })),
+      pilotMobilesBefore: before.pilotMobiles,
+      pilotMobilesAfter: pilotMobiles,
       reason,
     },
   });
-  return next;
+  return { rails: next, pilotMobiles };
 }

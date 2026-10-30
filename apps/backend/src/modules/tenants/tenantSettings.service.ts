@@ -47,7 +47,7 @@ export interface TenantSettings {
   /** Platform money limits in ₹ (see limits/platformLimits.service). */
   moneyLimits?: Record<string, number>;
   /** DMT bank rails: priority order + rails switched off (see providers/dmtRails.service). */
-  dmtRails?: { order?: string[]; disabled?: string[] };
+  dmtRails?: { order?: string[]; disabled?: string[]; pilotMobiles?: string[] };
   /** Per verification check: provider order + providers switched off (see verificationRouting.service). */
   verificationRouting?: Record<string, { order?: string[]; disabled?: string[] }>;
 }

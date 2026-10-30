@@ -119,8 +119,8 @@ adminRouter.put("/service-window", async (req, res) => {
 });
 
 adminRouter.get("/dmt-rails", async (_req, res) => {
-  const { listDmtRails } = await import("../providers/dmtRails.service");
-  sendSuccess(res, await listDmtRails());
+  const { getDmtRailSettings } = await import("../providers/dmtRails.service");
+  sendSuccess(res, await getDmtRailSettings());
 });
 
 adminRouter.put("/dmt-rails", async (req, res) => {
@@ -130,6 +130,10 @@ adminRouter.put("/dmt-rails", async (req, res) => {
     .object({
       order: z.array(z.string().min(1).max(20)).min(1).max(10),
       disabled: z.array(z.string().min(1).max(20)).max(10),
+      pilotMobiles: z
+        .array(z.string().trim().regex(/^[6-9]\d{9}$/, "Each test retailer mobile must be a valid 10-digit mobile"))
+        .max(20, "Add at most 20 test retailers")
+        .optional(),
       reason: z.string().trim().min(3, "Enter a reason (at least 3 characters)").max(300),
     })
     .parse(req.body);

@@ -19,7 +19,8 @@ Size: **L** · 1 phase per chat · Surfaces: backend, agent web, mobile, admin
 - Jio rules: whole rupees ₹100–₹5,000, IMPS only, transfer must reuse the OTP's id + amount (OTP single-use).
 - Beneficiaries: shared `/api/v1.0/bene/*` list (Jio has no bene API; details go into txn_verify_submit).
 - Txn metadata `dmtRail`; recheck reads it → Jio `txn_status`. Receipt PDF "Sent via" + ESC/POS "Via".
-- Pilot: jio `live: false, pilot: true`; retailers in env `DMT_PILOT_MOBILES` see it live.
+- Pilot: jio `live: false, pilot: true`; admin lists test retailer mobiles on the DMT bank rails card
+  (tenant settings `dmtRails.pilotMobiles`, audited) and only they see it live.
 - **Left:** live ₹100 test (pilot retailer) → set jio `live: true` in `dmtRails.service.ts`. Provider-report
   recon per rail not built (recheck covers pending txns).
 

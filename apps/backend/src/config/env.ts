@@ -195,16 +195,7 @@ const envSchema = z.object({
   AEPS_CERTIFIED_DEVICE_PROVIDERS: z
     .string()
     .default("MANTRA,MORPHO,IDEMIA,PRECISION,STARTEK,SECUGEN,COGENT,EVOLUTE,M2SYS")
-    .transform((v) => v.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)),
-  /**
-   * Comma-separated retailer login mobiles that may use DMT rails marked `pilot` (built but not yet
-   * live for everyone) — the live ₹100 test before a rail is switched on. Empty = no pilot access.
-   */
-  DMT_PILOT_MOBILES: z
-    .string()
-    .default("")
-    .transform((v) => v.split(",").map((s) => s.trim()).filter((s) => /^\d{10}$/.test(s))),
-  /**
+    .transform((v) => v.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)),  /**
    * AEPS rail mode. Same UI/API; only the provider behind the adapter changes.
    * - off: no AePS provider configured — AePS requests fail with a clear 503
    * - noble: Noble adapter (fail-closed if creds missing)

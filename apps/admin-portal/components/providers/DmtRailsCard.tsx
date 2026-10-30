@@ -23,18 +23,24 @@ const errMsg = (err: unknown, fallback: string) =>
 const sameState = (a: Rail[], b: Rail[]) =>
   a.length === b.length && a.every((r, i) => r.code === b[i]!.code && r.enabled === b[i]!.enabled);
 
+const parseMobiles = (text: string) => [...new Set(text.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean))];
+
 /** API Providers → DMT bank rails: order the agent sees on the DMT screen + on/off per rail. */
 export function DmtRailsCard() {
   const [saved, setSaved] = useState<Rail[] | null>(null);
   const [rails, setRails] = useState<Rail[] | null>(null);
+  const [savedPilots, setSavedPilots] = useState<string[]>([]);
+  const [pilotText, setPilotText] = useState("");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const d = await fetchApi<Rail[]>("/admin/dmt-rails");
-      setSaved(d);
-      setRails(d);
+      const d = await fetchApi<{ rails: Rail[]; pilotMobiles: string[] }>("/admin/dmt-rails");
+      setSaved(d.rails);
+      setRails(d.rails);
+      setSavedPilots(d.pilotMobiles ?? []);
+      setPilotText((d.pilotMobiles ?? []).join(", "));
     } catch (err) {
       toast.error(errMsg(err, "DMT bank rails did not load. Refresh the page."));
     }
@@ -59,17 +65,23 @@ export function DmtRailsCard() {
     setRails((cur) => (cur ? cur.map((r) => (r.code === code ? { ...r, enabled } : r)) : cur));
   }
 
-  const dirty = !!saved && !!rails && !sameState(saved, rails);
+  const pilotMobiles = parseMobiles(pilotText);
+  const pilotsDirty = pilotMobiles.join(",") !== savedPilots.join(",");
+  const dirty = !!saved && !!rails && (!sameState(saved, rails) || pilotsDirty);
   const noneLive = !!rails && !rails.some((r) => r.enabled && r.live);
+  const hasPilotRail = !!rails && rails.some((r) => !r.live && r.pilot);
+  const badPilot = pilotMobiles.find((m) => !/^[6-9]\d{9}$/.test(m));
+  const pilotError = badPilot ? `"${badPilot}" is not a valid 10-digit mobile` : null;
   const reasonError = reason.trim().length < 3 ? "Enter a reason (at least 3 characters)" : null;
 
   async function save() {
-    if (!rails || noneLive || reasonError) return;
+    if (!rails || noneLive || reasonError || pilotError) return;
     setSaving(true);
     try {
       await api.put("/admin/dmt-rails", {
         order: rails.map((r) => r.code),
         disabled: rails.filter((r) => !r.enabled).map((r) => r.code),
+        pilotMobiles,
         reason: reason.trim(),
       });
       toast.success("DMT bank rails saved — agents see the new order within 30 seconds");
@@ -166,6 +178,27 @@ export function DmtRailsCard() {
             </p>
           ) : null}
 
+          {hasPilotRail ? (
+            <div className="space-y-1 rounded-xl border p-3" style={{ borderColor: B.border }}>
+              <label className="block text-xs font-semibold" style={{ color: B.muted }}>
+                Test retailers for Pilot banks
+                <input
+                  value={pilotText}
+                  onChange={(e) => setPilotText(e.target.value)}
+                  placeholder="e.g. 9876543210, 9123456789"
+                  inputMode="numeric"
+                  disabled={saving}
+                  className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: pilotError ? B.danger : B.border, color: B.blue }}
+                />
+              </label>
+              <p className="text-[11px]" style={{ color: pilotError ? B.danger : B.muted }}>
+                {pilotError ??
+                  "Retailer login mobiles, comma-separated. Only these retailers can use Pilot banks; everyone else sees Coming soon."}
+              </p>
+            </div>
+          ) : null}
+
           {dirty ? (
             <div className="space-y-1">
               <label className="block text-xs font-semibold" style={{ color: B.muted }}>
@@ -190,6 +223,7 @@ export function DmtRailsCard() {
               disabled={!dirty || saving}
               onClick={() => {
                 setRails(saved);
+                setPilotText(savedPilots.join(", "));
                 setReason("");
               }}
               className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
@@ -200,10 +234,10 @@ export function DmtRailsCard() {
             <button
               type="button"
               onClick={() => void save()}
-              disabled={!dirty || saving || noneLive || !!reasonError}
+              disabled={!dirty || saving || noneLive || !!reasonError || !!pilotError}
               className="admin-btn-primary rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
             >
-              {saving ? "Saving…" : dirty ? "Save order" : "No changes"}
+              {saving ? "Saving…" : dirty ? "Save changes" : "No changes"}
             </button>
           </div>
         </>
