@@ -10,6 +10,8 @@
 | 08 | VPS deploy | M | [08-vps-deploy.md](08-vps-deploy.md) |
 | 20 | Production env | S | [20-production-env.md](20-production-env.md) |
 
+| — | **React Native 0.77 → 0.88 upgrade** (PL-36, Play Console warnings) | XL ⚠️ 1 phase/chat | [rn-upgrade-0-88.md](rn-upgrade-0-88.md) |
+
 ## Auth & core
 | # | Task | Size | File |
 |---|------|------|------|
