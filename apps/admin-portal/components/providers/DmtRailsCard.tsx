@@ -7,7 +7,15 @@ import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 
-type Rail = { code: string; name: string; shortName: string; live: boolean; enabled: boolean; priority: number };
+type Rail = {
+  code: string;
+  name: string;
+  shortName: string;
+  live: boolean;
+  pilot?: boolean;
+  enabled: boolean;
+  priority: number;
+};
 
 const errMsg = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? fallback;
@@ -111,7 +119,13 @@ export function DmtRailsCard() {
                     {r.name}
                   </p>
                   <p className="text-[11px]" style={{ color: B.muted }}>
-                    {r.live ? (r.enabled ? "Live for agents" : "Hidden from agents") : "Coming soon — shown to agents as Coming soon"}
+                    {r.live
+                      ? r.enabled
+                        ? "Live for agents"
+                        : "Hidden from agents"
+                      : r.pilot
+                        ? "Pilot — live only for test retailers, Coming soon for everyone else"
+                        : "Coming soon — shown to agents as Coming soon"}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">

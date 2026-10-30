@@ -9,15 +9,19 @@ Size: **L** · 1 phase per chat · Surfaces: backend, agent web, mobile, admin
 - Admin: API Providers → Service rails → **DMT bank rails** card (`/admin/dmt-rails`, move up/down, toggle, reason).
 - Agent: `GET /txn/dmt/rails` → rail chips on web `/dmt` and mobile DmtScreen (Coming soon for non-live).
 
-## Phase 2 — Jio DMT (next chat)
+## Phase 2 — Jio DMT — built (30 Oct), pilot
 
-- Provider docs: `/tmp/noble/noble.txt` "DMT / JIO DMT" (remitter_login → reg_send_otp → reg_verify_otp →
-  register_ekyc → txn_send_otp → txn_verify_submit → txn_status).
-- Every DMT request (`/txn/dmt/*` validators) takes `rail` (default `airtel`); controller routes to the rail's
-  flow; tokens per rail (`airtelDmt.ts` session store pattern, key includes rail).
-- Clients send the selected chip's `rail` with every DMT call; switching rail = fresh remitter search.
-- Status check / recon per rail; txn metadata `dmtRail`; receipt shows the bank.
-- Flip `live: true` for jio after a live ₹100 test.
+- `providers/noble/jioDmt.ts` — remitter_login → reg_send_otp → reg_verify_otp → register_ekyc →
+  txn_send_otp → txn_verify_submit → txn_status. Flow state (remittanceUserId, authorizationCode, Aadhaar
+  for eKYC, OTP txn id + amount) in the encrypted `provider_sessions` store, key `jio:<user>:<mobile>`.
+- Every `/txn/dmt/*` body takes `rail` (default `airtel`); controller checks `assertDmtRailUsable`, adapter
+  branches on `params.rail`. Channel: `X-App-Version-Code` header → MOB/ANDROID, else WEB/WINDOWS.
+- Jio rules: whole rupees ₹100–₹5,000, IMPS only, transfer must reuse the OTP's id + amount (OTP single-use).
+- Beneficiaries: shared `/api/v1.0/bene/*` list (Jio has no bene API; details go into txn_verify_submit).
+- Txn metadata `dmtRail`; recheck reads it → Jio `txn_status`. Receipt PDF "Sent via" + ESC/POS "Via".
+- Pilot: jio `live: false, pilot: true`; retailers in env `DMT_PILOT_MOBILES` see it live.
+- **Left:** live ₹100 test (pilot retailer) → set jio `live: true` in `dmtRails.service.ts`. Provider-report
+  recon per rail not built (recheck covers pending txns).
 
 ## Phase 3 — Fino DMT
 

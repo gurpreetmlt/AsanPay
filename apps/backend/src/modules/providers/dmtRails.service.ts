@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
+import { env } from "../../config/env";
 import { db } from "../../db/postgres";
-import { tenants } from "../../db/postgres/schema";
+import { tenants, users } from "../../db/postgres/schema";
 import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
 import { HttpError } from "../../utils/httpError";
 import { resolveTenantId } from "../fund-requests/tenant";
@@ -8,22 +9,29 @@ import { asSettings } from "../tenants/tenantSettings.service";
 
 /**
  * DMT bank rails the agent can pick on the money transfer screen, in admin priority order
- * (Admin → API Providers → DMT bank rails). `live: false` rails show as Coming soon until their
- * provider flow is built.
+ * (Admin → API Providers → DMT bank rails). `live: false` rails show as Coming soon; a `pilot`
+ * rail has its flow built and is live only for retailers listed in DMT_PILOT_MOBILES.
  */
 export const DMT_RAILS = [
-  { code: "airtel", name: "Airtel Payments Bank", shortName: "Airtel", live: true },
-  { code: "jio", name: "Jio Payments Bank", shortName: "Jio", live: false },
-  { code: "fino", name: "Fino Payments Bank", shortName: "Fino", live: false },
+  { code: "airtel", name: "Airtel Payments Bank", shortName: "Airtel", live: true, pilot: false },
+  { code: "jio", name: "Jio Payments Bank", shortName: "Jio", live: false, pilot: true },
+  { code: "fino", name: "Fino Payments Bank", shortName: "Fino", live: false, pilot: false },
 ] as const;
 
 export type DmtRailCode = (typeof DMT_RAILS)[number]["code"];
+
+export const DMT_RAIL_CODES = DMT_RAILS.map((r) => r.code) as [DmtRailCode, ...DmtRailCode[]];
+
+export function dmtRailName(code: unknown): string | null {
+  return DMT_RAILS.find((r) => r.code === code)?.name ?? null;
+}
 
 export interface DmtRailRow {
   code: DmtRailCode;
   name: string;
   shortName: string;
   live: boolean;
+  pilot: boolean;
   enabled: boolean;
   priority: number;
 }
@@ -55,9 +63,40 @@ export async function listDmtRails(): Promise<DmtRailRow[]> {
   return value;
 }
 
-/** Rails the agent sees: switched-on only, priority order. */
-export async function listAgentDmtRails(): Promise<DmtRailRow[]> {
-  return (await listDmtRails()).filter((r) => r.enabled);
+async function isPilotRetailer(userId: string): Promise<boolean> {
+  const pilots = env.DMT_PILOT_MOBILES;
+  if (pilots.length === 0) return false;
+  const [user] = await db.select({ mobile: users.mobile }).from(users).where(eq(users.id, userId)).limit(1);
+  return Boolean(user?.mobile && pilots.includes(user.mobile));
+}
+
+/** Rails the agent sees: switched-on only, priority order; pilot rails are live for pilot retailers. */
+export async function listAgentDmtRails(userId: string): Promise<DmtRailRow[]> {
+  const rails = (await listDmtRails()).filter((r) => r.enabled);
+  if (!rails.some((r) => !r.live && DMT_RAILS.find((d) => d.code === r.code)?.pilot)) return rails;
+  const pilot = await isPilotRetailer(userId);
+  return rails.map((r) => (pilot && DMT_RAILS.find((d) => d.code === r.code)?.pilot ? { ...r, live: true } : r));
+}
+
+/** Every DMT call names its rail; refuse rails that are switched off or not live for this retailer. */
+export async function assertDmtRailUsable(code: DmtRailCode, userId: string): Promise<void> {
+  const rail = (await listDmtRails()).find((r) => r.code === code);
+  if (!rail) throw new HttpError(422, `Unknown DMT rail "${code}"`, "DMT_RAIL_UNKNOWN");
+  if (!rail.enabled) {
+    throw new HttpError(
+      422,
+      `${rail.name} money transfer is switched off right now. Pick another bank above.`,
+      "DMT_RAIL_OFF",
+    );
+  }
+  if (rail.live) return;
+  const def = DMT_RAILS.find((d) => d.code === code)!;
+  if (def.pilot && (await isPilotRetailer(userId))) return;
+  throw new HttpError(
+    422,
+    `${rail.name} money transfer is coming soon. Pick another bank above.`,
+    "DMT_RAIL_COMING_SOON",
+  );
 }
 
 export async function setDmtRails(

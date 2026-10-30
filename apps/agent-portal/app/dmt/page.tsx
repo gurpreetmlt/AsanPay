@@ -238,6 +238,7 @@ export default function DmtPage() {
   const [regBusy, setRegBusy] = useState(false);
   const [regKycWadh, setRegKycWadh] = useState("");
   const dmtRails = useDmtRails();
+  const rail = dmtRails.selected || "airtel";
 
   // Banks + beneficiary add
   const [banks, setBanks] = useState<DmtBank[]>([]);
@@ -411,6 +412,11 @@ export default function DmtPage() {
     attemptKey.current.clear();
   }, []);
 
+  // Remitters, OTPs and limits belong to one bank: switching the chip starts a fresh search.
+  useEffect(() => {
+    resetRemitterSession();
+  }, [rail, resetRemitterSession]);
+
   async function lookupRemitter() {
     const m = mobile.replace(/\D/g, "");
     if (m.length !== 10) {
@@ -424,7 +430,7 @@ export default function DmtPage() {
         profile: DmtRemitterProfile | null;
         referenceKey?: string;
         validity?: string;
-      }>("/txn/dmt/remitter/profile", { customerMobile: m });
+      }>("/txn/dmt/remitter/profile", { customerMobile: m, rail });
 
       if (res.data.profile) {
         setProfile(res.data.profile);
@@ -449,6 +455,7 @@ export default function DmtPage() {
     try {
       const res = await postProvider<{ profile: DmtRemitterProfile | null }>("/txn/dmt/remitter/profile", {
         customerMobile: m,
+        rail,
       });
       if (res.data.profile) {
         setProfile(res.data.profile);
@@ -474,6 +481,7 @@ export default function DmtPage() {
     setRegBusy(true);
     try {
       await postProvider("/txn/dmt/remitter/register", {
+        rail,
         customerMobile: m,
         aadhaarNumber: aadhaar,
         referenceKey: regReferenceKey,
@@ -498,6 +506,7 @@ export default function DmtPage() {
       const res = await postProvider<{ referenceId?: string; pidOptionWadh?: string }>(
         "/txn/dmt/remitter/register/verify",
         {
+          rail,
           customerMobile: m,
           otp: regOtp,
           referenceKey: regReferenceKey,
@@ -524,6 +533,7 @@ export default function DmtPage() {
       const wadh = regKycWadh || profile?.pidOptionWadh?.trim() || "";
       const biometricPayload = await captureFingerprintWeb(wadh ? { wadh } : undefined);
       await postProvider("/txn/dmt/remitter/kyc", {
+        rail,
         customerMobile: m,
         referenceKey: regReferenceKey,
         biometricPayload,
@@ -558,6 +568,7 @@ export default function DmtPage() {
         referenceKey: string;
         validity: string;
       }>("/txn/dmt/beneficiary", {
+        rail,
         customerMobile: m,
         name: beneName.trim(),
         accountNumber: beneAccount,
@@ -595,6 +606,7 @@ export default function DmtPage() {
     setBeneBusy(true);
     try {
       await postProvider("/txn/dmt/beneficiary/verify", {
+        rail,
         customerMobile: m,
         otp: beneOtp,
         beneficiaryId: pendingBeneId,
@@ -630,6 +642,7 @@ export default function DmtPage() {
         referenceKey: string;
         validity: string;
       }>("/txn/dmt/beneficiary/delete", {
+        rail,
         customerMobile: m,
         beneficiaryId: b.id,
       });
@@ -659,6 +672,7 @@ export default function DmtPage() {
     setDeleteBusy(true);
     try {
       await postProvider("/txn/dmt/beneficiary/delete/verify", {
+        rail,
         customerMobile: m,
         otp: deleteOtp,
         beneficiaryId: deleteTarget.id,
@@ -693,13 +707,14 @@ export default function DmtPage() {
       return;
     }
     const amt = Number(amount);
-    if (!amt || amt < 1 || amt > 5000) {
-      toast.error("Amount must be ₹1 – ₹5,000");
+    if (!Number.isInteger(amt) || amt < 100 || amt > 5000) {
+      toast.error("Amount must be whole rupees between ₹100 and ₹5,000 per transfer");
       return;
     }
     setTxnBusy(true);
     try {
       const res = await postProvider<{ referenceKey: string; validity: string }>("/txn/dmt/transfer/otp", {
+        rail,
         customerMobile: m,
         amount: String(amt),
         referenceKey: profile.referenceKey,
@@ -737,6 +752,7 @@ export default function DmtPage() {
       const { data } = await api.post<
         ApiResponse<{ txn?: { txnRef?: string }; provider?: ProviderEnvelope<Record<string, unknown>> }>
       >("/txn/dmt/transfer", {
+        rail,
         customerMobile: m,
         accountNumber: selectedBene.account,
         ifsc: selectedBene.ifsc,

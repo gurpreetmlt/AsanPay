@@ -21,10 +21,13 @@ type DmtTokenBag = {
   expiresAt: number;
 };
 
-const tokenBag = new Map<string, DmtTokenBag>();
+type StoredBag = { expiresAt: number };
+
+const tokenBag = new Map<string, StoredBag>();
 const TTL_MS = 55 * 60 * 1000;
 const BAG_CACHE_MAX = 5000;
 
+/** Airtel keys stay unprefixed so sessions open across a deploy keep working; other rails prefix theirs. */
 function bagKey(retailerUserId: string, mobile: string): string {
   return `${retailerUserId}:${mobile}`;
 }
@@ -34,7 +37,7 @@ function bagRowKey(key: string): string {
   return `dmt:${createHash("sha256").update(key).digest("hex").slice(0, 32)}`;
 }
 
-function cacheBag(key: string, bag: DmtTokenBag): void {
+function cacheBag(key: string, bag: StoredBag): void {
   if (!tokenBag.has(key) && tokenBag.size >= BAG_CACHE_MAX) {
     const oldest = tokenBag.keys().next().value;
     if (oldest !== undefined) tokenBag.delete(oldest);
@@ -42,9 +45,9 @@ function cacheBag(key: string, bag: DmtTokenBag): void {
   tokenBag.set(key, bag);
 }
 
-async function loadBag(key: string): Promise<DmtTokenBag | null> {
+async function loadBag<T extends StoredBag = DmtTokenBag>(key: string): Promise<T | null> {
   const hit = tokenBag.get(key);
-  if (hit && hit.expiresAt >= Date.now()) return hit;
+  if (hit && hit.expiresAt >= Date.now()) return hit as T;
   try {
     const [row] = await db
       .select({ tokenEncrypted: providerSessions.tokenEncrypted, expiresAt: providerSessions.expiresAt })
@@ -52,7 +55,7 @@ async function loadBag(key: string): Promise<DmtTokenBag | null> {
       .where(eq(providerSessions.providerCode, bagRowKey(key)))
       .limit(1);
     if (!row || row.expiresAt.getTime() < Date.now()) return null;
-    const bag = JSON.parse(decryptPII(row.tokenEncrypted)) as DmtTokenBag;
+    const bag = JSON.parse(decryptPII(row.tokenEncrypted)) as T;
     cacheBag(key, bag);
     return bag;
   } catch (err) {
@@ -61,7 +64,7 @@ async function loadBag(key: string): Promise<DmtTokenBag | null> {
   }
 }
 
-async function saveBag(key: string, bag: DmtTokenBag): Promise<void> {
+async function saveBag<T extends StoredBag>(key: string, bag: T): Promise<void> {
   cacheBag(key, bag);
   const values = {
     tokenEncrypted: encryptPII(JSON.stringify(bag)),
@@ -78,6 +81,24 @@ async function saveBag(key: string, bag: DmtTokenBag): Promise<void> {
       .delete(providerSessions)
       .where(and(sql`${providerSessions.providerCode} like 'dmt:%'`, lt(providerSessions.expiresAt, new Date())));
   }
+}
+
+/** Flow state for rails other than Airtel, in the same encrypted store (key = rail + retailer + mobile). */
+export async function loadRailFlowState<T extends object>(
+  rail: string,
+  retailerUserId: string,
+  mobile: string,
+): Promise<T | null> {
+  return loadBag<T & StoredBag>(`${rail}:${bagKey(retailerUserId, mobile)}`);
+}
+
+export async function saveRailFlowState<T extends object>(
+  rail: string,
+  retailerUserId: string,
+  mobile: string,
+  state: T,
+): Promise<void> {
+  await saveBag(`${rail}:${bagKey(retailerUserId, mobile)}`, { ...state, expiresAt: Date.now() + TTL_MS });
 }
 
 export async function rememberDmtSession(retailerUserId: string, mobile: string, sessionToken: string): Promise<void> {
@@ -260,10 +281,10 @@ export function assertSixDigitOtp(otp: string): void {
 }
 
 /**
- * The status API needs the remitter mobile, which the recheck path does not pass. Only open
- * txns are rechecked, so the status filter keeps this on the status index.
+ * The status API needs the remitter mobile and the rail, which the recheck path does not pass.
+ * Only open txns are rechecked, so the status filter keeps this on the status index.
  */
-export async function dmtRemitterMobileForTxn(clientRef: string): Promise<string | null> {
+export async function dmtRemitterForTxn(clientRef: string): Promise<{ mobile: string; rail: string } | null> {
   const rows = await db
     .select({ metadata: transactions.metadata })
     .from(transactions)
@@ -275,8 +296,11 @@ export async function dmtRemitterMobileForTxn(clientRef: string): Promise<string
     )
     .limit(2);
   if (rows.length !== 1) return null;
-  const mobile = rows[0]!.metadata?.customerMobile;
-  return typeof mobile === "string" && /^\d{10}$/.test(mobile) ? mobile : null;
+  const meta = rows[0]!.metadata;
+  const mobile = meta?.customerMobile;
+  if (typeof mobile !== "string" || !/^\d{10}$/.test(mobile)) return null;
+  // Transfers from before rails existed carry no dmtRail; they all went through Airtel.
+  return { mobile, rail: typeof meta?.dmtRail === "string" ? meta.dmtRail : "airtel" };
 }
 
 export async function requireSessionToken(

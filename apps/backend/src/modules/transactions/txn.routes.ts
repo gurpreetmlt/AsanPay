@@ -115,9 +115,9 @@ txnRouter.post("/bbps/fetch-bill", retailerOnly, serviceWindowGuard("bbps"), val
 txnRouter.post("/bbps/pay", retailerOnly, serviceWindowGuard("bbps"), walletTxnLimiter, validateBody(bbpsPayBillSchema), bbpsPayBill);
 
 txnRouter.get("/dmt/banks", retailerOnly, dmtBankList);
-txnRouter.get("/dmt/rails", retailerOnly, async (_req, res) => {
+txnRouter.get("/dmt/rails", retailerOnly, async (req, res) => {
   const { listAgentDmtRails } = await import("../providers/dmtRails.service");
-  const rails = await listAgentDmtRails();
+  const rails = await listAgentDmtRails(req.auth!.sub);
   sendSuccess(
     res,
     rails.map(({ code, name, shortName, live, priority }) => ({ code, name, shortName, live, priority })),

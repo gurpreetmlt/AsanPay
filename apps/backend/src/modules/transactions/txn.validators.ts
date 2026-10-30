@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { env } from "../../config/env";
+import { DMT_RAIL_CODES } from "../providers/dmtRails.service";
+
+/** DMT bank rail picked on the transfer screen; older app builds send none and stay on Airtel. */
+const rail = z.enum(DMT_RAIL_CODES, { message: "Select a valid DMT bank (Airtel, Jio or Fino)" }).default("airtel");
 
 const amount = z
   .string()
@@ -86,6 +90,7 @@ export const bbpsPayBillSchema = z
   .superRefine(requireTxnProof);
 
 export const dmtBeneficiarySchema = z.object({
+  rail,
   customerMobile: z.string().regex(/^\d{10}$/),
   name: z.string().min(2).max(120),
   accountNumber: z.string().min(6).max(24),
@@ -104,10 +109,12 @@ export const dmtBankNameCheckSchema = z.object({
 });
 
 export const dmtRemitterProfileSchema = z.object({
+  rail,
   customerMobile: z.string().regex(/^\d{10}$/),
 });
 
 export const dmtBeneficiaryVerifySchema = z.object({
+  rail,
   customerMobile: z.string().regex(/^\d{10}$/),
   otp: z.string().regex(/^\d{4,8}$/),
   beneficiaryId: z.string().min(1).max(128),
@@ -115,23 +122,27 @@ export const dmtBeneficiaryVerifySchema = z.object({
 });
 
 export const dmtBeneficiaryDeleteSchema = z.object({
+  rail,
   customerMobile: z.string().regex(/^\d{10}$/),
   beneficiaryId: z.string().min(1).max(128),
 });
 
 export const dmtRemitterRegisterSchema = z.object({
+  rail,
   customerMobile: z.string().regex(/^\d{10}$/),
   aadhaarNumber: z.string().regex(/^\d{12}$/),
   referenceKey: z.string().min(8).max(512),
 });
 
 export const dmtRemitterRegisterVerifySchema = z.object({
+  rail,
   customerMobile: z.string().regex(/^\d{10}$/),
   otp: z.string().regex(/^\d{4,8}$/),
   referenceKey: z.string().min(8).max(512),
 });
 
 export const dmtRemitterKycSchema = z.object({
+  rail,
   customerMobile: z.string().regex(/^\d{10}$/),
   referenceKey: z.string().min(8).max(512),
   biometricPayload: z.string().min(1),
@@ -141,6 +152,7 @@ export const dmtRemitterKycSchema = z.object({
 });
 
 export const dmtTransactionOtpSchema = z.object({
+  rail,
   customerMobile: z.string().regex(/^\d{10}$/),
   amount,
   referenceKey: z.string().min(8).max(512),
@@ -167,6 +179,7 @@ const geoLinkToken = z
 export const dmtTransferSchema = z
   .object({
     ...txnAuthFields,
+    rail,
     customerMobile: z.string().regex(/^\d{10}$/),
     accountNumber: z.string().min(6).max(24),
     ifsc: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/),

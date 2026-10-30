@@ -8,7 +8,7 @@ import {
   assertNobleDmtOk,
   assertSixDigitOtp,
   airtelGetCustomer,
-  dmtRemitterMobileForTxn,
+  dmtRemitterForTxn,
   nobleBeneList,
   type NobleBene,
   rememberDmtAccessToken,
@@ -29,8 +29,21 @@ import {
   resolveNobleAgentContext,
 } from "../noble/aepsOps";
 import { noblePost, type NobleApiResponse } from "../noble/client";
+import {
+  JIO_DMT_MAX_AMOUNT,
+  jioRegisterEkyc,
+  jioRegSendOtp,
+  jioRegVerifyOtp,
+  jioRemitterLogin,
+  jioTxnSendOtp,
+  jioTxnStatus,
+  jioTxnVerifySubmit,
+  type JioCallOpts,
+} from "../noble/jioDmt";
 import { resolveRechargeRoute } from "../noble/rechargeOperators";
 import type {
+  DmtRailFields,
+  DmtRemitterBeneficiary,
   AepsBank,
   AepsBankListParams,
   AepsParams,
@@ -110,6 +123,33 @@ const AEPS_BANK_NAMES: Record<string, string> = {
 
 function aepsBankName(iin: string): string {
   return AEPS_BANK_NAMES[iin] ?? `BANK ${iin}`;
+}
+
+function jioOpts(
+  params: DmtRailFields & { latitude?: string; longitude?: string; endpointIp?: string },
+): JioCallOpts {
+  return {
+    channel: params.channel,
+    latitude: params.latitude,
+    longitude: params.longitude,
+    endpointIp: params.endpointIp,
+  };
+}
+
+function okResult<T>(message: string, data: T, json: NobleApiResponse, providerTxnId: string | null = null): ProviderResult<T> {
+  return {
+    success: true,
+    status: "success",
+    providerTxnId,
+    amount: null,
+    message,
+    data,
+    raw: json as unknown as Record<string, unknown>,
+  };
+}
+
+function replyText(json: NobleApiResponse, fallback: string): string {
+  return String(json.description || json.message || fallback);
 }
 
 /**
@@ -575,8 +615,8 @@ export class NobleAdapter implements ProviderAdapter {
   }
 
   private async dmtStatus(transactionId: string, createdAt?: Date): Promise<ProviderResult> {
-    const mobileNumber = await dmtRemitterMobileForTxn(transactionId);
-    if (!mobileNumber) {
+    const remitter = await dmtRemitterForTxn(transactionId);
+    if (!remitter) {
       // Never fail a transfer we could not query — a wrong "failed" refunds money that may have moved.
       return {
         success: false,
@@ -588,11 +628,69 @@ export class NobleAdapter implements ProviderAdapter {
         raw: { skipped: "remitter_mobile_missing" },
       };
     }
+    if (remitter.rail === "jio") {
+      const { httpStatus, json } = await jioTxnStatus(remitter.mobile, transactionId);
+      return this.dmtResult(httpStatus, json, "Jio DMT status", null, { dmtRail: "jio" }, "status", createdAt);
+    }
     const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/airtel_dmt/transaction_status", {
-      mobileNumber,
+      mobileNumber: remitter.mobile,
       transactionId,
     });
     return this.dmtResult(httpStatus, json, "DMT status", null, {}, "status", createdAt);
+  }
+
+  private async profileBeneficiaries(customerMobile: string): Promise<DmtRemitterBeneficiary[]> {
+    return (await this.beneListSafe(customerMobile)).map((b) => ({
+      id: b.accountNumber,
+      name: b.name,
+      account: b.accountNumber,
+      ifsc: b.ifsc,
+      bank: b.bank,
+      beneficiaryMobileNumber: b.mobile,
+      verificationDt: "",
+    }));
+  }
+
+  /** Jio remitter_login: registered → profile + bank limits; not registered → registration key. */
+  private async jioRemitterProfile(
+    params: DmtRemitterProfileParams,
+  ): Promise<ProviderResult<{ profile: DmtRemitterProfile | null; referenceKey?: string; validity?: string }>> {
+    const r = await jioRemitterLogin(params.retailerUserId, params.customerMobile, jioOpts(params));
+    if (!r.registered || !r.remittanceUserId) {
+      return okResult(
+        "Remitter is not registered with Jio Payments Bank",
+        { profile: null, referenceKey: nobleTxnId("JRG") },
+        r.json,
+      );
+    }
+    const { dailyLimit, monthlyLimit, yearlyLimit } = r.limits;
+    // All-zero limits mean the bank's limit service was down, not that the limit is used up.
+    const limitsKnown = dailyLimit > 0 || monthlyLimit > 0 || yearlyLimit > 0;
+    const profile: DmtRemitterProfile = {
+      registered: true,
+      mobileNumber: params.customerMobile,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      city: "",
+      pincode: "",
+      limitPerTransaction: String(JIO_DMT_MAX_AMOUNT),
+      limitTotal: limitsKnown ? String(monthlyLimit) : "0",
+      limitConsumed: "0",
+      limitAvailable: limitsKnown ? String(dailyLimit) : "0",
+      limitDetails: limitsKnown
+        ? { dailyLimit: String(dailyLimit), monthlyLimit: String(monthlyLimit), yearlyLimit: String(yearlyLimit) }
+        : {},
+      beneficiaries: await this.profileBeneficiaries(params.customerMobile),
+      isTxnOtpRequired: true,
+      isTxnBioAuthRequired: false,
+      isImpsAllowed: true,
+      isNeftAllowed: false,
+      isFaceAuthAvailable: false,
+      referenceKey: r.remittanceUserId,
+      validity: "",
+      pidOptionWadh: "",
+    };
+    return okResult(replyText(r.json, "Remitter found"), { profile, referenceKey: profile.referenceKey }, r.json);
   }
 
   private assertLive(live: boolean): void {
@@ -620,6 +718,10 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtRemitterRegister(
     params: DmtRemitterRegistrationParams,
   ): Promise<ProviderResult<{ otpReference: string }>> {
+    if (params.rail === "jio") {
+      const json = await jioRegSendOtp(params.retailerUserId, params.customerMobile, params.aadhaarNumber, jioOpts(params));
+      return okResult(replyText(json, "OTP sent to remitter mobile"), { otpReference: params.referenceKey }, json);
+    }
     const merchant = await resolveAirtelMerchantCtx(params.retailerUserId);
     const session = await requireSessionToken(params.retailerUserId, params.customerMobile, params.referenceKey);
     const validate = await noblePost("dmt", "/api/v1.0/airtel_dmt/validate_aadhar", {
@@ -658,6 +760,14 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtRemitterRegisterVerify(
     params: DmtRemitterRegistrationVerifyParams,
   ): Promise<ProviderResult<{ referenceId: string; pidOptionWadh?: string }>> {
+    if (params.rail === "jio") {
+      const json = await jioRegVerifyOtp(params.retailerUserId, params.customerMobile, params.otp, jioOpts(params));
+      return okResult(
+        replyText(json, "OTP verified. Scan the remitter's finger to finish registration."),
+        { referenceId: params.referenceKey, pidOptionWadh: "" },
+        json,
+      );
+    }
     assertSixDigitOtp(params.otp);
     const merchant = await resolveAirtelMerchantCtx(params.retailerUserId);
     const verifyToken = await requireVerifyToken(params.retailerUserId, params.customerMobile);
@@ -687,6 +797,20 @@ export class NobleAdapter implements ProviderAdapter {
   }
 
   async dmtRemitterKyc(params: DmtRemitterKycParams): Promise<ProviderResult<{ poolReferenceId: string }>> {
+    if (params.rail === "jio") {
+      const { json, remittanceUserId, transactionId } = await jioRegisterEkyc(
+        params.retailerUserId,
+        params.customerMobile,
+        { bioType: nobleBioType(params.captureType), pidData: params.biometricPayload },
+        jioOpts(params),
+      );
+      return okResult(
+        replyText(json, "Remitter registered with Jio Payments Bank"),
+        { poolReferenceId: remittanceUserId || transactionId },
+        json,
+        transactionId,
+      );
+    }
     const merchant = await resolveAirtelMerchantCtx(params.retailerUserId, {
       latitude: params.latitude,
       longitude: params.longitude,
@@ -814,6 +938,20 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtGenerateTransactionOtp(
     params: DmtTransactionOtpParams,
   ): Promise<ProviderResult<{ referenceKey: string; validity: string }>> {
+    if (params.rail === "jio") {
+      const { json, referenceKey, transactionId } = await jioTxnSendOtp(
+        params.retailerUserId,
+        params.customerMobile,
+        params.amount,
+        jioOpts(params),
+      );
+      return okResult(
+        replyText(json, "OTP sent"),
+        { referenceKey, validity: new Date(Date.now() + 15 * 60 * 1000).toISOString() },
+        json,
+        transactionId,
+      );
+    }
     assertAirtelDmtAmount(params.amount);
     const merchant = await resolveAirtelMerchantCtx(params.retailerUserId);
     const transactionId = nobleTxnId("NDMT");
@@ -847,6 +985,26 @@ export class NobleAdapter implements ProviderAdapter {
   }
 
   async dmtTransfer(params: DmtTransferParams): Promise<ProviderResult> {
+    if (params.rail === "jio") {
+      const { httpStatus, json, transactionId } = await jioTxnVerifySubmit(
+        params.retailerUserId,
+        {
+          remitterMobile: params.customerMobile,
+          accountNumber: params.accountNumber,
+          ifsc: params.ifsc,
+          amount: params.amount,
+          mode: params.mode,
+          otp: params.otp,
+          referenceKey: params.referenceKey,
+        },
+        jioOpts(params),
+      );
+      const result = this.dmtResult(httpStatus, json, "Jio DMT transfer", params.amount, {
+        clientTransactionId: transactionId,
+        dmtRail: "jio",
+      }, "submit");
+      return { ...result, providerTxnId: result.providerTxnId ?? transactionId };
+    }
     // Every refusal below is a 4xx thrown before the provider call, so the held amount is released.
     assertAirtelDmtAmount(params.amount);
     assertSixDigitOtp(params.otp);
@@ -982,6 +1140,7 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtRemitterProfile(
     params: DmtRemitterProfileParams,
   ): Promise<ProviderResult<{ profile: DmtRemitterProfile | null; referenceKey?: string; validity?: string }>> {
+    if (params.rail === "jio") return this.jioRemitterProfile(params);
     const { httpStatus, json } = await airtelGetCustomer(params.retailerUserId, params.customerMobile);
     const row = firstResponseRow(json);
     const token = rowToken(json);

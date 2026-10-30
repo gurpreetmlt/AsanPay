@@ -171,6 +171,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
   const [regBusy, setRegBusy] = useState(false);
   const [regKycWadh, setRegKycWadh] = useState("");
   const dmtRails = useDmtRails();
+  const rail = dmtRails.selected || "airtel";
 
   const [banks, setBanks] = useState<DmtBank[]>([]);
   const [bankSearch, setBankSearch] = useState("");
@@ -305,6 +306,11 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
     attemptKey.current.clear();
   }, []);
 
+  // Remitters, OTPs and limits belong to one bank: switching the chip starts a fresh search.
+  useEffect(() => {
+    resetRemitterSession();
+  }, [rail, resetRemitterSession]);
+
   async function lookupRemitter() {
     const m = mobile.replace(/\D/g, "");
     if (m.length !== 10) {
@@ -318,7 +324,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
         profile: DmtRemitterProfile | null;
         referenceKey?: string;
         validity?: string;
-      }>("/txn/dmt/remitter/profile", { customerMobile: m });
+      }>("/txn/dmt/remitter/profile", { customerMobile: m, rail });
 
       if (res.data.profile) {
         setProfile(res.data.profile);
@@ -346,6 +352,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
     try {
       const res = await postProvider<{ profile: DmtRemitterProfile | null }>("/txn/dmt/remitter/profile", {
         customerMobile: m,
+        rail,
       });
       if (res.data.profile) {
         setProfile(res.data.profile);
@@ -371,6 +378,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
     setRegBusy(true);
     try {
       await postProvider("/txn/dmt/remitter/register", {
+        rail,
         customerMobile: m,
         aadhaarNumber: aadhaar,
         referenceKey: regReferenceKey,
@@ -395,6 +403,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
       const res = await postProvider<{ referenceId?: string; pidOptionWadh?: string }>(
         "/txn/dmt/remitter/register/verify",
         {
+          rail,
           customerMobile: m,
           otp: regOtp,
           referenceKey: regReferenceKey,
@@ -417,6 +426,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
       const wadh = regKycWadh || profile?.pidOptionWadh?.trim() || "";
       const biometricPayload = await captureFingerprint(undefined, wadh ? { wadh } : undefined);
       await postProvider("/txn/dmt/remitter/kyc", {
+        rail,
         customerMobile: m,
         referenceKey: regReferenceKey,
         biometricPayload,
@@ -453,6 +463,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
         referenceKey: string;
         validity: string;
       }>("/txn/dmt/beneficiary", {
+        rail,
         customerMobile: m,
         name: beneName.trim(),
         accountNumber: beneAccount,
@@ -490,6 +501,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
     setBeneBusy(true);
     try {
       await postProvider("/txn/dmt/beneficiary/verify", {
+        rail,
         customerMobile: m,
         otp: beneOtp,
         beneficiaryId: pendingBeneId,
@@ -524,6 +536,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
         beneficiaryId: string;
         referenceKey: string;
       }>("/txn/dmt/beneficiary/delete", {
+        rail,
         customerMobile: m,
         beneficiaryId: b.id,
       });
@@ -553,6 +566,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
     setDeleteBusy(true);
     try {
       await postProvider("/txn/dmt/beneficiary/delete/verify", {
+        rail,
         customerMobile: m,
         otp: deleteOtp,
         beneficiaryId: deleteTarget.id,
@@ -586,13 +600,14 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
       return;
     }
     const amt = Number(amount);
-    if (!amt || amt < 1 || amt > 5000) {
-      showAlert("Invalid amount", "Amount must be between ₹1 and ₹5,000.");
+    if (!Number.isInteger(amt) || amt < 100 || amt > 5000) {
+      showAlert("Invalid amount", "Amount must be whole rupees between ₹100 and ₹5,000 per transfer.");
       return;
     }
     setTxnBusy(true);
     try {
       const res = await postProvider<{ referenceKey: string }>("/txn/dmt/transfer/otp", {
+        rail,
         customerMobile: m,
         amount: String(amt),
         referenceKey: profile.referenceKey,
@@ -629,6 +644,7 @@ export function DmtScreen({ onBack }: DmtScreenProps) {
     try {
       const txnAuth = await promptPin();
       const body: Record<string, unknown> = {
+        rail,
         customerMobile: m,
         accountNumber: selectedBene.account,
         ifsc: selectedBene.ifsc,

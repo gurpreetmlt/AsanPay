@@ -3,6 +3,8 @@
 // interface — the rest of the codebase never talks to a provider directly,
 // so swapping or adding a provider is a registry entry, not a refactor.
 
+import type { DmtRailCode } from "./dmtRails.service";
+
 export type ProviderTxnStatus = "success" | "failed" | "pending";
 
 export interface ProviderResult<TData = Record<string, unknown>> {
@@ -92,7 +94,13 @@ export interface DmtBankListParams {
   endpointIp?: string;
 }
 
-export interface DmtRemitterProfileParams {
+/** Bank rail the DMT call runs on (default airtel) + the terminal the agent is using. */
+export interface DmtRailFields {
+  rail?: DmtRailCode;
+  channel?: "WEB" | "MOB";
+}
+
+export interface DmtRemitterProfileParams extends DmtRailFields {
   retailerUserId: string;
   /** Remitter (customer) mobile number. */
   customerMobile: string;
@@ -100,7 +108,7 @@ export interface DmtRemitterProfileParams {
   endpointIp?: string;
 }
 
-export interface DmtRemitterRegistrationParams {
+export interface DmtRemitterRegistrationParams extends DmtRailFields {
   retailerUserId: string;
   customerMobile: string;
   /** Plain 12-digit Aadhaar — adapter encrypts (AES-256-CBC) before sending. */
@@ -111,7 +119,7 @@ export interface DmtRemitterRegistrationParams {
   endpointIp?: string;
 }
 
-export interface DmtRemitterRegistrationVerifyParams {
+export interface DmtRemitterRegistrationVerifyParams extends DmtRailFields {
   retailerUserId: string;
   customerMobile: string;
   /** OTP received on remitter mobile (from registration step). */
@@ -122,7 +130,7 @@ export interface DmtRemitterRegistrationVerifyParams {
   endpointIp?: string;
 }
 
-export interface DmtRemitterKycParams {
+export interface DmtRemitterKycParams extends DmtRailFields {
   retailerUserId: string;
   customerMobile: string;
   /** PidData XML from the RD-service biometric device (or JSON biometric blob in tests). */
@@ -173,7 +181,7 @@ export interface DmtRemitterProfile {
   pidOptionWadh: string;
 }
 
-export interface DmtBeneficiaryParams {
+export interface DmtBeneficiaryParams extends DmtRailFields {
   retailerUserId: string;
   customerMobile: string;
   name: string;
@@ -187,7 +195,7 @@ export interface DmtBeneficiaryParams {
   endpointIp?: string;
 }
 
-export interface DmtBeneficiaryVerifyParams {
+export interface DmtBeneficiaryVerifyParams extends DmtRailFields {
   retailerUserId: string;
   /** Remitter mobile — OTP isi number pe gaya hota hai. */
   customerMobile: string;
@@ -200,7 +208,7 @@ export interface DmtBeneficiaryVerifyParams {
   endpointIp?: string;
 }
 
-export interface DmtBeneficiaryDeleteParams {
+export interface DmtBeneficiaryDeleteParams extends DmtRailFields {
   retailerUserId: string;
   /** Remitter mobile — delete OTP isi number pe jaata hai. */
   customerMobile: string;
@@ -209,7 +217,7 @@ export interface DmtBeneficiaryDeleteParams {
   endpointIp?: string;
 }
 
-export interface DmtTransactionOtpParams {
+export interface DmtTransactionOtpParams extends DmtRailFields {
   retailerUserId: string;
   /** Remitter mobile — transaction OTP isi number pe jaata hai. */
   customerMobile: string;
@@ -241,7 +249,7 @@ export interface DmtRefundParams {
   endpointIp?: string;
 }
 
-export interface DmtTransferParams {
+export interface DmtTransferParams extends DmtRailFields {
   retailerUserId: string;
   /** Remitter mobile. */
   customerMobile: string;

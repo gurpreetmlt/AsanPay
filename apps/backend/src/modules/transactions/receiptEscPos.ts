@@ -5,6 +5,7 @@ import { services, transactions, users } from "../../db/postgres/schema";
 import { HttpError } from "../../utils/httpError";
 import { BRAND_DEFAULTS } from "@asanpay/shared-types";
 import type { UserRole } from "@asanpay/shared-types";
+import { dmtRailName } from "../providers/dmtRails.service";
 
 type Actor = { id: string; role: UserRole };
 
@@ -38,6 +39,7 @@ export async function streamTxnReceiptEscPos(
       retailerMobile: users.mobile,
       initiatedAt: transactions.initiatedAt,
       completedAt: transactions.completedAt,
+      metadata: transactions.metadata,
     })
     .from(transactions)
     .innerJoin(services, eq(transactions.serviceId, services.id))
@@ -50,12 +52,14 @@ export async function streamTxnReceiptEscPos(
   }
 
   const brand = process.env.BRAND_NAME || BRAND_DEFAULTS.name;
+  const railBank = dmtRailName((row.metadata as Record<string, unknown> | null)?.dmtRail);
   const lines = [
     brand,
     "------------------------------",
     row.serviceName,
     `Ref: ${row.txnRef}`,
     row.providerTxnId ? `Provider: ${row.providerTxnId}` : null,
+    railBank ? `Via: ${railBank}` : null,
     `Amount: Rs ${row.amount}`,
     row.customerFee && Number(row.customerFee) > 0 ? `Fee: Rs ${row.customerFee}` : null,
     `Status: ${row.status}`,

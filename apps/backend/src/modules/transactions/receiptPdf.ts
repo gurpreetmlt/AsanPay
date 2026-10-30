@@ -10,6 +10,7 @@ import { BRAND_DEFAULTS } from "@asanpay/shared-types";
 import type { UserRole } from "@asanpay/shared-types";
 import { resolveTenantId } from "../fund-requests/tenant";
 import { getSupportContacts } from "../tenants/tenantSettings.service";
+import { dmtRailName } from "../providers/dmtRails.service";
 
 type Actor = { id: string; role: UserRole };
 
@@ -273,6 +274,8 @@ export async function streamTxnReceiptPdf(actor: Actor, txnRef: string, res: Res
       if (Number(row.customerFee) > 0) rows.push(["Fee", `Rs. ${money(row.customerFee)}`]);
       const customerMobile = metadataCustomerLine(row.metadata);
       if (customerMobile) rows.push(["Customer Mobile", customerMobile]);
+      const railBank = dmtRailName((row.metadata as Record<string, unknown> | null)?.dmtRail);
+      if (railBank) rows.push(["Sent via", railBank]);
       if (row.providerTxnId) rows.push(["Provider Ref.", String(row.providerTxnId)]);
       if (row.walletType) {
         const balanceLabel =

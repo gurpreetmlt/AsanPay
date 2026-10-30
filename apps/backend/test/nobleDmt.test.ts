@@ -3,13 +3,38 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const noblePost = vi.fn();
 const remitterMobile = vi.fn();
 const beneList = vi.fn();
+const railState = new Map<string, Record<string, unknown>>();
+vi.mock("../src/config/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/config/env")>();
+  return { ...actual, isNobleConfigured: () => true };
+});
 vi.mock("../src/modules/providers/noble/client", () => ({ noblePost: (...a: unknown[]) => noblePost(...a) }));
+vi.mock("../src/modules/providers/noble/aepsOps", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/modules/providers/noble/aepsOps")>();
+  return {
+    ...actual,
+    resolveNobleAgentContext: vi.fn(async () => ({
+      uniqueAgentId: "AGENT-HANDLE",
+      endpointIp: "49.36.182.114",
+      latitude: "12.9715",
+      longitude: "77.5945",
+      channel: "WEB",
+      mobileDeviceId: "u1",
+      userAgent: "AsanPayAndroid",
+      live: true,
+    })),
+  };
+});
 vi.mock("../src/modules/providers/noble/airtelDmt", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/modules/providers/noble/airtelDmt")>();
   return {
     ...actual,
-    dmtRemitterMobileForTxn: (...a: unknown[]) => remitterMobile(...a),
+    dmtRemitterForTxn: (...a: unknown[]) => remitterMobile(...a),
     nobleBeneList: (...a: unknown[]) => beneList(...a),
+    loadRailFlowState: vi.fn(async (rail: string, u: string, m: string) => railState.get(`${rail}:${u}:${m}`) ?? null),
+    saveRailFlowState: vi.fn(async (rail: string, u: string, m: string, s: Record<string, unknown>) => {
+      railState.set(`${rail}:${u}:${m}`, s);
+    }),
     resolveAirtelMerchantCtx: vi.fn(async () => ({
       merchantMobile: "9829098290",
       latitude: "12.9715",
@@ -43,7 +68,8 @@ const statusRow = (transactionStatus: string) => ({
 
 beforeEach(() => {
   noblePost.mockReset();
-  remitterMobile.mockReset().mockResolvedValue("9680976136");
+  railState.clear();
+  remitterMobile.mockReset().mockResolvedValue({ mobile: "9680976136", rail: "airtel" });
   beneList.mockReset().mockResolvedValue([
     { name: "Test Singh", accountNumber: "465464654646", ifsc: "ICIC0000012", bank: "ICICI Bank", mobile: "9680976135" },
   ]);
@@ -147,5 +173,137 @@ describe("DMT transfer", () => {
       adapter.dmtGenerateTransactionOtp({ retailerUserId: "u1", customerMobile: "9680976136", amount: "25000", referenceKey: "x".repeat(8) }),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(noblePost).not.toHaveBeenCalled();
+  });
+});
+
+describe("Jio DMT", () => {
+  const MOBILE = "9680976136";
+  const COMMON = {
+    uniqueAgentId: "AGENT-HANDLE",
+    channel: "MOB",
+    deviceOsType: "ANDROID",
+    latitude: "12.9715",
+    longitude: "77.5945",
+    publicIp: "49.36.182.114",
+  };
+  const ok = (responseData: unknown[] = []) => ({ httpStatus: 200, json: { status: 1, statusCode: "SS0011", message: "Success", responseData } });
+  const registered = ok([
+    {
+      registered: true,
+      remittanceUserId: "13456763222000259",
+      firstName: "Demo",
+      middleName: "",
+      lastName: "Singh",
+      limits: { yearlyLimit: 300000, yearlyCount: 1, monthlyLimit: 25000, monthlyCount: 1, dailyLimit: 25000, dailyCount: 1 },
+    },
+  ]);
+
+  async function otpFor(amount: string) {
+    noblePost.mockResolvedValueOnce(registered);
+    await adapter.dmtRemitterProfile({ retailerUserId: "u1", customerMobile: MOBILE, rail: "jio", channel: "MOB" });
+    noblePost.mockResolvedValueOnce(ok());
+    const otp = await adapter.dmtGenerateTransactionOtp({
+      retailerUserId: "u1",
+      customerMobile: MOBILE,
+      amount,
+      referenceKey: "13456763222000259",
+      rail: "jio",
+      channel: "MOB",
+    });
+    return otp.data.referenceKey;
+  }
+
+  const transfer = (referenceKey: string, over: Record<string, unknown> = {}) =>
+    adapter.dmtTransfer({
+      retailerUserId: "u1",
+      customerMobile: MOBILE,
+      accountNumber: "465464654646",
+      ifsc: "ICIC0000012",
+      amount: "100",
+      mode: "imps",
+      otp: "123456",
+      referenceKey,
+      rail: "jio",
+      channel: "MOB",
+      ...over,
+    });
+
+  it("remitter_login: registered remitter returns a profile keyed by remittanceUserId", async () => {
+    noblePost.mockResolvedValueOnce(registered);
+    const r = await adapter.dmtRemitterProfile({ retailerUserId: "u1", customerMobile: MOBILE, rail: "jio", channel: "MOB" });
+    expect(noblePost.mock.calls[0]?.[1]).toBe("/api/v1.0/jio_dmt/remitter_login");
+    expect(noblePost.mock.calls[0]?.[2]).toEqual({ ...COMMON, remitterMobile: MOBILE });
+    expect(r.data.profile?.referenceKey).toBe("13456763222000259");
+    expect(r.data.profile?.isNeftAllowed).toBe(false);
+    expect(r.data.profile?.beneficiaries).toHaveLength(1);
+  });
+
+  it("remitter_login: unregistered remitter returns a registration key and no profile", async () => {
+    noblePost.mockResolvedValueOnce(ok([{ registered: false }]));
+    const r = await adapter.dmtRemitterProfile({ retailerUserId: "u1", customerMobile: MOBILE, rail: "jio" });
+    expect(r.data.profile).toBeNull();
+    expect(r.data.referenceKey?.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("transfer reuses the OTP-time id and amount and posts every documented field", async () => {
+    const key = await otpFor("100");
+    const otpTxnId = key.split("~")[1];
+    expect(otpTxnId).toHaveLength(15);
+    noblePost.mockResolvedValueOnce({
+      httpStatus: 200,
+      json: { status: 1, statusCode: "DB0031", message: "Success", responseData: [{ transactionStatus: "Success", transactionId: otpTxnId, rrn: "6260107319000" }] },
+    });
+    const r = await transfer(key);
+    expect(r.status).toBe("success");
+    expect(r.providerTxnId).toBe(otpTxnId);
+    expect(noblePost.mock.calls[2]?.[1]).toBe("/api/v1.0/jio_dmt/txn_verify_submit");
+    expect(noblePost.mock.calls[2]?.[2]).toEqual({
+      ...COMMON,
+      remitterMobile: MOBILE,
+      remittanceUserId: "13456763222000259",
+      remitterName: "Demo Singh",
+      beneName: "Test Singh",
+      beneAccountAlias: "Test Singh",
+      beneAccountNo: "465464654646",
+      beneIfscCode: "ICIC0000012",
+      amount: "100",
+      transferMode: "IMPS",
+      otp: "123456",
+      transactionId: otpTxnId,
+      deviceId: "",
+      deviceOsVer: "",
+      deviceModel: "",
+    });
+  });
+
+  it("refuses before the provider call: amount changed after OTP, NEFT, decimals, replayed OTP", async () => {
+    const key = await otpFor("100");
+    noblePost.mockReset();
+    await expect(transfer(key, { amount: "200" })).rejects.toMatchObject({ statusCode: 422 });
+    await expect(transfer(key, { mode: "neft" })).rejects.toMatchObject({ statusCode: 400 });
+    await expect(transfer(key, { amount: "100.50" })).rejects.toMatchObject({ statusCode: 400 });
+    expect(noblePost).not.toHaveBeenCalled();
+    noblePost.mockResolvedValueOnce({ httpStatus: 200, json: { status: -1, statusCode: "SS0013", message: "Pending", responseData: [] } });
+    expect((await transfer(key)).status).toBe("pending");
+    await expect(transfer(key)).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  it("status check goes to txn_status for transfers sent via Jio", async () => {
+    remitterMobile.mockResolvedValueOnce({ mobile: MOBILE, rail: "jio" });
+    noblePost.mockResolvedValueOnce({ httpStatus: 200, json: statusRow("Success") });
+    const r = await adapter.checkStatus({ providerTxnId: null, clientRef: TXN_ID, serviceCode: "dmt", createdAt: new Date() });
+    expect(r.status).toBe("success");
+    expect(noblePost.mock.calls[0]?.[1]).toBe("/api/v1.0/jio_dmt/txn_status");
+    expect(noblePost.mock.calls[0]?.[2]).toEqual({ mobileNumber: MOBILE, transactionId: TXN_ID });
+  });
+
+  it("agent-side refusals become a clear next step", async () => {
+    noblePost.mockResolvedValueOnce({
+      httpStatus: 200,
+      json: { status: -1, statusCode: "SS0013", message: "Error", description: "Agent KYC is Required", responseData: [] },
+    });
+    await expect(
+      adapter.dmtRemitterProfile({ retailerUserId: "u1", customerMobile: MOBILE, rail: "jio" }),
+    ).rejects.toMatchObject({ statusCode: 422, code: "JIO_DMT_AGENT_KYC" });
   });
 });

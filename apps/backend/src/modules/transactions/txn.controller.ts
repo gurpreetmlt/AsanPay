@@ -7,6 +7,7 @@ import { assertAgentAuthFresh } from "../auth/agentAuth";
 import { nobleApGenerateOtp } from "../onboarding/nobleAepsSession.service";
 import { assertFreshBiometric } from "./biometricReplay";
 import { resolveProvidersForService, callProvider } from "../providers/provider.router";
+import { assertDmtRailUsable } from "../providers/dmtRails.service";
 import {
   assertAepsCompliance,
   assertWithinServiceGeofence,
@@ -55,6 +56,11 @@ import { z } from "zod";
 
 function actor(req: Request) {
   return { id: req.auth!.sub, role: req.auth!.role };
+}
+
+/** Terminal the agent is on: the Android app sends its version code, the web portal does not. */
+function dmtChannel(req: Request): "WEB" | "MOB" {
+  return req.get("X-App-Version-Code") ? "MOB" : "WEB";
 }
 
 /**
@@ -210,16 +216,19 @@ export async function bbpsPayBill(req: Request, res: Response): Promise<void> {
 export async function dmtRemitterProfile(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtRemitterProfileSchema>;
   const userId = actor(req).id;
+  await assertDmtRailUsable(body.rail, userId);
   const routedProviders = await resolveProvidersForService("dmt_remitter_profile");
   const result = await callProvider(
     routedProviders[0]!,
     "dmt_remitter_profile",
     null,
-    { customerMobile: body.customerMobile },
+    { customerMobile: body.customerMobile, rail: body.rail },
     (adapter) =>
       adapter.dmtRemitterProfile({
         retailerUserId: userId,
         customerMobile: body.customerMobile,
+        rail: body.rail,
+        channel: dmtChannel(req),
         endpointIp: req.ip ?? undefined,
       }),
   );
@@ -229,19 +238,22 @@ export async function dmtRemitterProfile(req: Request, res: Response): Promise<v
 export async function dmtRemitterRegister(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtRemitterRegisterSchema>;
   const userId = actor(req).id;
+  await assertDmtRailUsable(body.rail, userId);
   await assertVerificationOn("dmt_remitter_otp");
   const routedProviders = await resolveProvidersForService("dmt_remitter_register");
   const result = await callProvider(
     routedProviders[0]!,
     "dmt_remitter_register",
     null,
-    { customerMobile: body.customerMobile },
+    { customerMobile: body.customerMobile, rail: body.rail },
     (adapter) =>
       adapter.dmtRemitterRegister({
         retailerUserId: userId,
         customerMobile: body.customerMobile,
         aadhaarNumber: body.aadhaarNumber,
         referenceKey: body.referenceKey,
+        rail: body.rail,
+        channel: dmtChannel(req),
         endpointIp: req.ip ?? undefined,
       }),
   );
@@ -251,19 +263,22 @@ export async function dmtRemitterRegister(req: Request, res: Response): Promise<
 export async function dmtRemitterRegisterVerify(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtRemitterRegisterVerifySchema>;
   const userId = actor(req).id;
+  await assertDmtRailUsable(body.rail, userId);
   await assertVerificationOn("dmt_remitter_otp");
   const routedProviders = await resolveProvidersForService("dmt_remitter_register_verify");
   const result = await callProvider(
     routedProviders[0]!,
     "dmt_remitter_register_verify",
     null,
-    { customerMobile: body.customerMobile },
+    { customerMobile: body.customerMobile, rail: body.rail },
     (adapter) =>
       adapter.dmtRemitterRegisterVerify({
         retailerUserId: userId,
         customerMobile: body.customerMobile,
         otp: body.otp,
         referenceKey: body.referenceKey,
+        rail: body.rail,
+        channel: dmtChannel(req),
         endpointIp: req.ip ?? undefined,
       }),
   );
@@ -273,6 +288,7 @@ export async function dmtRemitterRegisterVerify(req: Request, res: Response): Pr
 export async function dmtRemitterKyc(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtRemitterKycSchema>;
   const userId = actor(req).id;
+  await assertDmtRailUsable(body.rail, userId);
   await assertVerificationOn("dmt_remitter_ekyc");
   const routedProviders = await resolveProvidersForService("dmt_remitter_kyc");
   const result = await callProvider(
@@ -280,7 +296,7 @@ export async function dmtRemitterKyc(req: Request, res: Response): Promise<void>
     "dmt_remitter_kyc",
     null,
     // Biometric payload never goes into provider_logs context — only the mobile.
-    { customerMobile: body.customerMobile },
+    { customerMobile: body.customerMobile, rail: body.rail },
     (adapter) =>
       adapter.dmtRemitterKyc({
         retailerUserId: userId,
@@ -290,6 +306,8 @@ export async function dmtRemitterKyc(req: Request, res: Response): Promise<void>
         captureType: body.captureType,
         latitude: body.latitude,
         longitude: body.longitude,
+        rail: body.rail,
+        channel: dmtChannel(req),
         endpointIp: req.ip ?? undefined,
       }),
   );
@@ -382,16 +400,18 @@ export async function dmtDeleteBeneficiary(req: Request, res: Response): Promise
 
 export async function dmtGenerateTransactionOtp(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtTransactionOtpSchema>;
+  await assertDmtRailUsable(body.rail, actor(req).id);
   const routedProviders = await resolveProvidersForService("dmt_txn_otp");
   const result = await callProvider(
     routedProviders[0]!,
     "dmt_txn_otp",
     null,
-    { customerMobile: body.customerMobile, amount: body.amount },
+    { customerMobile: body.customerMobile, amount: body.amount, rail: body.rail },
     (adapter) =>
       adapter.dmtGenerateTransactionOtp({
         retailerUserId: actor(req).id,
         ...body,
+        channel: dmtChannel(req),
         endpointIp: req.ip ?? undefined,
       }),
   );
@@ -442,6 +462,7 @@ export async function dmtTransactionRefund(req: Request, res: Response): Promise
 
 export async function dmtTransfer(req: Request, res: Response): Promise<void> {
   const body = req.body as z.infer<typeof dmtTransferSchema>;
+  await assertDmtRailUsable(body.rail, actor(req).id);
   await assertAgentAuthFresh(actor(req).id);
   const live = await resolveLiveTxnGeo(actor(req).id, body);
   await assertWithinServiceGeofence(await getServiceGeoAnchors(actor(req).id), live.geo);
@@ -459,6 +480,7 @@ export async function dmtTransfer(req: Request, res: Response): Promise<void> {
     direction: "debit",
     walletType: "main",
     metadata: {
+      dmtRail: body.rail,
       customerMobile: body.customerMobile,
       accountNumber: body.accountNumber,
       ifsc: body.ifsc,
@@ -481,6 +503,8 @@ export async function dmtTransfer(req: Request, res: Response): Promise<void> {
         otp: body.otp,
         referenceKey: body.referenceKey,
         beneficiaryId: body.beneficiaryId,
+        rail: body.rail,
+        channel: dmtChannel(req),
         latitude,
         longitude,
         // externalRef = our txnRef so the provider's txn-status report can find it on recheck.
