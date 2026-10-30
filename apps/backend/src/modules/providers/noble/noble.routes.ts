@@ -31,6 +31,7 @@ nobleRouter.use(requireAuth);
 const retailer = requireRole("retailer");
 const adminOrRetailer = requireRole("admin", "retailer");
 const upiCashPointOn = serviceBlockGuard("upi_cash_point");
+const cmsOn = serviceBlockGuard("cms");
 
 const upiLoadSchema = z.object({
   channel: z.enum(["APP", "WEB"]).optional().default("APP"),
@@ -192,7 +193,7 @@ nobleRouter.get("/cms/providers", retailer, (_req, res) => {
   sendSuccess(res, CMS_PROVIDERS);
 });
 
-nobleRouter.post("/cms/start", retailer, serviceWindowGuard("cms"), validateBody(cmsStartSchema), async (req, res) => {
+nobleRouter.post("/cms/start", retailer, cmsOn, serviceWindowGuard("cms"), validateBody(cmsStartSchema), async (req, res) => {
   const body = req.body as z.infer<typeof cmsStartSchema>;
   sendSuccess(res, await startCashCollection(req.auth!.sub, body.provider));
 });
