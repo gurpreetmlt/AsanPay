@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Check, ChevronDown, ListChecks } from "lucide-react-native";
+import LinearGradient from "react-native-linear-gradient";
+import { Check, ChevronDown, ListChecks, X } from "lucide-react-native";
 import { ModalSheet } from "./ModalSheet";
 import { useTheme } from "../theme/ThemeContext";
-import { colors } from "../theme/colors";
+import { colors, gradientDirection } from "../theme/colors";
 
 interface Props {
   label: string;
@@ -52,9 +53,36 @@ export function OptionPickerField({ label, options, values, onChange, multiple =
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${summary}`}
       >
-        <Text style={{ color: values.length ? tokens.txt : tokens.mute, fontSize: 14, flex: 1 }} numberOfLines={2}>
-          {summary}
-        </Text>
+        {multiple && values.length ? (
+          <View style={styles.chips}>
+            {values.map((v) => (
+              <View key={v} style={styles.chip}>
+                <LinearGradient
+                  colors={[...colors.gradient]}
+                  start={gradientDirection.diagonal.start}
+                  end={gradientDirection.diagonal.end}
+                  style={styles.chipBadge}
+                >
+                  <Text style={styles.chipBadgeText}>{v.charAt(0).toUpperCase()}</Text>
+                </LinearGradient>
+                <Text style={styles.chipText}>{v.toUpperCase()}</Text>
+                <Pressable
+                  onPress={() => onChange(values.filter((x) => x !== v))}
+                  hitSlop={8}
+                  style={styles.chipRemove}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${v}`}
+                >
+                  <X size={13} color={tokens.mute} strokeWidth={2.5} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={{ color: values.length ? tokens.txt : tokens.mute, fontSize: 14, flex: 1 }} numberOfLines={2}>
+            {summary}
+          </Text>
+        )}
         <ChevronDown size={16} color={tokens.mute} />
       </Pressable>
 
@@ -121,6 +149,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  chips: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6, marginVertical: -6 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "#D6DEF5",
+    backgroundColor: "#fff",
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 6,
+    shadowColor: colors.blue,
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  chipBadge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  chipBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  chipText: { color: colors.blue, fontSize: 12, fontWeight: "700", letterSpacing: 0.4 },
+  chipRemove: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   row: {
     flexDirection: "row",
     alignItems: "center",

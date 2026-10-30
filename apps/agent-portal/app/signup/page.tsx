@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Check, CheckCircle2, ChevronDown, Loader2, MailPlus } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, ChevronDown, Loader2, MailPlus, X } from "lucide-react";
 import {
   PAN_FORMAT_ERROR,
   SIGNUP_POLICY_VERSION,
@@ -187,19 +187,61 @@ function MultiSelectDropdown({
 
   return (
     <div ref={wrapRef} className="relative">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((v) => !v)}
-        className={`${inputCls} flex items-center justify-between gap-2 text-left`}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }
+        }}
+        className={`${inputCls} flex min-h-[52px] cursor-pointer items-center justify-between gap-2 text-left ${
+          values.length ? "!py-2 !pl-2" : ""
+        }`}
         style={inputStyle}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className="truncate" style={{ color: values.length ? B.blue : B.muted }}>
-          {values.length ? values.join(", ") : placeholder}
-        </span>
+        {values.length ? (
+          <span className="flex min-w-0 flex-wrap gap-1.5">
+            {values.map((v) => (
+              <span
+                key={v}
+                className="inline-flex items-center gap-1.5 rounded-full border bg-white py-1 pl-1 pr-1.5 text-[13px] font-bold shadow-[0_1px_2px_rgba(11,42,154,0.08),0_2px_6px_rgba(11,42,154,0.10)]"
+                style={{ borderColor: "#D6DEF5", color: B.blue }}
+              >
+                <span
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold text-white"
+                  style={{ background: "linear-gradient(135deg, #2A5CDD, #0B2A9A)" }}
+                  aria-hidden
+                >
+                  {v.charAt(0).toUpperCase()}
+                </span>
+                <span className="whitespace-nowrap uppercase tracking-wide">{v}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggle(v);
+                  }}
+                  className="flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:bg-[#FDE8E8] hover:text-[#DC2626]"
+                  style={{ color: B.muted }}
+                  aria-label={`Remove ${v}`}
+                >
+                  <X size={13} strokeWidth={2.5} />
+                </button>
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="truncate" style={{ color: B.muted }}>
+            {placeholder}
+          </span>
+        )}
         <ChevronDown size={16} className="shrink-0" style={{ color: B.muted }} />
-      </button>
+      </div>
       {open ? (
         <div
           role="listbox"
