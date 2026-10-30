@@ -9,7 +9,8 @@ apply plugin: "com.facebook.react"
 react {
     root = file("../../")
     reactNativeDir = file("../../node_modules/react-native")
-    codegenDir = file("../../node_modules/@react-native/codegen")
+    // Hoisted to the monorepo root (not nested under apps/asanpay-mobile-app/node_modules).
+    codegenDir = file("../../../../node_modules/@react-native/codegen")
     cliFile = file("../../node_modules/react-native/cli.js")
     autolinkLibrariesWithApp()
 }
@@ -23,14 +24,14 @@ def enableProguardInReleaseBuilds = true
  * The preferred build flavor of JavaScriptCore (JSC)
  *
  * For example, to use the international variant, you can use:
- * `def jscFlavor = 'org.webkit:android-jsc-intl:+'`
+ * `def jscFlavor = 'io.github.react-native-community:jsc-android-intl:2026004.+'`
  *
  * The international variant includes ICU i18n library and necessary data
  * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
  * give correct results when using with locales other than en-US. Note that
  * this variant is about 6MiB larger per architecture than default.
  */
-def jscFlavor = 'org.webkit:android-jsc:+'
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 /** White-label brand key: BRAND_NAME=AsanPay → ASANPAY (matches brand.name / BRAND_DEFAULTS.name). */
 def brandUploadKey = ((project.findProperty("BRAND_NAME") ?: "AsanPay") as String)
@@ -44,6 +45,9 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.asanpay.mobile"
+    buildFeatures {
+        buildConfig true
+    }
     defaultConfig {
         applicationId "com.asanpay.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -93,7 +97,7 @@ android {
                 signingConfig signingConfigs.release
             }
             minifyEnabled enableProguardInReleaseBuilds
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             // Release: no screenshots / screen recording of PIN, OTP and Aadhaar screens.
             buildConfigField "boolean", "ENABLE_SECURE_SCREEN", "true"
         }
