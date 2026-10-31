@@ -25,7 +25,14 @@
 | P7 | Delete InstantPay UI (outlet / bio-KYC pages + mobile modals) + Nepal → Coming soon | done (26 Oct) |
 | P8 | DB cleanup migration (`instantpay_outlet_id`, provider rows) | done (26 Oct) — `0071` runs on EC2 after redeploy |
 | P9 | UPI QR collections → transactions + recon `QR` | done (26 Oct) — `0072` runs on EC2 after redeploy |
-| P10 | Callback handler → settle txns (needs provider sample payload) | **CURRENT** — on hold (owner, 27 Oct): after app work. URL verified: provider test callback 23 Oct (`test`, `status`, `clientRefId`); no live txn callback yet |
+| P10 | Callback handler → settle txns (needs provider sample payload) | on hold (owner, 27 Oct): after app work. URL verified: provider test callback 23 Oct (`test`, `status`, `clientRefId`); no live txn callback yet |
+| P11 | Token: reuse one token until 23:59:59 IST, no early refresh (all tokens of a day share that expiry) | done (31 Oct) — `noble/client.ts`, `test/nobleTokenShare.test.ts` |
+| P12 | Recharge status: only `tranStatus` decides; missing `tranStatus` → `recharge_status`; never auto-fail / refund an unknown txn until the provider names its "not found" code | **CURRENT** |
+| P13 | "No records" rule: `AG0003` (AEPS, UPI QR) and `DB0042` (DMT) are never final by time; no status check in the first 15 min; replaces UPI QR "15 min then failed" | |
+| P14 | Airtel DMT: eKYC field `merchantMobileNo`; `RS_OB_009` → stop with a clear message; send a correct `bankName` (IFSC lookup) | |
+| P15 | Cash Deposit bank list (62 banks, own list) separate from AEPS (136 banks) — web + mobile | |
+| P16 | CMS: check flow = provider wallet debit → our retailer-debit callback → bank; commission from the posting webhook | |
+| P17 | Daily recon: after 23:00 IST, max 500 per call, CW / MT / QR / CD, from the first production txn — check `reconJob.ts` | |
 
 ---
 
@@ -147,9 +154,38 @@ Record generated QR + status as a `transactions` row (credit to AEPS wallet on s
 ### P10 — Callback → settle
 Needs a real callback sample from the provider. Map payload → `settleTxnFromProviderCallback` (same pattern as `providers/vyaparapi/webhook.routes.ts`). Add a shared-secret query token.
 
+## Provider reply (31 Oct) — follow-ups still open
+- Token: what time does the daily login counter reset? Is the 5 / day limit shared by the production and testing IPs? Does a new login invalidate the earlier token of the same day? (dev + production run on the same credentials, each with its own token)
+- Recharge: exact "Transaction Not Found" error code (our test got `RE0001` + `tranStatus: Failed` for an unknown id)
+- `AG0003` / `DB0042` still returned after 15 min: when can we treat the txn as never received?
+- CMS: when is commission credited in the other 0.1% of cases? If we decline the retailer debit, is our wallet re-credited?
+- Penny Drop / Pennyless price per hit
+- Jio DMT, Fino DMT and CMS are not in the enabled-endpoints list — enable or confirm
+- Recon `reconData` format; is Aadhaar Pay recon needed; which DMT rails count as MT
+- Cash Deposit list: bank name for IIN `607512`; SBI / ICICI / Kotak not on the list
+
 ## Open questions for the provider (owner emails)
 - Recon `reconData` format (`status~transactionId~rrn`?)
-- Commission chart per service
+- Commission chart per service (DMT agent commission set by us — only need the provider's charge per DMT slab)
 - Which services are assigned (Fino / Jio DMT, Verification, OCR)
+
+### DMT (Airtel live, Jio pilot, Fino next)
+- Charge to us per DMT txn per rail: flat / % / slab, GST inclusive or extra, debited when, refunded on failure
+- Jio + Fino DMT enabled on our production account? Separate activation per rail?
+- Limits per rail: per txn min/max, per remitter daily / monthly, whole rupees only? (Jio ₹100–₹5,000)
+- IMPS / NEFT per rail; NEFT cut-off timings
+- Remitter registered on one rail usable on another, or register + eKYC per rail?
+- eKYC: biometric needed per rail? wadh value? OTP validity + resend limit
+- Beneficiary verification (penny drop) per rail + its charge
+- Final status code list per rail (success / failed / pending); max time a txn can stay pending
+- Callback per rail: sample payload, retries, source IPs, signature
+- Recon report / API per rail + format
+- Reversal after success: auto credit to our wallet? Remitter refund OTP needed? Timeline
+- Same `transactionId` sent twice — duplicate rejected or processed?
+- Recommended timeout + rate limit
+- Per-agent onboarding / KYC needed for DMT (like AEPS), or account-level?
+- Mandatory receipt fields (UTR / RRN, bank name, beneficiary name)
+- Stuck txn / dispute escalation contact + TAT
+- UAT test numbers for Jio and Fino
 - Callback sample payload per service
 - Full recharge operator code list (DTH: Tata Play, Sun, d2h; mobile: Jio, Vi, BSNL B2B codes)

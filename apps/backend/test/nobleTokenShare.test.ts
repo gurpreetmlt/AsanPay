@@ -81,6 +81,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 const isLogin = (url: unknown) => String(url).includes("/client_auth/login");
@@ -161,5 +162,37 @@ describe("shared provider token", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(shared.sendSlackAlert).toHaveBeenCalledTimes(1);
     expect(shared.state.row).toBeNull();
+  });
+
+  it("keeps one token until 23:59:59 IST and logs in once after midnight", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-31T18:29:00Z")); // 23:59:00 IST
+    fetchMock.mockImplementation(async () => loginOk());
+    const api = await newProcess();
+
+    const t1 = await api.getNobleToken();
+    vi.setSystemTime(new Date("2026-10-31T18:29:58Z")); // 23:59:58 IST
+    expect(await api.getNobleToken()).toBe(t1);
+    expect(await (await newProcess()).getNobleToken()).toBe(t1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(shared.state.row?.expiresAtMs).toBe(Date.UTC(2026, 9, 31, 18, 29, 59));
+
+    vi.setSystemTime(new Date("2026-10-31T18:30:00Z")); // 00:00:00 IST next day
+    const t2 = await api.getNobleToken();
+    expect(t2).not.toBe(t1);
+    expect(await api.getNobleToken()).toBe(t2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(shared.state.row?.expiresAtMs).toBe(Date.UTC(2026, 10, 1, 18, 29, 59));
+  });
+
+  it("expires a token without exp at 23:59:59 IST", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-31T06:30:00Z")); // 12:00 IST
+    fetchMock.mockImplementation(async () => reply({ status: 1, responseData: [{ token: "opaque-token" }] }));
+    const api = await newProcess();
+
+    await api.getNobleToken();
+
+    expect(shared.state.row?.expiresAtMs).toBe(Date.UTC(2026, 9, 31, 18, 29, 59));
   });
 });

@@ -12,8 +12,6 @@ import {
 
 const LOGIN_PATH = "/api/v1.0/client_auth/login";
 
-/** Refresh this long before the stored expiry. */
-const TOKEN_SKEW_MS = 60_000;
 /** Login runs inside a DB transaction; must stay well under idle_in_transaction_session_timeout (60 s). */
 const LOGIN_TIMEOUT_MS = 20_000;
 /** Provider allows only a few logins per day; after a limit reply, don't ask again for this long. */
@@ -113,10 +111,18 @@ function istDay(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
 }
 
-/** Fallback expiry when the token carries no exp: end of the current IST day minus 5 minutes. */
+/** 23:59:59 IST of the current IST day. */
 function endOfIstDayMs(now: Date = new Date()): number {
   const [y, m, d] = istDay(now).split("-").map(Number);
-  return Date.UTC(y!, m! - 1, d! + 1) - 330 * 60_000 - 5 * 60_000;
+  return Date.UTC(y!, m! - 1, d! + 1) - 330 * 60_000 - 1000;
+}
+
+/**
+ * Every token dies at 23:59:59 IST of the day it was issued, whatever its exp says. All tokens of a
+ * day share that expiry, so refreshing early only burns one of the 5 daily logins.
+ */
+function tokenExpiryMs(token: string): number {
+  return Math.min(parseJwtExpMs(token) ?? Number.POSITIVE_INFINITY, endOfIstDayMs());
 }
 
 function processOwner(): SessionOwner {
@@ -128,7 +134,7 @@ function usable(session: StoredSession | null, failedToken: string | undefined):
   return (
     session != null &&
     session.token !== failedToken &&
-    Date.now() < session.expiresAtMs - TOKEN_SKEW_MS
+    Date.now() < session.expiresAtMs
   );
 }
 
@@ -235,7 +241,7 @@ async function loginAndStore(failedToken: string | undefined): Promise<string> {
       const current = await store.read();
       if (usable(current, failedToken)) return remember(current);
       const token = await loginForToken();
-      const session = { token, expiresAtMs: parseJwtExpMs(token) ?? endOfIstDayMs() };
+      const session = { token, expiresAtMs: tokenExpiryMs(token) };
       await store.save(session.token, session.expiresAtMs, processOwner(), istDay());
       return remember(session);
     });
@@ -244,7 +250,7 @@ async function loginAndStore(failedToken: string | undefined): Promise<string> {
     // Shared store unavailable (e.g. table not migrated yet): keep serving with a process-local token.
     logger.error({ err }, "Provider session store failed; using a process-local login");
     const token = await loginForToken();
-    return remember({ token, expiresAtMs: parseJwtExpMs(token) ?? endOfIstDayMs() });
+    return remember({ token, expiresAtMs: tokenExpiryMs(token) });
   }
 }
 
