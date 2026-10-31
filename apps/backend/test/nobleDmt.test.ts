@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const noblePost = vi.fn();
 const remitterMobile = vi.fn();
 const beneList = vi.fn();
+const ifscBankName = vi.fn();
 const railState = new Map<string, Record<string, unknown>>();
 vi.mock("../src/config/env", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/config/env")>();
   return { ...actual, isNobleConfigured: () => true };
 });
 vi.mock("../src/modules/providers/noble/client", () => ({ noblePost: (...a: unknown[]) => noblePost(...a) }));
+vi.mock("../src/utils/ifscBank", () => ({ lookupIfscBankName: (...a: unknown[]) => ifscBankName(...a) }));
 vi.mock("../src/modules/providers/noble/aepsOps", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/modules/providers/noble/aepsOps")>();
   return {
@@ -31,6 +33,7 @@ vi.mock("../src/modules/providers/noble/airtelDmt", async (importOriginal) => {
     ...actual,
     dmtRemitterForTxn: (...a: unknown[]) => remitterMobile(...a),
     nobleBeneList: (...a: unknown[]) => beneList(...a),
+    requireSessionToken: vi.fn(async () => "SESSION-TOKEN"),
     loadRailFlowState: vi.fn(async (rail: string, u: string, m: string) => railState.get(`${rail}:${u}:${m}`) ?? null),
     saveRailFlowState: vi.fn(async (rail: string, u: string, m: string, s: Record<string, unknown>) => {
       railState.set(`${rail}:${u}:${m}`, s);
@@ -94,15 +97,52 @@ describe("DMT status check", () => {
     expect((await check({ status: 1, statusCode: "DB0031", responseData: [{}] }, 3 * HOUR)).status).toBe("pending");
   });
 
-  it("'No records found' (DB0042) is pending at first and failed after an hour", async () => {
+  it("'No records found' (DB0042) is never final, however old the transfer", async () => {
     const noRecord = { status: -1, statusCode: "DB0042", message: "DB Response", description: "No records found" };
     expect((await check(noRecord, 10 * 60 * 1000)).status).toBe("pending");
-    expect((await check(noRecord, 2 * HOUR)).status).toBe("failed");
+    expect((await check(noRecord, 48 * HOUR)).status).toBe("pending");
   });
 
   it("gateway errors and other codes stay pending", async () => {
     expect((await check({ status: -1, message: "<html>502</html>" }, 3 * HOUR, 502)).status).toBe("pending");
     expect((await check({ status: 0, statusCode: "PM0002" }, 3 * HOUR)).status).toBe("pending");
+  });
+
+  it("stops registration when the Aadhaar is already registered (RS_OB_009)", async () => {
+    noblePost.mockResolvedValueOnce({
+      httpStatus: 200,
+      json: { status: 0, statusCode: "RS_OB_009", description: "Aadhaar already registered" },
+    });
+    await expect(
+      adapter.dmtRemitterRegister({
+        rail: "airtel",
+        retailerUserId: "u1",
+        customerMobile: "9680976136",
+        aadhaarNumber: "234567890123",
+        referenceKey: "REF",
+      } as Parameters<NobleAdapter["dmtRemitterRegister"]>[0]),
+    ).rejects.toMatchObject({ statusCode: 409, code: "NOBLE_DMT_AADHAAR_ALREADY_REGISTERED" });
+    expect(noblePost).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a beneficiary whose IFSC bank is unknown instead of guessing a bank name", async () => {
+    ifscBankName.mockResolvedValueOnce("");
+    const params = {
+      customerMobile: "9680976136",
+      name: "Test Singh",
+      accountNumber: "465464654646",
+      ifsc: "zzzz0000012",
+    } as Parameters<NobleAdapter["dmtAddBeneficiary"]>[0];
+    await expect(adapter.dmtAddBeneficiary(params)).rejects.toMatchObject({
+      statusCode: 422,
+      code: "NOBLE_DMT_IFSC_BANK_UNKNOWN",
+    });
+    expect(noblePost).not.toHaveBeenCalled();
+
+    ifscBankName.mockResolvedValueOnce("ICICI BANK");
+    noblePost.mockResolvedValueOnce({ httpStatus: 200, json: { status: 1, statusCode: "DB0031", responseData: [{}] } });
+    await adapter.dmtAddBeneficiary({ ...params, ifsc: "ICIC0000012" });
+    expect(noblePost.mock.calls[0]?.[2]).toMatchObject({ bankName: "ICICI BANK", ifsc: "ICIC0000012" });
   });
 
   it("stays pending without calling the provider when the remitter mobile is unknown", async () => {

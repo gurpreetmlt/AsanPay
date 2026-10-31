@@ -28,6 +28,7 @@ import {
   requireNobleGeo,
   resolveNobleAgentContext,
 } from "../noble/aepsOps";
+import { providerBankList, requireAepsBank, requireCashDepositBank } from "../noble/aepsBanks";
 import { noblePost, type NobleApiResponse } from "../noble/client";
 import {
   JIO_DMT_MAX_AMOUNT,
@@ -72,36 +73,6 @@ import type {
   RechargeParams,
 } from "../types";
 
-const UPI_QR_NO_RECORD_GRACE_MS = 15 * 60 * 1000;
-/** AEPS / DMT / recharge status "no record found" becomes final only after this long. */
-const NO_RECORD_FAIL_AFTER_MS = 60 * 60 * 1000;
-/**
- * Status APIs are keyed by transactionDate. A txn row created this close to IST midnight may be
- * dated the next day by the provider, so "no record" for our date is not proof it never landed.
- */
-const NO_RECORD_UNSAFE_AFTER_IST_MINUTES = 23 * 60 + 50;
-
-/**
- * Status "No Records Found" is status -1 / AG0003 (status 0 accepted too). AG0003 alone is the
- * generic AEPS error code (also "pending for approval at bank"), so the text must match as well.
- */
-function isNoRecordReply(json: NobleApiResponse): boolean {
-  if (json.status !== -1 && json.status !== 0) return false;
-  if (json.statusCode !== "AG0003") return false;
-  const text = `${json.description ?? ""} ${json.message ?? ""}`;
-  return /no records? found/i.test(text);
-}
-
-function createdNearIstMidnight(createdAt: Date): boolean {
-  const istMinutes = (createdAt.getUTCHours() * 60 + createdAt.getUTCMinutes() + 330) % 1440;
-  return istMinutes >= NO_RECORD_UNSAFE_AFTER_IST_MINUTES;
-}
-
-function noRecordIsFinal(json: NobleApiResponse, createdAt: Date | undefined, graceMs: number): boolean {
-  if (!createdAt || !isNoRecordReply(json) || createdNearIstMidnight(createdAt)) return false;
-  return Date.now() - createdAt.getTime() >= graceMs;
-}
-
 /**
  * recharge_status answers tranStatus "Failed" (status 1 / RE0001) for an id the provider never
  * received, which looks exactly like a real failure. Trust "Failed" only when the row names a
@@ -113,16 +84,6 @@ function rechargeFailedIsFinal(row: Record<string, unknown>, createdAt: Date | u
   const hasId = (v: unknown) => typeof v === "string" ? v.trim() !== "" : typeof v === "number";
   if (hasId(row.apiTransactionId) || hasId(row.operatorTransactionId)) return true;
   return createdAt != null && Date.now() - createdAt.getTime() >= RECHARGE_FAILED_TRUST_AFTER_MS;
-}
-
-const AEPS_BANK_NAMES: Record<string, string> = {
-  "607094": "STATE BANK OF INDIA",
-  "607027": "PUNJAB NATIONAL BANK",
-  "508534": "ICICI BANK",
-};
-
-function aepsBankName(iin: string): string {
-  return AEPS_BANK_NAMES[iin] ?? `BANK ${iin}`;
 }
 
 function jioOpts(
@@ -169,6 +130,8 @@ export class NobleAdapter implements ProviderAdapter {
    * Money safety: a wrong "failed" refunds the agent for money that may have moved; a wrong
    * "success" credits money that never moved. Only explicit answers are final — gateway errors,
    * HTML pages, unknown tranStatus values and "no record" on a status check all stay pending.
+   * "No record" (AG0003, DB0042) has no finality period at the provider, however old the txn;
+   * stuck pending txns raise the stuck alert and are closed by an admin from the provider report.
    *
    * mode: "submit" = non-money call (2FA, OTP, BE, MS); "money" = CW / CD / AP submit,
    * where status 1 without tranStatus is not proof the money moved; "status" = status API, where
@@ -188,10 +151,7 @@ export class NobleAdapter implements ProviderAdapter {
       if (tran === "failed" || tran === "failure" || tran === "expired") return "failed";
       return "pending";
     }
-    if (mode === "status") {
-      // "No record" right after submit is lag; long after, the provider never got it.
-      return httpStatus < 500 && noRecordIsFinal(json, createdAt, NO_RECORD_FAIL_AFTER_MS) ? "failed" : "pending";
-    }
+    if (mode === "status") return "pending";
     if (httpStatus >= 500 || json.status === -1 || json.status === undefined) return "pending";
     if (json.status === 1) return mode === "money" ? "pending" : "success";
     if (json.status === 0) return "failed";
@@ -231,43 +191,24 @@ export class NobleAdapter implements ProviderAdapter {
     };
   }
 
-  /** Static fallback — provider docs do not expose a bank-list endpoint in AEPS V2. */
+  /** Provider's live AEPS + Cash Deposit lists (no bank-list API in AEPS V2). */
   async aepsBankList(_params: AepsBankListParams): Promise<ProviderResult<{ banks: AepsBank[] }>> {
-    const banks: AepsBank[] = [
-      {
-        bankId: "SBI",
-        name: "STATE BANK OF INDIA",
-        iin: "607094",
-        aepsEnabled: true,
-        aadhaarpayEnabled: true,
-        aepsFailureRate: "0",
-        aadhaarpayFailureRate: "0",
-      },
-      {
-        bankId: "PNB",
-        name: "PUNJAB NATIONAL BANK",
-        iin: "607027",
-        aepsEnabled: true,
-        aadhaarpayEnabled: true,
-        aepsFailureRate: "0",
-        aadhaarpayFailureRate: "0",
-      },
-      {
-        bankId: "ICICI",
-        name: "ICICI BANK",
-        iin: "508534",
-        aepsEnabled: true,
-        aadhaarpayEnabled: true,
-        aepsFailureRate: "0",
-        aadhaarpayFailureRate: "0",
-      },
-    ];
+    const banks: AepsBank[] = providerBankList().map((b) => ({
+      bankId: b.iin,
+      name: b.name,
+      iin: b.iin,
+      aepsEnabled: b.aepsEnabled,
+      aadhaarpayEnabled: b.aepsEnabled,
+      cashDepositEnabled: b.cashDepositEnabled,
+      aepsFailureRate: "0",
+      aadhaarpayFailureRate: "0",
+    }));
     return {
       success: true,
       status: "success",
       providerTxnId: null,
       amount: null,
-      message: "Static bank list",
+      message: "Live bank list",
       data: { banks },
       raw: { static: true },
     };
@@ -309,7 +250,7 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "BE",
       amount: "0",
-      bankName: aepsBankName(params.bankIin),
+      bankName: requireAepsBank(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
@@ -358,7 +299,7 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "CW",
       amount: params.amount ?? "0",
-      bankName: aepsBankName(params.bankIin),
+      bankName: requireAepsBank(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
@@ -393,7 +334,7 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "MS",
       amount: "0",
-      bankName: aepsBankName(params.bankIin),
+      bankName: requireAepsBank(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
@@ -429,7 +370,7 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "CD",
       amount: params.amount ?? "0",
-      bankName: aepsBankName(params.bankIin),
+      bankName: requireCashDepositBank(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
@@ -457,7 +398,7 @@ export class NobleAdapter implements ProviderAdapter {
       transactionId,
       tranType: "MT",
       amount: params.amount ?? "0",
-      bankName: aepsBankName(params.bankIin),
+      bankName: requireAepsBank(params.bankIin),
       bankIn: params.bankIin,
       mobileNumber: params.mobile,
       aadhaarNumber: params.aadhaarNumber,
@@ -555,10 +496,6 @@ export class NobleAdapter implements ProviderAdapter {
     if (json.status === 1 && tran === "success") return settled("success", "Payment received");
     if (json.status === 1 && tran === "expired") return settled("failed", "QR expired before the customer paid");
     if (json.status === 1 && tran === "failed") return settled("failed", "The customer's UPI payment failed");
-    // No record: right after generate this is lag; long after, the QR was never paid.
-    if (httpStatus < 500 && noRecordIsFinal(json, params.createdAt, UPI_QR_NO_RECORD_GRACE_MS)) {
-      return settled("failed", "The customer did not pay this QR");
-    }
     return settled("pending", "Waiting for the customer to pay");
   }
 
@@ -574,7 +511,7 @@ export class NobleAdapter implements ProviderAdapter {
   /**
    * DMT replies carry the outcome in responseData[0].transactionStatus. A transfer is final only
    * on an explicit Success / Failed / Refunded; status 1 alone means "initiated", not "paid".
-   * "No records found" (DB0042) is lag right after submit and final only after an hour.
+   * "No records found" (DB0042) is never final — the provider gives it no finality period.
    */
   private dmtResult(
     httpStatus: number,
@@ -595,9 +532,6 @@ export class NobleAdapter implements ProviderAdapter {
       }
     } else if (mode === "submit" && httpStatus < 500 && json.status === 0) {
       status = "failed";
-    } else if (mode === "status" && json.statusCode === "DB0042") {
-      const ageMs = createdAt ? Date.now() - createdAt.getTime() : 0;
-      if (ageMs >= NO_RECORD_FAIL_AFTER_MS) status = "failed";
     }
     const message =
       (typeof json.description === "string" && json.description) ||
@@ -731,10 +665,15 @@ export class NobleAdapter implements ProviderAdapter {
       aadharNumber: params.aadhaarNumber,
       token: session,
     });
-    // RS_OB_009 = already registered Aadhaar — still allow OTP path when eligible; hard-fail others.
-    if (!nobleOk(validate.json, validate.httpStatus) && validate.json.statusCode !== "RS_OB_009") {
-      assertNobleDmtOk(validate.httpStatus, validate.json, "Aadhaar validation failed");
+    // RS_OB_009: the bank allows one registration per Aadhaar, so this mobile cannot register with it.
+    if (validate.json.statusCode === "RS_OB_009") {
+      throw new HttpError(
+        409,
+        "This Aadhaar is already registered for money transfer with another mobile number. Search the remitter with that mobile number, or register with a different Aadhaar.",
+        "NOBLE_DMT_AADHAAR_ALREADY_REGISTERED",
+      );
     }
+    assertNobleDmtOk(validate.httpStatus, validate.json, "Aadhaar validation failed");
     const otpRes = await noblePost("dmt", "/api/v1.0/airtel_dmt/sender_registration_otp", {
       mobileNumber: params.customerMobile,
       latitude: merchant.latitude,
@@ -847,8 +786,15 @@ export class NobleAdapter implements ProviderAdapter {
   async dmtAddBeneficiary(
     params: DmtBeneficiaryParams,
   ): Promise<ProviderResult<{ beneficiaryId: string; referenceKey: string; validity: string }>> {
-    const bankName =
-      (await lookupIfscBankName(params.ifsc)) || `BANK ${params.ifsc.trim().slice(0, 4).toUpperCase()}`;
+    // The provider forwards bankName to the bank unchecked, so never send a guessed name.
+    const bankName = await lookupIfscBankName(params.ifsc);
+    if (!bankName) {
+      throw new HttpError(
+        422,
+        `Could not find the bank for IFSC ${params.ifsc.trim().toUpperCase()}. Check the IFSC code and try again.`,
+        "NOBLE_DMT_IFSC_BANK_UNKNOWN",
+      );
+    }
     const { httpStatus, json } = await noblePost("dmt", "/api/v1.0/bene/add", {
       remitterMobile: params.customerMobile,
       accountHolderName: params.name,

@@ -107,6 +107,50 @@ function bankKey(name: string): string {
   return name.toLowerCase().replace(/payments?/g, "").replace(/[^a-z]/g, "");
 }
 
+interface LiveBankRow {
+  name: string;
+  iin: string;
+  aepsEnabled?: boolean;
+  cashDepositEnabled?: boolean;
+}
+
+type ListedBank = Bank & { aeps: boolean; cashDeposit: boolean };
+
+const LIVE_BANK_COLORS = ["#1565C0", "#2E7D32", "#6A1B9A", "#E65100", "#00838F", "#AD1457", "#4E342E", "#283593"];
+
+/**
+ * GET /txn/aeps/banks decides which banks exist and their IINs; our static banks keep their look.
+ * Same merge as mobile `AepsScreen`.
+ */
+function mergeBanks(live: LiveBankRow[] | null): ListedBank[] {
+  if (!live) return BANKS.map((b) => ({ ...b, aeps: true, cashDeposit: true }));
+  const byIin = new Map(live.map((r) => [r.iin, r]));
+  const byName = new Map(live.map((r) => [bankKey(r.name), r]));
+  const used = new Set<string>();
+  const out: ListedBank[] = [];
+  const flags = (r: LiveBankRow) => ({ aeps: r.aepsEnabled !== false, cashDeposit: r.cashDepositEnabled !== false });
+  for (const b of BANKS) {
+    const row = byIin.get(b.iin) ?? byName.get(bankKey(b.name));
+    if (!row || used.has(row.iin)) continue;
+    used.add(row.iin);
+    out.push({ ...b, iin: row.iin, ...flags(row) });
+  }
+  live.forEach((row, i) => {
+    if (used.has(row.iin)) return;
+    used.add(row.iin);
+    out.push({
+      id: `iin_${row.iin}`,
+      name: row.name,
+      shortName: row.name.length > 15 ? `${row.name.slice(0, 14)}...` : row.name,
+      color: LIVE_BANK_COLORS[i % LIVE_BANK_COLORS.length]!,
+      letter: row.name.replace(/^the\s+/i, "").charAt(0).toUpperCase(),
+      iin: row.iin,
+      ...flags(row),
+    });
+  });
+  return out;
+}
+
 /** Shared with mobile — persisted via GET/PUT /auth/aeps-favourite-banks */
 const DEFAULT_AEPS_FAV_BANKS = ["bob", "pnb", "sbi", "hdfc", "airtel", "icici"] as const;
 const AEPS_FAV_LEGACY: Record<string, string> = { bob_vijaya: "bob", pnb_obc: "pnb" };
@@ -116,7 +160,7 @@ function sanitizeAepsFavIds(ids: string[]): string[] {
   const out: string[] = [];
   for (const raw of ids) {
     const id = AEPS_FAV_LEGACY[raw] ?? raw;
-    if (valid.has(id) && !out.includes(id)) out.push(id);
+    if ((valid.has(id) || /^iin_\d{6}$/.test(id)) && !out.includes(id)) out.push(id);
   }
   return out;
 }
@@ -271,12 +315,14 @@ function BankIcon({ bank, size = 48 }: { bank: Bank; size?: number }) {
 
 function BankSidebar({
   open,
+  banks,
   onClose,
   onSelect,
   favouriteIds,
   onToggleFav,
 }: {
   open: boolean;
+  banks: Bank[];
   onClose: () => void;
   onSelect: (bank: Bank) => void;
   favouriteIds: string[];
@@ -285,18 +331,18 @@ function BankSidebar({
   const [search, setSearch] = useState("");
 
   const favBanks = useMemo(() => {
-    const byId = new Map(BANKS.map((b) => [b.id, b]));
+    const byId = new Map(banks.map((b) => [b.id, b]));
     return favouriteIds.map((id) => byId.get(id)).filter((b): b is Bank => Boolean(b));
-  }, [favouriteIds]);
+  }, [banks, favouriteIds]);
 
   const filtered = useMemo(
     () =>
       search.trim()
-        ? BANKS.filter((b) =>
+        ? banks.filter((b) =>
             b.name.toLowerCase().includes(search.toLowerCase()),
           )
-        : BANKS,
-    [search],
+        : banks,
+    [banks, search],
   );
 
   if (!open) return null;
@@ -480,7 +526,7 @@ function AepsPageInner() {
   const [agentAadhaarLastFour, setAgentAadhaarLastFour] = useState<string | null>(null);
   const [agentAuthLastAt, setAgentAuthLastAt] = useState<string | null>(null);
   const [uiLayout, setUiLayout] = useState<AepsUiLayout>("3");
-  const [liveIinByName, setLiveIinByName] = useState<Record<string, string>>({});
+  const [liveBanks, setLiveBanks] = useState<LiveBankRow[] | null>(null);
   const [apConfirmOpen, setApConfirmOpen] = useState(false);
   const [cashConfirmOpen, setCashConfirmOpen] = useState(false);
   const [enquiryResult, setEnquiryResult] = useState<AepsEnquiryResult | null>(null);
@@ -495,16 +541,11 @@ function AepsPageInner() {
   useEffect(() => {
     let cancelled = false;
     void api
-      .get<ApiResponse<{ data?: { banks?: { name: string; iin: string }[] } }>>("/txn/aeps/banks")
+      .get<ApiResponse<{ data?: { banks?: LiveBankRow[] } }>>("/txn/aeps/banks")
       .then(({ data }) => {
         if (cancelled || !data.success) return;
-        const rows = data.data?.data?.banks ?? [];
-        if (rows.length === 0) return;
-        const map: Record<string, string> = {};
-        for (const r of rows) {
-          if (r.iin) map[bankKey(r.name)] = r.iin;
-        }
-        setLiveIinByName(map);
+        const rows = (data.data?.data?.banks ?? []).filter((r) => r.iin);
+        if (rows.length > 0) setLiveBanks(rows);
       })
       .catch(() => {
         /* non-fatal — static IINs still work */
@@ -514,9 +555,19 @@ function AepsPageInner() {
     };
   }, []);
 
+  const allBanks = useMemo(() => mergeBanks(liveBanks), [liveBanks]);
+  /** Deposit shows only Cash Deposit banks; every other tab only AEPS banks. */
+  const tabBanks = useMemo<Bank[]>(
+    () => allBanks.filter((b) => (tab === "Deposit" ? b.cashDeposit : b.aeps)),
+    [allBanks, tab],
+  );
   const selectedBankIin = selectedBank
-    ? (liveIinByName[bankKey(selectedBank.name)] ?? selectedBank.iin)
+    ? (allBanks.find((b) => b.id === selectedBank.id)?.iin ?? selectedBank.iin)
     : "";
+
+  useEffect(() => {
+    if (selectedBank && !tabBanks.some((b) => b.id === selectedBank.id)) setSelectedBank(null);
+  }, [selectedBank, tabBanks]);
 
   // Daily 2FA needs the provider agent id: the onboarding form opens first; after Skip the page
   // opens without the 2FA screen and transactions point back to onboarding.
@@ -807,27 +858,27 @@ function AepsPageInner() {
   }
 
   const stripBanks = useMemo(() => {
-    const byId = new Map(BANKS.map((b) => [b.id, b]));
+    const byId = new Map(tabBanks.map((b) => [b.id, b]));
     const favs = favBanks
       .map((id) => byId.get(id))
       .filter((b): b is Bank => Boolean(b));
     const slots = Math.max(4, visibleSlotCount);
     // Favourites drive the strip length; with no favs, fill roughly one viewport.
-    const base = favs.length > 0 ? favs : BANKS.slice(0, Math.max(slots, 12));
+    const base = favs.length > 0 ? favs : tabBanks.slice(0, Math.max(slots, 12));
     if (!selectedBank) return base;
     if (base.some((b) => b.id === selectedBank.id)) return base;
     // View-All pick: insert at rotating index across visible width (not locked to 0–3).
     const slot = Math.min(selectedInsertAt % slots, base.length);
     return [...base.slice(0, slot), selectedBank, ...base.slice(slot)];
-  }, [favBanks, selectedBank, selectedInsertAt, visibleSlotCount]);
+  }, [favBanks, selectedBank, selectedInsertAt, tabBanks, visibleSlotCount]);
 
   const selectBank = useCallback(
     (bank: Bank, fromViewAll: boolean) => {
-      const byId = new Map(BANKS.map((b) => [b.id, b]));
+      const byId = new Map(tabBanks.map((b) => [b.id, b]));
       const favs = favBanks
         .map((id) => byId.get(id))
         .filter((b): b is Bank => Boolean(b));
-      const base = favs.length > 0 ? favs : BANKS;
+      const base = favs.length > 0 ? favs : tabBanks;
       const already = base.some((b) => b.id === bank.id);
       if (fromViewAll && !already) {
         const mod = Math.max(4, visibleSlotCountRef.current);
@@ -836,7 +887,7 @@ function AepsPageInner() {
       }
       setSelectedBank(bank);
     },
-    [favBanks, insertSlot],
+    [favBanks, insertSlot, tabBanks],
   );
 
   const measureVisibleSlots = useCallback(() => {
@@ -1011,14 +1062,14 @@ function AepsPageInner() {
           <AepsNewLayout
             tab={tab}
             onTabChange={setTab}
-            banks={BANKS}
+            banks={tabBanks}
             selectedBank={selectedBank}
             onBankChange={(bank) => {
               if (!bank) {
                 setSelectedBank(null);
                 return;
               }
-              const full = BANKS.find((b) => b.id === bank.id);
+              const full = tabBanks.find((b) => b.id === bank.id);
               if (full) selectBank(full, true);
             }}
             aadhaar={aadhaar}
@@ -1042,10 +1093,10 @@ function AepsPageInner() {
           <AepsLayout3
             tab={tab}
             onTabChange={setTab}
-            banks={BANKS}
+            banks={tabBanks}
             selectedBank={selectedBank}
             onSelectBank={(bank) => {
-              const full = BANKS.find((b) => b.id === bank.id);
+              const full = tabBanks.find((b) => b.id === bank.id);
               if (full) selectBank(full, true);
             }}
             onViewAllBanks={() => setBankSidebarOpen(true)}
@@ -1596,6 +1647,7 @@ function AepsPageInner() {
       {/* Bank sidebar popup */}
       <BankSidebar
         open={bankSidebarOpen}
+        banks={tabBanks}
         onClose={() => setBankSidebarOpen(false)}
         onSelect={(bank) => selectBank(bank, true)}
         favouriteIds={favBanks}

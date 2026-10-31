@@ -59,14 +59,12 @@ describe("UPI QR status", () => {
     expect((await check(60_000)).message).toBe("The customer's UPI payment failed");
   });
 
-  it("no record: pending while young, failed after the grace window", async () => {
+  it("no record stays pending, however old the QR", async () => {
     const noRecord = { status: -1, statusCode: "AG0003", description: "No Records Found" };
     noblePost.mockResolvedValueOnce(statusReply(noRecord));
     expect((await check(60_000)).status).toBe("pending");
     noblePost.mockResolvedValueOnce(statusReply(noRecord));
-    const old = await check(16 * 60_000);
-    expect(old.status).toBe("failed");
-    expect(old.message).toBe("The customer did not pay this QR");
+    expect((await check(24 * 60 * 60_000)).status).toBe("pending");
   });
 
   it("other provider errors stay pending", async () => {

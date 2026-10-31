@@ -57,10 +57,10 @@ describe("Noble status checks never guess a final answer", () => {
     expect((await check("aeps_cash_withdrawal", { status: 1, responseData: [{}] })).status).toBe("pending");
   });
 
-  it("'no record' is pending at first and failed after an hour", async () => {
+  it("'no record' is never final, however old the txn", async () => {
     const noRecord = { status: 0, statusCode: "AG0003", message: "No Records Found" };
     expect((await check("aeps_cash_withdrawal", noRecord, 10 * 60 * 1000)).status).toBe("pending");
-    expect((await check("aeps_cash_withdrawal", noRecord, 2 * HOUR)).status).toBe("failed");
+    expect((await check("aeps_cash_withdrawal", noRecord, 48 * HOUR)).status).toBe("pending");
   });
 
   it("other status 0 replies on a status check stay pending", async () => {
@@ -69,10 +69,10 @@ describe("Noble status checks never guess a final answer", () => {
     );
   });
 
-  it("AEPS 'No Records Found' (status -1 / AG0003, as documented) fails only after an hour", async () => {
+  it("AEPS 'No Records Found' (status -1 / AG0003, as documented) stays pending", async () => {
     const noRecord = { status: -1, statusCode: "AG0003", message: "Error", description: "No Records Found" };
     expect((await check("aeps_cash_withdrawal", noRecord, 10 * 60 * 1000)).status).toBe("pending");
-    expect((await check("aeps_cash_deposit", noRecord, 2 * HOUR)).status).toBe("failed");
+    expect((await check("aeps_cash_deposit", noRecord, 48 * HOUR)).status).toBe("pending");
   });
 
   it("AG0003 with any other text is a generic error, never final", async () => {
@@ -117,7 +117,16 @@ describe("AEPS money submits need an explicit tranStatus", () => {
     noblePost.mockResolvedValueOnce({ httpStatus: 200, json: { status: 1, responseData: [{ tranStatus: "Success" }] } });
     expect((await adapter.aepsWithdraw(params)).status).toBe("success");
     noblePost.mockResolvedValueOnce({ httpStatus: 200, json: { status: 0, statusCode: "VF0003" } });
-    expect((await adapter.aepsDeposit(params)).status).toBe("failed");
-    expect(noblePost.mock.calls[0]?.[2]).toMatchObject({ bankName: "STATE BANK OF INDIA", bioType: "0" });
+    expect((await adapter.aepsDeposit({ ...params, bankIin: "607153" })).status).toBe("failed");
+    expect(noblePost.mock.calls[0]?.[2]).toMatchObject({ bankName: "State Bank of India", bioType: "0" });
+    expect(noblePost.mock.calls[2]?.[2]).toMatchObject({ bankName: "Axis Bank", bankIn: "607153" });
+  });
+
+  it("refuses a bank that is not on the live list before calling the provider", async () => {
+    await expect(adapter.aepsDeposit(params)).rejects.toMatchObject({ code: "CASH_DEPOSIT_BANK_NOT_LIVE" });
+    await expect(adapter.aepsWithdraw({ ...params, bankIin: "YES000" })).rejects.toMatchObject({
+      code: "AEPS_BANK_NOT_LIVE",
+    });
+    expect(noblePost).not.toHaveBeenCalled();
   });
 });

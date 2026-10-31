@@ -51,6 +51,8 @@ export interface AepsBank {
   iin: string;
   aepsEnabled: boolean;
   aadhaarpayEnabled: boolean;
+  /** Missing = unknown; clients then allow the bank for Cash Deposit. */
+  cashDepositEnabled?: boolean;
   aepsFailureRate: string;
   aadhaarpayFailureRate: string;
 }

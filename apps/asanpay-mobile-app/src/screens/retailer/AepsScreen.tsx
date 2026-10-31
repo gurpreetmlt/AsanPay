@@ -103,7 +103,7 @@ function sanitizeAepsFavIds(ids: string[], validIds: Set<string>): string[] {
   const out: string[] = [];
   for (const raw of ids) {
     const id = AEPS_FAV_LEGACY[raw] ?? raw;
-    if (validIds.has(id) && !out.includes(id)) out.push(id);
+    if ((validIds.has(id) || /^iin_\d{6}$/.test(id)) && !out.includes(id)) out.push(id);
   }
   return out;
 }
@@ -112,11 +112,50 @@ interface AepsBankRow {
   name: string;
   iin: string;
   aepsEnabled?: boolean;
+  cashDepositEnabled?: boolean;
 }
 
 /** Normalize a bank name for fuzzy matching across our list vs provider list. */
 function bankKey(name: string): string {
   return name.toLowerCase().replace(/payments?/g, "").replace(/[^a-z]/g, "");
+}
+
+type ListedBank = Bank & { aeps: boolean; cashDeposit: boolean };
+
+const LIVE_BANK_COLORS = ["#1565C0", "#2E7D32", "#6A1B9A", "#E65100", "#00838F", "#AD1457", "#4E342E", "#283593"];
+
+/**
+ * GET /txn/aeps/banks decides which banks exist and their IINs; our static banks keep their look.
+ * Same merge as web `app/aeps/page.tsx`.
+ */
+function mergeBanks(live: AepsBankRow[] | null): ListedBank[] {
+  if (!live) return BANKS.map((b) => ({ ...b, aeps: true, cashDeposit: true }));
+  const byIin = new Map(live.map((r) => [r.iin, r]));
+  const byName = new Map(live.map((r) => [bankKey(r.name), r]));
+  const used = new Set<string>();
+  const out: ListedBank[] = [];
+  const flags = (r: AepsBankRow) => ({ aeps: r.aepsEnabled !== false, cashDeposit: r.cashDepositEnabled !== false });
+  for (const b of BANKS) {
+    const row = byIin.get(b.iin) ?? byName.get(bankKey(b.name));
+    if (!row || used.has(row.iin)) continue;
+    used.add(row.iin);
+    out.push({ ...b, iin: row.iin, ...flags(row) });
+  }
+  live.forEach((row, i) => {
+    if (used.has(row.iin)) return;
+    used.add(row.iin);
+    const plain = row.name.replace(/^the\s+/i, "");
+    out.push({
+      id: `iin_${row.iin}`,
+      name: row.name,
+      shortName: plain.split(/\s+/)[0] ?? plain,
+      color: LIVE_BANK_COLORS[i % LIVE_BANK_COLORS.length]!,
+      letter: plain.charAt(0).toUpperCase(),
+      iin: row.iin,
+      ...flags(row),
+    });
+  });
+  return out;
 }
 
 const AEPS_TABS = ["Withdraw", "Mini Statement", "Deposit", "Balance Enquiry", "Aadhaar Pay"] as const;
@@ -646,7 +685,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const BANK_STRIDE = BANK_ITEM_W + BANK_GAP;
 
   // Live IIN overrides from GET /txn/aeps/banks (keyed by normalized bank name).
-  const [liveIinByName, setLiveIinByName] = useState<Record<string, string>>({});
+  const [liveBanks, setLiveBanks] = useState<AepsBankRow[] | null>(null);
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [aadhaar, setAadhaar] = useState("");
   const [mobile, setMobile] = useState("");
@@ -819,19 +858,15 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     apAttemptKey.current.clear();
   }, [selectedBank?.id, aadhaar, mobile]);
 
-  // Fetch the provider bank directory once; override our static IINs with live ones by name.
+  // Fetch the provider bank directory once; it decides which banks show and their IINs.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         const { data } = await api.get<ApiResponse<{ data?: { banks?: AepsBankRow[] } }>>("/txn/aeps/banks");
-        const rows = data.data?.data?.banks ?? [];
+        const rows = (data.data?.data?.banks ?? []).filter((r: AepsBankRow) => r.iin);
         if (cancelled || rows.length === 0) return;
-        const map: Record<string, string> = {};
-        for (const r of rows) {
-          if (r.iin) map[bankKey(r.name)] = r.iin;
-        }
-        setLiveIinByName(map);
+        setLiveBanks(rows);
       } catch {
         // Non-fatal — fall back to static IINs.
       }
@@ -841,10 +876,16 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     };
   }, []);
 
-  const resolvedBanks = useMemo(
-    () => BANKS.map((b) => ({ ...b, iin: liveIinByName[bankKey(b.name)] ?? b.iin })),
-    [liveIinByName],
+  const allBanks = useMemo(() => mergeBanks(liveBanks), [liveBanks]);
+  /** Deposit shows only Cash Deposit banks; every other tab only AEPS banks. */
+  const resolvedBanks = useMemo<Bank[]>(
+    () => allBanks.filter((b) => (tab === "Deposit" ? b.cashDeposit : b.aeps)),
+    [allBanks, tab],
   );
+
+  useEffect(() => {
+    if (selectedBank && !resolvedBanks.some((b) => b.id === selectedBank.id)) setSelectedBank(null);
+  }, [selectedBank, resolvedBanks]);
 
   const stripBanks = useMemo(() => {
     const byId = new Map(resolvedBanks.map((b) => [b.id, b]));
@@ -854,7 +895,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
     const base =
       favs.length > 0
         ? favs
-        : resolvedBanks.slice(0, Math.max(8, resolvedBanks.length));
+        : resolvedBanks.slice(0, 12);
 
     if (!selectedBank) return base;
     if (base.some((b) => b.id === selectedBank.id)) return base;

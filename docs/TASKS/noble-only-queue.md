@@ -27,12 +27,13 @@
 | P9 | UPI QR collections → transactions + recon `QR` | done (26 Oct) — `0072` runs on EC2 after redeploy |
 | P10 | Callback handler → settle txns (needs provider sample payload) | on hold (owner, 27 Oct): after app work. URL verified: provider test callback 23 Oct (`test`, `status`, `clientRefId`); no live txn callback yet |
 | P11 | Token: reuse one token until 23:59:59 IST, no early refresh (all tokens of a day share that expiry) | done (31 Oct) — `noble/client.ts`, `test/nobleTokenShare.test.ts` |
-| P12 | Recharge status: only `tranStatus` decides; missing `tranStatus` → `recharge_status`; never auto-fail / refund an unknown txn until the provider names its "not found" code | **CURRENT** |
-| P13 | "No records" rule: `AG0003` (AEPS, UPI QR) and `DB0042` (DMT) are never final by time; no status check in the first 15 min; replaces UPI QR "15 min then failed" | |
-| P14 | Airtel DMT: eKYC field `merchantMobileNo`; `RS_OB_009` → stop with a clear message; send a correct `bankName` (IFSC lookup) | |
-| P15 | Cash Deposit bank list (62 banks, own list) separate from AEPS (136 banks) — web + mobile | |
-| P16 | CMS: check flow = provider wallet debit → our retailer-debit callback → bank; commission from the posting webhook | |
-| P17 | Daily recon: after 23:00 IST, max 500 per call, CW / MT / QR / CD, from the first production txn — check `reconJob.ts` | |
+| P12 | Recharge status: only `tranStatus` decides; missing `tranStatus` → `recharge_status`; unknown-id "Failed" trusted only with a provider id or after 30 min | done (31 Oct) — already in `noble.adapter.ts`, no change |
+| P13 | "No records" rule: `AG0003` (AEPS, UPI QR) and `DB0042` (DMT) are never final by time — stay pending, stuck alert + admin close | done (31 Oct) — removed the 15 min / 60 min auto-fail |
+| P14 | Airtel DMT: eKYC field `merchantMobileNo`; `RS_OB_009` → stop with a clear message; never send a guessed `bankName` | done (31 Oct) — eKYC field was already right; unknown IFSC bank now refused |
+| P15 | Live AEPS (135) + Cash Deposit (61) bank lists — `noble/aepsBanks.ts`, refused before the provider call; web + mobile show the live list, Deposit tab only Cash Deposit banks | done (31 Oct) |
+| P16 | CMS: flow = provider wallet debit → our retailer-debit callback → bank; commission from the posting webhook | checked (31 Oct) — `merchantId` = retailer mobile and statuses match; money callbacks still declined → P18 |
+| P17 | Daily recon: after 23:00 IST, max 500 per call, CW / MT / QR / CD, from the first production txn | checked (31 Oct) — `reconJob.ts` already right; MT = Aadhaar Pay in the recon docs |
+| P18 | CMS money flow: debit retailer wallet on `balance_check_debit`, credit commission on `transaction_post` (ledger + idempotency) | blocked — CMS not on the provider's enabled list yet |
 
 ---
 
@@ -161,8 +162,8 @@ Needs a real callback sample from the provider. Map payload → `settleTxnFromPr
 - CMS: when is commission credited in the other 0.1% of cases? If we decline the retailer debit, is our wallet re-credited?
 - Penny Drop / Pennyless price per hit
 - Jio DMT, Fino DMT and CMS are not in the enabled-endpoints list — enable or confirm
-- Recon `reconData` format; is Aadhaar Pay recon needed; which DMT rails count as MT
-- Cash Deposit list: bank name for IIN `607512`; SBI / ICICI / Kotak not on the list
+- Recon: confirm MT means Aadhaar Pay (recon docs) and not DMT (reply said "Money Transfer")
+- Cash Deposit list: bank name for IIN `607512`; SBI / ICICI / Kotak not on the list; AEPS IIN 900010 (NPCI test bank) left out on purpose
 
 ## Open questions for the provider (owner emails)
 - Recon `reconData` format (`status~transactionId~rrn`?)
