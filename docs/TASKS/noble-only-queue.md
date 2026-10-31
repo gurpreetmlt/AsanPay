@@ -149,7 +149,26 @@ Needs a real callback sample from the provider. Map payload → `settleTxnFromPr
 
 ## Open questions for the provider (owner emails)
 - Recon `reconData` format (`status~transactionId~rrn`?)
-- Commission chart per service
+- Commission chart per service (DMT agent commission set by us — only need the provider's charge per DMT slab)
 - Which services are assigned (Fino / Jio DMT, Verification, OCR)
+
+### DMT (Airtel live, Jio pilot, Fino next)
+- Charge to us per DMT txn per rail: flat / % / slab, GST inclusive or extra, debited when, refunded on failure
+- Jio + Fino DMT enabled on our production account? Separate activation per rail?
+- Limits per rail: per txn min/max, per remitter daily / monthly, whole rupees only? (Jio ₹100–₹5,000)
+- IMPS / NEFT per rail; NEFT cut-off timings
+- Remitter registered on one rail usable on another, or register + eKYC per rail?
+- eKYC: biometric needed per rail? wadh value? OTP validity + resend limit
+- Beneficiary verification (penny drop) per rail + its charge
+- Final status code list per rail (success / failed / pending); max time a txn can stay pending
+- Callback per rail: sample payload, retries, source IPs, signature
+- Recon report / API per rail + format
+- Reversal after success: auto credit to our wallet? Remitter refund OTP needed? Timeline
+- Same `transactionId` sent twice — duplicate rejected or processed?
+- Recommended timeout + rate limit
+- Per-agent onboarding / KYC needed for DMT (like AEPS), or account-level?
+- Mandatory receipt fields (UTR / RRN, bank name, beneficiary name)
+- Stuck txn / dispute escalation contact + TAT
+- UAT test numbers for Jio and Fino
 - Callback sample payload per service
 - Full recharge operator code list (DTH: Tata Play, Sun, d2h; mobile: Jio, Vi, BSNL B2B codes)

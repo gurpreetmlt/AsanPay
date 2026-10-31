@@ -318,7 +318,15 @@ export default function SettingsPage() {
       });
       toast.success("Biometric login enabled");
     } catch (err) {
-      toast.error(extractApiError(err, err instanceof Error ? err.message : "Biometric setup failed"));
+      const webAuthnMessage: Record<string, string> = {
+        NotAllowedError:
+          "Touch ID / Windows Hello was cancelled or timed out. Click Enable biometric and confirm on this device.",
+        InvalidStateError: "Biometric login is already set up on this device.",
+        NotSupportedError: "This device has no Touch ID / Windows Hello set up. Turn it on in system settings first.",
+        SecurityError: "Biometric login works only on the secure AsanPay site (https). Open the portal from its usual address.",
+      };
+      const name = err instanceof DOMException ? err.name : "";
+      toast.error(webAuthnMessage[name] ?? extractApiError(err, "Biometric setup did not finish. Try again."));
     } finally {
       setBioLoading(false);
     }
