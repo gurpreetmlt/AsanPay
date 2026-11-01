@@ -7,6 +7,10 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-41 | Admin portal hardening — TOTP 2FA on admin login, office IP allowlist, two-admin approval for large manual credits, alert on repeated failed logins / refresh-token replays | Backend, admin | M | planned | — | — |
+| PL-40 | New-device login limits — first 24 h after login on a new phone: lower transaction limits + settlement hold; agent + upline alerted | Backend, web, mobile, admin | M | planned | — | — |
+| PL-39 | Settlement bank change hold — payouts paused 24–48 h after the settlement bank changes; agent + upline alerted on WhatsApp | Backend, web, mobile, admin | S | planned | — | — |
+| PL-38 | RD device match on every AePS txn — device serial from the PID capture must match one of the agent's registered devices, else block | Backend, web, mobile | M | planned | — | — |
 | PL-37 | CMS biller commission — upload the provider's Cash Collection sheet (Biller ID, name, company margin, Retailer / Distributor / Super margin) in admin; list all billers under Cash Collection with search + export; each CMS txn pays by its biller | Backend, admin | M | built — 1 Nov (P18 payout hook pending) | — | [cms-biller-commission.md](TASKS/cms-biller-commission.md) |
 | PL-36 | React Native upgrade 0.77 → 0.88 — clears Play Console AGP 9 + edge-to-edge warnings; React 19, native libs, AEPS RD module check | Mobile | XL | building — phases 0–5 done; merged to `main` 1 Nov (tag `pre-rn-0.88` = last 0.77 code); phase 6 device test + phase 7 internal testing pending | — | [rn-upgrade-0-88.md](TASKS/rn-upgrade-0-88.md) |
 | PL-35 | DMT bank rails with priority — Airtel, Jio and Fino money transfer side by side; agent sees the rails in admin priority order on the DMT screen; admin reorders and turns each rail on/off | Backend, agent web, mobile, admin | L | building — phase 1 built 30 Oct (admin order + on/off, agent chips); phase 2 Jio built 30 Oct (pilot for test retailers set in admin, flip live after ₹100 test); Fino Coming soon | — | [dmt-rails.md](TASKS/dmt-rails.md) |
@@ -46,6 +50,61 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-41 — Admin portal hardening
+
+**Problem:** A leaked admin password opens fund approval, allocation, recon adjustment and agent blocks. The audit log already shows `auth.login_failed` and `auth.stale_refresh_token_denied`, but nobody is alerted.
+
+**Plan**
+- TOTP 2FA (authenticator app) on admin login; recovery codes shown once.
+- Admin portal reachable only from allowlisted IPs (admin-editable list, break-glass via EC2).
+- Manual wallet credit / recon adjustment above a threshold needs a second admin's approval (maker-checker).
+- Alert (Telegram / WhatsApp) on N failed admin logins or refresh-token replays within a window.
+
+**Open decisions**
+- [ ] Credit threshold for two-admin approval
+- [ ] Alert channel and failed-login threshold
+- [ ] IP allowlist: static office IP available?
+
+## PL-40 — New-device login limits
+
+**Problem:** A stolen OTP / MPIN lets someone log in from another phone and move money at full limits.
+
+**Plan**
+- Device trust already records new devices (`isNewDevice` on login); mark the first 24 h after a new device as a probation window.
+- During probation: lower per-txn / daily limits, settlement requests held.
+- Agent + upline alerted; admin can lift probation from the agent page.
+
+**Open decisions**
+- [ ] Probation length and limits per service
+- [ ] Does web login (new browser) count as a new device?
+
+## PL-39 — Settlement bank change hold
+
+**Problem:** Account takeover → change settlement bank → withdraw wallet. Most common payout fraud.
+
+**Plan**
+- On settlement bank add / change, payouts pause for a cooling period; screen shows when payouts reopen.
+- WhatsApp alert to the agent and the upline with the masked new account.
+- Admin can release early after a call-back check.
+
+**Open decisions**
+- [ ] 24 h or 48 h
+- [ ] First-ever bank (signup) exempt?
+
+## PL-38 — RD device match on every AePS txn
+
+**Problem:** Devices are registered (OTP, one serial per agent, max devices), but the AePS txn path never checks which device captured the fingerprint — an unregistered or borrowed device still works.
+
+**Plan**
+- Read the device serial from the PID capture (device info / additional info) on the backend.
+- Match against the agent's active `agent_devices`; no match → block with a clear message ("This fingerprint device is not registered to your account. Register it in Devices.").
+- Same check for daily 2FA, withdrawal, balance, mini statement, Aadhaar Pay.
+- Log mismatches as a risk signal.
+
+**Open decisions**
+- [ ] Block immediately or warn for a week first
+- [ ] Confirm serial field per RD vendor (Mantra / Morpho / Startek / face RD)
 
 ## PL-37 — CMS biller commission
 
