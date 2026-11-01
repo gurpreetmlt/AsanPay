@@ -1,5 +1,6 @@
 import { API_BASE, setAuthHeader } from "./api";
 import { disableBioUnlock } from "./bioUnlock";
+import { unregisterPushToken } from "./push";
 import { clearRememberedLogin } from "./rememberedLogin";
 import { useAuthStore } from "../store/auth";
 import axios from "axios";
@@ -7,6 +8,7 @@ import axios from "axios";
 /** Server-side session kill + clear local auth/bio. Always succeeds locally. */
 export async function logoutEverywhere(): Promise<void> {
   const { accessToken, refreshToken, logout } = useAuthStore.getState();
+  await unregisterPushToken(accessToken);
   try {
     await axios.post(
       `${API_BASE}/auth/logout`,

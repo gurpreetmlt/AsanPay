@@ -124,6 +124,7 @@
 - [x] Mobile partner Reverse / pull-collect on Network
 - [x] InstantPay merchant outlet Min-KYC + Bio-KYC (web + mobile, RD `wadh`)
 - [ ] InstantPay DMT mobile full parity + BBPS / recharge rails
+- [x] Push tokens (PL-42 phase 2): `push_tokens` (migration `0102`), `POST` / `DELETE /api/push/token`, `firebase-admin` sender (`modules/push/push.sender.ts`, env `FIREBASE_SERVICE_ACCOUNT_B64`), `npm run push:test` (`PUSH_TEST_MOBILE`). Mobile registers after sign-in + on token refresh, deletes on logout
 
 ## Ledger engine (double-entry)
 - [x] Chart of accounts (`tenants`, `accounts`, `account_balances`) + 9 system accounts

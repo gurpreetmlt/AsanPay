@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppAlertHost } from "./src/components/AppAlert";
-import { ensurePushPermission, startPushListeners } from "./src/lib/push";
+import { ensurePushPermission, startPushListeners, startPushTokenSync } from "./src/lib/push";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { SplashScreen } from "./src/screens/SplashScreen";
 import { ThemeProvider } from "./src/theme/ThemeContext";
@@ -19,6 +19,7 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => startPushListeners(), []);
+  useEffect(() => startPushTokenSync(), []);
 
   // Ask after the splash so the system prompt does not cover the brand animation.
   useEffect(() => {

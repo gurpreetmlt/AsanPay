@@ -79,6 +79,14 @@ const envSchema = z.object({
     z.string().url().optional(),
   ),
   /**
+   * Firebase service account JSON, base64-encoded (`base64 -i key.json | tr -d '\n'`). Unset = push
+   * sending is off and callers fall back (e.g. web login uses OTP). Never commit the key file.
+   */
+  FIREBASE_SERVICE_ACCOUNT_B64: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  /**
    * Comma-separated "mobile:otp" pairs that receive a FIXED login OTP instead of a random one
    * (e.g. "9333333333:222222,9444444444:333333"). Interim until an SMS provider is integrated,
    * and useful for Play Store review accounts. Works in production but ONLY for listed numbers —

@@ -40,6 +40,7 @@ import { whatsappRouter } from "./modules/whatsapp/whatsapp.routes";
 import { whatsappWebhookRouter } from "./modules/whatsapp/support/webhook.routes";
 import { whatsappSupportRouter } from "./modules/whatsapp/support/support.routes";
 import { accountRouter } from "./modules/account/account.routes";
+import { pushRouter } from "./modules/push/push.routes";
 
 export function createApp(): Express {
   const app = express();
@@ -190,6 +191,7 @@ export function createApp(): Express {
   app.use("/api/settlements", settlementRouter);
   app.use("/api/float", floatRouter);
   app.use("/api/promos", promosRouter);
+  app.use("/api/push", pushRouter);
   app.use("/api/webhooks/vyaparapi", vyaparapiWebhookRouter);
   app.use("/api/webhooks/noble", nobleWebhookRouter);
   app.use("/api/webhooks/telegram", telegramWebhookRouter);

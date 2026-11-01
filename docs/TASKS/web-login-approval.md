@@ -12,8 +12,8 @@
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | FCM in the mobile app (`src/lib/push.ts`, channel `asanpay_alerts`, `firebase.json`) | done (tested 1 Nov) |
-| 2 | Push tokens + backend sender | **CURRENT** |
-| 3a | Backend approval API | todo |
+| 2 | Push tokens + backend sender (`modules/push`, migration `0102`, `npm run push:test`) | done (code, 1 Nov) |
+| 3a | Backend approval API | **CURRENT** |
 | 3b | Agent web wait screen | todo |
 | 3c | Mobile approval popup | todo |
 
