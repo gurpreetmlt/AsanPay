@@ -156,7 +156,7 @@ Record generated QR + status as a `transactions` row (credit to AEPS wallet on s
 Needs a real callback sample from the provider. Map payload → `settleTxnFromProviderCallback` (same pattern as `providers/vyaparapi/webhook.routes.ts`). Add a shared-secret query token.
 
 ## Provider reply (31 Oct) — follow-ups still open
-- Token: what time does the daily login counter reset? Is the 5 / day limit shared by the production and testing IPs? Does a new login invalidate the earlier token of the same day? (dev + production run on the same credentials, each with its own token)
+- ~~Token questions~~ — closed (owner, 31 Oct). Working rule from the reply: token valid until 23:59:59 IST, counter treated as resetting at midnight IST, 5 logins / day per client id (dev + production share it), only the last token of the day is trusted. Code: one token per day reused (P11); a rejected token re-logs in once. Keep dev provider checks rare.
 - Recharge: exact "Transaction Not Found" error code (our test got `RE0001` + `tranStatus: Failed` for an unknown id)
 - `AG0003` / `DB0042` still returned after 15 min: when can we treat the txn as never received?
 - CMS: when is commission credited in the other 0.1% of cases? If we decline the retailer debit, is our wallet re-credited?
