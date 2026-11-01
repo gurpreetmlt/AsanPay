@@ -639,7 +639,7 @@ export async function listRateAudit(filters?: { limit?: number; entityType?: str
   const adminUser = alias(users, "rate_audit_admin");
   const targetUser = alias(users, "rate_audit_target");
   const q = filters?.q?.trim();
-  const entityType = ["rule", "override", "share", "provider_income", "tax_config", "customer_fee"].includes(filters?.entityType ?? "")
+  const entityType = ["rule", "override", "share", "provider_income", "tax_config", "customer_fee", "cms_billers"].includes(filters?.entityType ?? "")
     ? filters?.entityType
     : undefined;
 

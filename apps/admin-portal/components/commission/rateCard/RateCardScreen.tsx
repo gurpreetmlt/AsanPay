@@ -29,6 +29,7 @@ import { openBrandedPdf } from "@/lib/brandedExport";
 import { downloadCsv } from "@/lib/taxCommissionUtils";
 import { downloadRateCardWorkbook, rateCardCsv, rateCardReport, sheetFillRequest, sheetReady } from "./rateCardTransfer";
 import { RateCardImportModal } from "./RateCardImportModal";
+import { CmsBillersPanel } from "./CmsBillersPanel";
 import { ImportHistoryModal, UndoImportModal, type UndoTarget } from "./RateCardImportHistory";
 import { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
@@ -42,6 +43,9 @@ import { ROLE_LABEL, SCHEME_ROLES, inr, pct, slabLabel, type RateCardData, type 
 import { Btn, CategoryBlock, ServiceTable, Chip, SlabHeaderRow, openBlockEdge } from "./ui";
 
 type ShowFilter = "all" | "loss" | "unset";
+
+/** Cash Collection: margins differ per biller, kept in the Billers panel under its slabs. */
+const CMS_SERVICE_CODE = "CASH_COLLECTION";
 
 /** Zebra rows: services alternate light tints; an open service and its slab rows sit on a blue band. */
 const ROW_BG = {
@@ -945,6 +949,13 @@ export function RateCardScreen() {
                                   );
                                 })
                               : null}
+                            {open && row.serviceCode === CMS_SERVICE_CODE ? (
+                              <tr className="border-t" style={{ borderColor: B.border, boxShadow: openBlockEdge("middle") }}>
+                                <td colSpan={7} className="px-3 py-2">
+                                  <CmsBillersPanel />
+                                </td>
+                              </tr>
+                            ) : null}
                             {open ? (
                               <tr className="rc-slab-in border-t" style={{ borderColor: B.border, boxShadow: openBlockEdge("bottom") }}>
                                 <td colSpan={7} className="px-3 py-1.5">

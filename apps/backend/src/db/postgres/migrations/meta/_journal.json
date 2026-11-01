@@ -708,6 +708,13 @@
       "when": 1795100000000,
       "tag": "0100_admin_totp_backup_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1795200000000,
+      "tag": "0101_cms_biller_rates",
+      "breakpoints": true
     }
   ]
 }

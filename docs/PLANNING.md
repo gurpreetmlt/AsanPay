@@ -7,7 +7,8 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-36 | React Native upgrade 0.77 → 0.88 — clears Play Console AGP 9 + edge-to-edge warnings; React 19, native libs, AEPS RD module check | Mobile | XL | building — phases 0–4 done 30 Oct (branch `rn-0.88`); phase 5 current; 1.0.6 upload paused until done | — | [rn-upgrade-0-88.md](TASKS/rn-upgrade-0-88.md) |
+| PL-37 | CMS biller commission — upload the provider's Cash Collection sheet (Biller ID, name, company margin, Retailer / Distributor / Super margin) in admin; list all billers under Cash Collection with search + export; each CMS txn pays by its biller | Backend, admin | M | built — 1 Nov (P18 payout hook pending) | — | [cms-biller-commission.md](TASKS/cms-biller-commission.md) |
+| PL-36 | React Native upgrade 0.77 → 0.88 — clears Play Console AGP 9 + edge-to-edge warnings; React 19, native libs, AEPS RD module check | Mobile | XL | building — phases 0–5 done; merged to `main` 1 Nov (tag `pre-rn-0.88` = last 0.77 code); phase 6 device test + phase 7 internal testing pending | — | [rn-upgrade-0-88.md](TASKS/rn-upgrade-0-88.md) |
 | PL-35 | DMT bank rails with priority — Airtel, Jio and Fino money transfer side by side; agent sees the rails in admin priority order on the DMT screen; admin reorders and turns each rail on/off | Backend, agent web, mobile, admin | L | building — phase 1 built 30 Oct (admin order + on/off, agent chips); phase 2 Jio built 30 Oct (pilot for test retailers set in admin, flip live after ₹100 test); Fino Coming soon | — | [dmt-rails.md](TASKS/dmt-rails.md) |
 | PL-34 | Linked accounts for 3 roles — one person links Super Distributor + Distributor + Retailer (one per role, same PAN + Aadhaar + name checked against every account in the group); unlink one account or all; admin agent page shows the linked group | Backend, agent web, mobile, admin | M | built — 30 Oct (no migration; `MAX_LINKED_ACCOUNTS` 3, `DELETE /api/linked-accounts/:id?scope=one\|all`, `/admin/users/:id/linked-accounts`) | — | — |
 | PL-33 | Webhooks page, next steps: provider IP allowlist per key, signature (HMAC header) instead of token in the URL, re-process a failed callback from the log, alert when a provider goes quiet, "Customer webhooks" tab (we send events to B2B customers: URL, events, signing secret, retries, delivery log) | Backend, admin | L | planned | — | — |
@@ -45,6 +46,23 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
 
 ---
+
+## PL-37 — CMS biller commission
+
+**Problem:** The provider's Cash Collection commercial sheet lists 310 billers, each with its own company margin (0.008 – 1.045) and Retailer / Distributor / Super margins. The rate card only holds amount slabs, so the sheet's per-biller rows have nowhere to live; admin cannot see or check them.
+
+**Plan:**
+- Table `cms_biller_rates` (biller id, name, company margin, retailer / distributor / super margin, active, updated by / at) + import history
+- Admin: upload the sheet as-is (xlsx / csv, same 6 columns), preview new / changed / removed billers, reason, save, undo
+- Admin: Cash Collection on the rate card shows "Billers (310)" — search, Agent / Customer filter, sort, Export PDF / Excel / CSV
+- CMS money flow (noble-only-queue P18) pays by biller: margin from this table, else the callback's `commission` × rate-card share
+
+**Open decisions:**
+- [ ] Unit of the margins (% of amount or ₹ per txn) — confirm with the first live CMS callback
+- [ ] Unknown biller in a live txn: pay by rate-card share of the callback commission, or hold for review
+
+**Notes:** Rate card keeps one Cash Collection line (Retailer 50% / Distributor 10% / SD 0% share) — imported 1 Nov.
+Built 1 Nov: migration `0101`, `GET /admin/cms/billers`, `POST /admin/cms/billers/import` (`dryRun` preview → save), `POST /admin/cms/billers/imports/:id/undo`. Agent / Customer type = "AGENT" / "CUSTOMER" word in the biller name. Margins stored as-is (6 decimals). Payout by biller stays in noble-only-queue P18.
 
 ## PL-36 — React Native upgrade 0.77 → 0.88
 

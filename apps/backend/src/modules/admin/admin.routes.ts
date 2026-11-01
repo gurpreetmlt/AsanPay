@@ -1104,6 +1104,34 @@ adminRouter.post("/rate-card/imports/:id/undo", async (req, res) => {
   sendSuccess(res, await undoRateCardImport(req.auth.sub, id), "Import undone");
 });
 
+// ── Cash Collection (CMS) biller margins ────────────────────────────────────
+adminRouter.get("/cms/billers", async (req, res) => {
+  const { listCmsBillers } = await import("../commission/cmsBiller.service");
+  const query = z
+    .object({
+      q: z.string().max(100).optional(),
+      type: z.enum(["agent", "customer", "other"], { message: "Type must be agent, customer or other" }).optional(),
+      includeInactive: z.enum(["true", "false"]).optional(),
+    })
+    .parse(req.query);
+  sendSuccess(res, await listCmsBillers({ q: query.q, type: query.type, includeInactive: query.includeInactive === "true" }));
+});
+
+adminRouter.post("/cms/billers/import", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { importCmsBillers, billerImportSchema } = await import("../commission/cmsBiller.service");
+  const body = billerImportSchema.parse(req.body);
+  const result = await importCmsBillers(req.auth.sub, body);
+  sendSuccess(res, result, result.saved ? "Biller sheet saved" : "Biller sheet checked");
+});
+
+adminRouter.post("/cms/billers/imports/:id/undo", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { undoCmsBillerImport } = await import("../commission/cmsBiller.service");
+  const id = z.string().uuid("Upload id must be a valid id").parse(req.params.id);
+  sendSuccess(res, await undoCmsBillerImport(req.auth.sub, id), "Biller upload undone");
+});
+
 adminRouter.get("/commission/tax-config", async (_req, res) => {
   const { listTaxConfigs } = await import("../commission/tax.service");
   const { resolveTenantId } = await import("../fund-requests/tenant");

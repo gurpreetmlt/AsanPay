@@ -366,3 +366,49 @@ export const rateCardImports = pgTable(
   },
   (table) => [index("rate_card_imports_tenant_created_idx").on(table.tenantId, table.createdAt)],
 );
+
+/**
+ * Cash Collection (CMS) margins per biller from the provider sheet. All margins share the company margin's unit;
+ * retailer + distributor + super <= company margin, AsanPay keeps the rest.
+ */
+export const cmsBillerRates = pgTable(
+  "cms_biller_rates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    billerId: varchar("biller_id", { length: 20 }).notNull(),
+    billerName: varchar("biller_name", { length: 200 }).notNull(),
+    companyMargin: numeric("company_margin", { precision: 10, scale: 6 }).notNull(),
+    retailerMargin: numeric("retailer_margin", { precision: 10, scale: 6 }).notNull(),
+    distributorMargin: numeric("distributor_margin", { precision: 10, scale: 6 }).notNull(),
+    superMargin: numeric("super_margin", { precision: 10, scale: 6 }).notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("cms_biller_rates_biller_id_key").on(table.billerId)],
+);
+
+/** One biller sheet upload; `undoPayload` = each touched biller's row before the upload (null = it was new). */
+export const cmsBillerImports = pgTable(
+  "cms_biller_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    adminId: uuid("admin_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    fileName: varchar("file_name", { length: 200 }).notNull(),
+    reason: text("reason").notNull(),
+    newCount: integer("new_count").notNull().default(0),
+    changedCount: integer("changed_count").notNull().default(0),
+    removedCount: integer("removed_count").notNull().default(0),
+    undoPayload: jsonb("undo_payload").notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    undoneAt: timestamp("undone_at", { withTimezone: true }),
+    undoneBy: uuid("undone_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (table) => [index("cms_biller_imports_tenant_created_idx").on(table.tenantId, table.createdAt)],
+);

@@ -98,9 +98,15 @@ export function createApp(): Express {
     app.use(prefix, largeJson);
   }
   // Bulk imports (bank statements up to 500 lines, commission rules up to 1000 rows, rate card import history
-  // records with up to 2000 changes + restores) and profile photos (≤ 600 KB).
+  // records with up to 2000 changes + restores, CMS biller sheets up to 5000 rows) and profile photos (≤ 600 KB).
   const bulkJson = express.json({ limit: "2mb" });
-  for (const prefix of ["/api/banking/statements", "/api/admin/commission/rules/import", "/api/admin/rate-card/imports", "/api/account/photo"]) {
+  for (const prefix of [
+    "/api/banking/statements",
+    "/api/admin/commission/rules/import",
+    "/api/admin/rate-card/imports",
+    "/api/admin/cms/billers/import",
+    "/api/account/photo",
+  ]) {
     app.use(prefix, bulkJson);
   }
   // Meta signs the exact bytes it sent, so keep them for X-Hub-Signature-256 verification.

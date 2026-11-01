@@ -20,6 +20,7 @@
 - [x] Per-agent service commission overrides (admin agent detail)
 - [x] Providers & routing → Verifications tab: every check (PAN, Aadhaar OTP, bank account chain, recharge lookups) with provider on/off + primary/fallback; VyaparAPI number-info as second provider for recharge lookups (off by default)
 - [x] Admin agent page → Services & limits (PL-31 phase 1): per-agent service on/off (incl. UPI Cash Point), per txn / daily / monthly limits per service, role change, soft account close / reopen (migration `0093`)
+- [x] Rate card → Cash Collection → Billers panel (PL-37): `cms_biller_rates` + `cms_biller_imports` (migration `0101`), upload provider biller sheet (xlsx / csv) with preview new / changed / removed + reason, 24 h undo (newest upload first), search + Agent / Customer filter + sort + Export PDF / Excel / CSV, uploads in Rate audit (`cms_billers`). P18 payout hook pending
 - [x] Commission page: AEPS sub-services collapsed to one shared-rate row (Task 25)
 - [x] Wallet page shows Pending balance (Wallet 1 / Wallet 2)
 - [x] Role rename: `master_distributor` → `super_distributor` (enum + UI code; migration `0032`)

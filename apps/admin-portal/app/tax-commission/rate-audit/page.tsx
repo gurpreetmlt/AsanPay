@@ -40,10 +40,18 @@ const ENTITY_LABEL: Record<string, string> = {
   provider_income: "Provider income",
   tax_config: "Tax settings",
   customer_fee: "Customer fee",
+  cms_billers: "CMS biller upload",
 };
 
 function summarize(s: Snapshot): string {
   if (!s) return "—";
+  if (s.restored != null) return `Undone · ${Number(s.restored)} billers restored`;
+  if (s.billers != null || s.new != null) {
+    const parts = s.billers != null ? [`${Number(s.billers)} active billers`] : [];
+    for (const k of ["new", "changed", "removed"] as const) if (Number(s[k] ?? 0) > 0) parts.push(`${Number(s[k])} ${k}`);
+    if (typeof s.fileName === "string") parts.push(s.fileName);
+    return parts.join(" · ") || "—";
+  }
   const type = s.ruleType;
   const value = s.value;
   const parts: string[] = [];
@@ -157,6 +165,7 @@ export default function TaxCommissionRateAuditPage() {
               <option value="provider_income">Provider income</option>
               <option value="tax_config">Tax settings</option>
               <option value="customer_fee">Customer fee</option>
+              <option value="cms_billers">CMS biller uploads</option>
             </select>
           </label>
         </div>
