@@ -1,7 +1,10 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Android 13+: push notifications need a runtime grant (requested in src/lib/push.ts). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -54,6 +57,17 @@
       android:networkSecurityConfig="@xml/network_security_config"
       android:usesCleartextTraffic="false"
       android:supportsRtl="true">
+      <!-- Status-bar icon for FCM notifications (must be a white-on-transparent silhouette).
+           Channel id comes from firebase.json. -->
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_icon"
+        android:resource="@drawable/ic_notification" />
+      <!-- Overrides the messaging library default; app colors are not visible to the library's
+           resource check, so this cannot go in firebase.json. -->
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_color"
+        android:resource="@color/notification_accent"
+        tools:replace="android:resource" />
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

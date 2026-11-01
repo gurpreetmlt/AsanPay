@@ -7,7 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
-| PL-42 | Approve web login from the mobile app — web login waits; trusted phone gets "Approve / Deny" with browser, city, time and a number match; 2-minute expiry; OTP fallback when no trusted phone | Backend, web, mobile | L | planned — Firebase ready 1 Nov: project `asanpay-c909b` (Spark, free), Android app `com.asanpay.mobile`, `google-services.json` in `android/app/` (gitignored), Admin SDK key kept off-repo on the owner's Mac; push not wired in code yet | — | — |
+| PL-42 | Approve web login from the mobile app — web login waits; trusted phone gets "Approve / Deny" with browser, city, time and a number match; 2-minute expiry; OTP fallback when no trusted phone | Backend, web, mobile | L | planned — Firebase ready 1 Nov: project `asanpay-c909b` (Spark, free), Android app `com.asanpay.mobile`, `google-services.json` in `android/app/` (gitignored), Admin SDK key kept off-repo on the owner's Mac. Phase 1 (push in app) built + tested from Firebase console 1 Nov; next: phase 2 (push tokens + backend sender), phase 3 (approval flow) — ready | — | [web-login-approval.md](TASKS/web-login-approval.md) |
 | PL-41 | Admin portal hardening — TOTP 2FA on admin login, office IP allowlist, two-admin approval for large manual credits, alert on repeated failed logins / refresh-token replays | Backend, admin | M | planned | — | — |
 | PL-40 | New-device login limits — first 24 h after login on a new phone: lower transaction limits + settlement hold; agent + upline alerted | Backend, web, mobile, admin | M | planned | — | — |
 | PL-39 | Settlement bank change hold — payouts paused 24–48 h after the settlement bank changes; agent + upline alerted on WhatsApp | Backend, web, mobile, admin | S | built — 1 Nov: IST time in `BANK_COOLING`, hold + countdown on web + mobile settlement banks, email alert to agent + upline, admin "Remove withdrawal hold" (audit `settlement_bank.cooling_released`); WhatsApp alert waits for an approved template; deploy + APK + live test pending | — | — |
@@ -63,12 +63,19 @@ One row per feature; details in the section below the table. Newest at the top o
 - No trusted phone (or app not installed) → OTP login as today, flagged as new device (PL-40 limits apply).
 - Approved browsers stay trusted for a set number of days.
 
+**Phase 1 (built 1 Nov, mobile only):** `@react-native-firebase/*` 27.1.0, google-services 4.5.0, `POST_NOTIFICATIONS` asked after splash (`src/lib/push.ts`), channel `asanpay_alerts` (created in `MainApplication.kt`, wired via `firebase.json`), `ic_notification` small icon, foreground pushes shown as an in-app alert. No token sent to the backend yet (phase 2). Tested 1 Nov: Firebase console campaign delivered to a release APK. Original scope: push only — `@react-native-firebase/app` + `messaging` (check compatibility with RN 0.88.1 / React 19.3 / Gradle 9.6.1), `com.google.gms.google-services` Gradle plugin (Groovy `build.gradle`), Android 13+ `POST_NOTIFICATIONS` permission prompt, notification channel; test via Firebase console → Messaging → campaign to `com.asanpay.mobile`. No backend yet.
+
+**Phase 2 (M):** `push_tokens` table (user, device id, FCM token, updated at); mobile registers the token after login + on refresh, removes it on logout; backend `firebase-admin` sender (service account in Coolify env, never in git).
+
+**Phase 3 (L):** `login_approvals` table (status pending / approved / denied / expired, 2-digit number, browser, IP city, expires at); agent web login → "Approve on your app" wait screen polling the approval; push to the agent's trusted phone → approval popup with number match + Approve / Deny; 2-minute expiry; OTP fallback when no trusted phone has a token; trusted-browser cookie; audit + risk signal on Deny.
+
 **Prerequisite:** push notifications (Firebase Cloud Messaging) — not in the app or backend yet; needs a Firebase project + `google-services.json`. Without push, the app can only show pending approvals when opened (polling).
 
 **Open decisions**
-- [ ] Trusted browser period (1 day / 7 days / 30 days)
-- [ ] Mandatory for all roles or only Distributor / SD first
-- [ ] Admin portal too (overlaps PL-41 2FA)
+- [x] Trusted browser period → **1 day** (decided 1 Nov)
+- [x] Roles → **all agent roles** (Retailer, Distributor, Super Distributor)
+- [x] No trusted phone / push off → **OTP login as today**, flagged as a new device
+- [x] Admin portal → **no** (admin 2FA stays under PL-41)
 
 ## PL-41 — Admin portal hardening
 

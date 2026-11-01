@@ -30,6 +30,7 @@
 | — | DMT bank rails — Airtel / Jio / Fino with admin priority (PL-35) | L ⚠️ 1 phase/chat | [dmt-rails.md](dmt-rails.md) |
 | — | **Compliance queue** (KYC data, agreements, onboarding states, AEPS re-KYC, audit) | XL ⚠️ 1 phase/chat | [compliance-queue.md](compliance-queue.md) |
 | — | **Agent controls queue** (PL-31: services & limits, security, wallet/commission holds, activity) | XL ⚠️ 1 phase/chat | [agent-controls-queue.md](agent-controls-queue.md) |
+| — | Web login approval from the mobile app (PL-42: push tokens, approval flow) | L ⚠️ 1 phase/chat | [web-login-approval.md](web-login-approval.md) |
 
 ## Web UI
 | # | Task | Size | File |

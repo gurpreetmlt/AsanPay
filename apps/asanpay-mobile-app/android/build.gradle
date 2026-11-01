@@ -16,6 +16,8 @@ buildscript {
         classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        // Reads app/google-services.json (gitignored, kept on the build machine only).
+        classpath("com.google.gms:google-services:4.5.0")
     }
 }
 
