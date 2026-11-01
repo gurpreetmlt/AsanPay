@@ -162,9 +162,24 @@ export async function recordRootedDeviceSignal(userId: string, purposes: string[
 export async function recordWebLoginDeniedSignal(
   userId: string,
   approvalId: string,
-  details: { reason: "user" | "wrong_number"; ip: string | null; browser: string | null },
+  details: { reason: "user" | "wrong_number" | "mock_location"; ip: string | null; browser: string | null },
 ): Promise<void> {
   await record(userId, "web_login_denied", "warn", details, approvalId);
+}
+
+/** Phone GPS at web login approval: fake GPS → critical; > 50 km from the shop → warn. */
+export async function recordWebLoginLocationSignal(
+  userId: string,
+  approvalId: string,
+  details: { status: "mock" | "far"; distanceKm: number | null; accuracyMeters: number | null; sameNetwork: boolean | null },
+): Promise<void> {
+  await record(
+    userId,
+    details.status === "mock" ? "mock_location" : "out_of_zone",
+    details.status === "mock" ? "critical" : "warn",
+    { ...details, source: "web_login_approval" },
+    approvalId,
+  );
 }
 
 /**

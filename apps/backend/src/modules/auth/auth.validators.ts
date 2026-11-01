@@ -149,6 +149,7 @@ export const otpVerifySchema = z.object({
   deviceId: deviceIdSchema.optional(),
   deviceLabel: deviceLabelSchema,
   ...policyAcceptanceFields,
+  ...loginApprovalFields,
 });
 export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;
 
@@ -164,22 +165,38 @@ export const loginApprovalPollSchema = z.object({
     .max(200),
 });
 
-export const loginApprovalDecideSchema = z
-  .object({
-    decision: z.enum(["approve", "deny"], { message: "Decision must be approve or deny" }),
-    matchNumber: z.number().int().min(10).max(99).optional(),
-    /** The phone deciding (mobile `deviceId.ts`). */
-    deviceId: deviceIdSchema.optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.decision === "approve" && data.matchNumber === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Pick the number shown on the web login screen",
-        path: ["matchNumber"],
-      });
-    }
-  });
+/** Phone GPS sent with a web login approve / QR scan. */
+const phoneFixFields = {
+  latitude: z.number({ message: "Turn on Location (GPS) on your phone to approve this login." }).min(-90).max(90),
+  longitude: z.number({ message: "Turn on Location (GPS) on your phone to approve this login." }).min(-180).max(180),
+  accuracyMeters: z.number().min(0).max(100_000).optional(),
+  isMockLocation: z.boolean().optional(),
+};
+
+export const loginApprovalDecideSchema = z.object({
+  decision: z.enum(["approve", "deny"], { message: "Decision must be approve or deny" }),
+  /** Password / OTP requests; QR requests have no number. */
+  matchNumber: z.number().int().min(10).max(99).optional(),
+  /** The phone deciding (mobile `deviceId.ts`). */
+  deviceId: deviceIdSchema.optional(),
+  location: z.object(phoneFixFields).optional(),
+  confirmFar: z.boolean().optional(),
+});
+
+export const qrLoginStartSchema = z.object({
+  deviceId: deviceIdSchema.optional(),
+  deviceLabel: deviceLabelSchema,
+});
+
+export const qrLoginScanSchema = z.object({
+  qr: z
+    .string({ message: "Scan the QR shown on the AsanPay web login page" })
+    .trim()
+    .min(20, "This is not a valid AsanPay login QR. Refresh the QR on the web login page and scan again.")
+    .max(300),
+  deviceId: deviceIdSchema,
+  ...phoneFixFields,
+});
 
 export const mpinLoginSchema = z.object({
   mobile: mobileSchema,

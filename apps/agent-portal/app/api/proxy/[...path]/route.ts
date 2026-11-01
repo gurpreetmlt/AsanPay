@@ -103,8 +103,8 @@ function authSessionPayload(json: { data?: { user?: unknown; status?: unknown; i
   };
 }
 
-/** Password login: this portal has the approval wait screen; add the 1-day trusted-browser token. */
-async function passwordLoginBody(req: NextRequest): Promise<string> {
+/** Password / OTP login: this portal has the approval wait screen; add the 1-day trusted-browser token. */
+async function approvalLoginBody(req: NextRequest): Promise<string> {
   const body = ((await req.json().catch(() => null)) as Record<string, unknown> | null) ?? {};
   delete body.trustedBrowserToken;
   const trusted = await getTrustedBrowserCookie();
@@ -133,8 +133,11 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     const switchBodyWith = (token: string | null) =>
       switchBody ? JSON.stringify(token ? { ...switchBody, refreshToken: token } : switchBody) : undefined;
 
-    const isPasswordLogin = req.method === "POST" && path.length === 2 && isAuth && path[1] === "login";
-    const loginBody = isPasswordLogin ? await passwordLoginBody(req) : undefined;
+    const isApprovalLogin =
+      req.method === "POST" &&
+      isAuth &&
+      ((path.length === 2 && path[1] === "login") || (path.length === 3 && path[1] === "otp" && path[2] === "verify"));
+    const loginBody = isApprovalLogin ? await approvalLoginBody(req) : undefined;
 
     let upstream = await forward(req, path, accessToken, loginBody ?? switchBodyWith(refreshToken));
 

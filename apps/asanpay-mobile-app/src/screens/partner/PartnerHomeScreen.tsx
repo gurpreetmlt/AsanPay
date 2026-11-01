@@ -6,6 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import {
   ArrowLeftRight,
   Bell,
+  Scan,
   BookText,
   ChartColumn,
   ChevronRight,
@@ -38,6 +39,7 @@ import { SupportCallButton } from "../../components/SupportCallButton";
 import { FundRequestModal } from "../shared/FundRequestScreen";
 import { InviteModal, type InviteResult } from "./NetworkScreen";
 import { LinkedAccountsHost, type LinkedAccountsView } from "../../components/linkedAccounts/LinkedAccountsHost";
+import { ScanQrModal } from "../shared/ScanQrModal";
 
 interface PartnerStats {
   revenue?: { todayCommission?: string };
@@ -64,6 +66,7 @@ export function PartnerHomeScreen() {
   const navigation = useNavigation<{ navigate: (name: string, params?: object) => void }>();
   const { tokens } = useTheme();
   const [wallets, setWallets] = useState<WalletBalance[]>([]);
+  const [scanOpen, setScanOpen] = useState(false);
   const [todayEarnings, setTodayEarnings] = useState<string | null>(null);
   const [todayGross, setTodayGross] = useState<string | null>(null);
   const [todayTds, setTodayTds] = useState<string | null>(null);
@@ -174,6 +177,9 @@ export function PartnerHomeScreen() {
                 </Text>
               </View>
             </View>
+            <Pressable style={styles.bellBtn} onPress={() => setScanOpen(true)} accessibilityLabel="Scan QR">
+              <Scan size={18} color="#fff" strokeWidth={2.1} />
+            </Pressable>
             <SupportCallButton />
             <Pressable style={styles.bellBtn} onPress={() => comingSoon("Notifications")}>
               <Bell size={18} color="#fff" strokeWidth={2.1} />
@@ -323,6 +329,7 @@ export function PartnerHomeScreen() {
           }}
         />
         <LinkedAccountsHost view={accountsView} onClose={() => setAccountsView(null)} />
+        <ScanQrModal visible={scanOpen} onClose={() => setScanOpen(false)} />
       </SafeAreaView>
     </PageEnter>
   );

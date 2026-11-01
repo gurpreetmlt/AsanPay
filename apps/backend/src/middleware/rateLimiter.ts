@@ -141,6 +141,17 @@ export const loginApprovalPollLimiter = rateLimit({
   validate: sharedValidate,
 });
 
+/** Web login page asks for a fresh QR every 2 minutes while it stays open. */
+export const qrLoginStartLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: isDev ? 300 : 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many QR codes requested from this network. Wait 15 minutes or log in with OTP." },
+  keyGenerator: (req) => `qr-login:${clientIp(req)}`,
+  validate: sharedValidate,
+});
+
 export const walletTxnLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: isDev ? 200 : 10,

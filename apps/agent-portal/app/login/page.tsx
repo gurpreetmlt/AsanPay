@@ -11,11 +11,13 @@ import {
   EyeOff,
   Fingerprint,
   KeyRound,
+  QrCode,
 } from "lucide-react";
 import { POLICY_VERSION, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { LoginPolicyConsent } from "@/components/auth/LoginPolicyConsent";
 import { LoginApprovalWait, type LoginApprovalChallenge } from "@/components/auth/LoginApprovalWait";
+import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
 import { PromoSlider } from "@/components/promos/PromoSlider";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
@@ -75,7 +77,8 @@ export default function LoginPage() {
   // full OTP form for a moment before flipping to Welcome-back (or vice versa) right after logout.
   const [checkedRemembered, setCheckedRemembered] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
-  const [approval, setApproval] = useState<LoginApprovalChallenge | null>(null);
+  const [approval, setApproval] = useState<(LoginApprovalChallenge & { via: "password" | "otp" }) | null>(null);
+  const [qrMode, setQrMode] = useState(false);
   const lastOtpSentKey = useRef<string | null>(null);
 
   useEffect(() => {
@@ -207,7 +210,7 @@ export default function LoginPage() {
       });
       if (!data.success) throw new Error(data.message);
       if ("approvalRequired" in data.data) {
-        setApproval(data.data);
+        setApproval({ ...data.data, via: "password" });
         return;
       }
       finishLogin(data.data);
@@ -260,7 +263,7 @@ export default function LoginPage() {
     if (!mobile || otp.length !== 6 || !policyAccepted) return;
     setLoading(true);
     try {
-      const { data } = await api.post<ApiResponse<LoginResponseData>>("/auth/otp/verify", {
+      const { data } = await api.post<ApiResponse<LoginResponseData | LoginApprovalChallenge>>("/auth/otp/verify", {
         mobile,
         otp,
         portal: "agent",
@@ -269,20 +272,27 @@ export default function LoginPage() {
         ...POLICY_PAYLOAD,
       });
       if (!data.success) throw new Error(data.message);
-
-      if (data.data.user.hasTxnPin === true) {
-        setPending(data.data);
-        setOtpStep("pin");
-        toast.success("OTP verified — enter your PIN");
-      } else {
-        // No PIN yet → session + force set-PIN / KYC via onboarding
-        finishLogin(data.data);
+      if ("approvalRequired" in data.data) {
+        setApproval({ ...data.data, via: "otp" });
+        return;
       }
+      afterOtpSession(data.data);
     } catch (err) {
       if (isPolicyRequiredError(err)) onPolicyRequired();
       toast.error(extractApiError(err, "Incorrect OTP"));
     } finally {
       setLoading(false);
+    }
+  }
+
+  function afterOtpSession(session: LoginResponseData) {
+    if (session.user.hasTxnPin === true) {
+      setPending(session);
+      setOtpStep("pin");
+      toast.success("OTP verified — enter your PIN");
+    } else {
+      // No PIN yet → session + force set-PIN / KYC via onboarding
+      finishLogin(session);
     }
   }
 
@@ -586,22 +596,48 @@ export default function LoginPage() {
                 Check your phone
               </h2>
               <p className="mb-7 text-sm" style={{ color: B.muted }}>
-                Password login on a new browser needs approval from your AsanPay app for +91 {mobile}
+                Login on a new browser needs approval from your AsanPay app for +91 {mobile}
               </p>
               <LoginApprovalWait
                 key={approval.approvalId}
                 challenge={approval}
                 onApproved={(user) => {
+                  const via = approval.via;
                   setApproval(null);
                   setPassword("");
-                  finishLogin({ user, accessToken: "cookie", refreshToken: "cookie" });
+                  const session = { user, accessToken: "cookie", refreshToken: "cookie" };
+                  if (via === "otp") afterOtpSession(session);
+                  else finishLogin(session);
                 }}
                 onRetry={() => {
+                  if (approval.via === "otp") {
+                    approvalUseOtp();
+                    return;
+                  }
                   setApproval(null);
                   void handlePasswordLogin();
                 }}
-                onUseOtp={approvalUseOtp}
-                onCancel={() => setApproval(null)}
+                onUseOtp={approval.via === "password" ? approvalUseOtp : undefined}
+                onCancel={() => {
+                  setApproval(null);
+                  if (approval.via === "otp") switchMethod("otp");
+                }}
+              />
+            </>
+          ) : qrMode ? (
+            <>
+              <h2 className="mb-1 text-2xl font-bold" style={{ color: B.blue }}>
+                Login with QR code
+              </h2>
+              <p className="mb-7 text-sm" style={{ color: B.muted }}>
+                Fast and secure — no password or OTP needed on this computer.
+              </p>
+              <QrLoginPanel
+                onApproved={(user) => {
+                  setQrMode(false);
+                  finishLogin({ user, accessToken: "cookie", refreshToken: "cookie" });
+                }}
+                onCancel={() => setQrMode(false)}
               />
             </>
           ) : unlockMode && remembered ? (
@@ -864,6 +900,18 @@ export default function LoginPage() {
           >
             <Fingerprint size={20} style={{ color: B.blue }} />
             Biometric Login
+          </PrimaryButton>
+
+          <PrimaryButton
+            type="button"
+            variant="secondary"
+            showArrow={false}
+            disabled={loading || !policyAccepted}
+            onClick={() => setQrMode(true)}
+            className="mb-4 gap-2"
+          >
+            <QrCode size={20} style={{ color: B.blue }} />
+            Login with QR code
           </PrimaryButton>
 
           <p className="text-center text-xs" style={{ color: B.muted }}>

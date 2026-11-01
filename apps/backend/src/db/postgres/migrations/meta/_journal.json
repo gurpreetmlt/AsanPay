@@ -729,6 +729,13 @@
       "when": 1795400000000,
       "tag": "0103_login_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1795500000000,
+      "tag": "0104_login_approval_qr_location",
+      "breakpoints": true
     }
   ]
 }

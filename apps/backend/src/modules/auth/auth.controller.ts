@@ -34,6 +34,8 @@ import {
   loginApprovalIdParamSchema,
   loginApprovalPollSchema,
   loginApprovalDecideSchema,
+  qrLoginStartSchema,
+  qrLoginScanSchema,
 } from "./auth.validators";
 import {
   registerUser,
@@ -73,7 +75,13 @@ import {
   regenerateAdminBackupCodes,
   pollWebLoginApproval,
 } from "./auth.service";
-import { decideLoginApproval, listPendingLoginApprovals } from "./loginApproval.service";
+import {
+  decideLoginApproval,
+  listPendingLoginApprovals,
+  scanQrLogin,
+  startQrLogin,
+} from "./loginApproval.service";
+import { isAgentPortalRole } from "@asanpay/shared-types";
 import { clientIp } from "../../middleware/rateLimiter";
 import {
   requestEmailVerifyOtp,
@@ -256,7 +264,22 @@ export async function requestOtp(req: Request, res: Response): Promise<void> {
 export async function verifyOtp(req: Request, res: Response): Promise<void> {
   const input = otpVerifySchema.parse(req.body);
   const result = await verifyLoginOtp(input, browserContext(req));
-  sendSuccess(res, result, "Logged in successfully");
+  sendSuccess(res, result, "approvalRequired" in result ? APPROVAL_REQUIRED_MESSAGE : "Logged in successfully");
+}
+
+export async function qrLoginStart(req: Request, res: Response): Promise<void> {
+  const input = qrLoginStartSchema.parse(req.body ?? {});
+  sendSuccess(res, await startQrLogin(input, browserContext(req)), "Scan this QR with the AsanPay app");
+}
+
+export async function qrLoginScan(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  if (!isAgentPortalRole(req.auth.role)) {
+    throw new HttpError(403, "Only agent accounts can log in to the agent web with QR.", "WRONG_PORTAL");
+  }
+  const input = qrLoginScanSchema.parse(req.body ?? {});
+  const result = await scanQrLogin(req.auth.sub, input, browserContext(req));
+  sendSuccess(res, result, "Check the details, then approve the web login");
 }
 
 export async function mpinLogin(req: Request, res: Response): Promise<void> {

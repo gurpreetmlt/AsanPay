@@ -6,9 +6,11 @@ import { showAlert } from "./AppAlert";
 import { InlineError, LaButton, laStyles } from "./linkedAccounts/parts";
 import { apiError } from "../utils/apiError";
 import {
+  captureLoginLocation,
   decideLoginApproval,
   fetchPendingLoginApprovals,
   onLoginApprovalPush,
+  type LoginFix,
   type PendingLoginApproval,
 } from "../lib/loginApproval";
 import { useAuthStore } from "../store/auth";
@@ -20,6 +22,7 @@ const CLOSED_CODES = new Set([
   "LOGIN_APPROVAL_EXPIRED",
   "LOGIN_APPROVAL_DECIDED",
   "LOGIN_APPROVAL_NOT_FOUND",
+  "LOGIN_APPROVAL_MOCK_LOCATION",
 ]);
 
 function secondsUntil(iso: string): number {
@@ -41,11 +44,16 @@ export function LoginApprovalHost() {
   const [busy, setBusy] = useState<"approve" | "deny" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [farWarning, setFarWarning] = useState<string | null>(null);
   const dismissed = useRef(new Set<string>());
   const currentId = useRef<string | null>(null);
+  /** GPS taken on the first Approve tap, reused for "Approve anyway". */
+  const fix = useRef<LoginFix | null>(null);
 
   function clear() {
     currentId.current = null;
+    fix.current = null;
+    setFarWarning(null);
     setCurrent(null);
   }
 
@@ -56,8 +64,10 @@ export function LoginApprovalHost() {
       const next = list.find((a) => !dismissed.current.has(a.id)) ?? null;
       if (currentId.current === (next?.id ?? null)) return;
       currentId.current = next?.id ?? null;
+      fix.current = null;
       setPicked(null);
       setError(null);
+      setFarWarning(null);
       setCurrent(next);
     } catch {
       /* best effort — the next push or app open retries */
@@ -102,7 +112,7 @@ export function LoginApprovalHost() {
     clear();
   }
 
-  async function decide(decision: "approve" | "deny") {
+  async function decide(decision: "approve" | "deny", confirmFar = false) {
     if (!current) return;
     if (decision === "approve" && picked == null) {
       setError("Pick the number shown on the web login screen");
@@ -111,7 +121,22 @@ export function LoginApprovalHost() {
     setBusy(decision);
     setError(null);
     try {
-      const status = await decideLoginApproval(current.id, decision, picked ?? undefined);
+      let location = fix.current;
+      if (decision === "approve" && !location) {
+        try {
+          location = await captureLoginLocation();
+          fix.current = location;
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not get your location. Turn on Location (GPS) and try again.");
+          return;
+        }
+      }
+      const status = await decideLoginApproval(
+        current.id,
+        decision === "approve"
+          ? { decision, matchNumber: picked ?? undefined, location: location ?? undefined, confirmFar }
+          : { decision },
+      );
       dismissed.current.add(current.id);
       clear();
       if (status === "approved") {
@@ -125,10 +150,15 @@ export function LoginApprovalHost() {
     } catch (err) {
       const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
       const message = apiError(err, "Could not send your answer. Check your internet and try again.");
-      if (code && CLOSED_CODES.has(code)) {
+      if (code === "LOGIN_APPROVAL_CONFIRM_FAR") {
+        setFarWarning(message);
+      } else if (code && CLOSED_CODES.has(code)) {
         dismissed.current.add(current.id);
         clear();
-        showAlert(code === "LOGIN_APPROVAL_WRONG_NUMBER" ? "Login blocked" : "Login request closed", message);
+        showAlert(
+          code === "LOGIN_APPROVAL_WRONG_NUMBER" || code === "LOGIN_APPROVAL_MOCK_LOCATION" ? "Login blocked" : "Login request closed",
+          message,
+        );
       } else {
         setError(message);
       }
@@ -147,7 +177,7 @@ export function LoginApprovalHost() {
     <ModalSheet
       visible
       title="Approve web login?"
-      subtitle="Pick the number shown on the web login screen, then tap Approve."
+      subtitle="Pick the number shown on the web login screen, then tap Approve. Your location is checked."
       icon={<ShieldCheck />}
       iconTone="blue"
       onClose={close}
@@ -161,7 +191,7 @@ export function LoginApprovalHost() {
             </Text>
           </View>
           <View style={styles.tile}>
-            <Text style={styles.tileLabel}>Location</Text>
+            <Text style={styles.tileLabel}>Web location</Text>
             <Text style={styles.tileValue} numberOfLines={1}>
               {place}
             </Text>
@@ -203,14 +233,20 @@ export function LoginApprovalHost() {
         })}
       </View>
       <Text style={laStyles.helper}>If you did not try to log in on a computer, tap Deny.</Text>
+      {farWarning ? (
+        <View style={styles.farBox}>
+          <Text style={styles.farTitle}>You are far from your shop</Text>
+          <Text style={styles.farText}>{farWarning}</Text>
+        </View>
+      ) : null}
       <InlineError message={error} />
 
       <View style={laStyles.btnRow}>
         <LaButton label="Deny" tone="red" onPress={() => void decide("deny")} disabled={busy !== null} loading={busy === "deny"} />
         <LaButton
-          label="Approve"
+          label={farWarning ? "Approve anyway" : "Approve"}
           tone="blue"
-          onPress={() => void decide("approve")}
+          onPress={() => void decide("approve", Boolean(farWarning))}
           disabled={picked == null || busy !== null}
           loading={busy === "approve"}
         />
@@ -226,6 +262,9 @@ const styles = StyleSheet.create({
   tileLabel: { fontSize: 10.5, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", color: colors.textMuted },
   tileValue: { marginTop: 2, fontSize: 14, fontWeight: "700", color: colors.blue },
   pickLabel: { marginTop: 18 },
+  farBox: { marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: "#FDE68A", backgroundColor: "#FFFBEB", padding: 12 },
+  farTitle: { fontSize: 13, fontWeight: "800", color: "#92400E" },
+  farText: { marginTop: 3, fontSize: 12.5, lineHeight: 18, color: "#92400E" },
   choices: { flexDirection: "row", gap: 12 },
   choice: {
     flex: 1,

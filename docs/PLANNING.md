@@ -7,6 +7,7 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-43 | Web login location check + Login with QR code — phone GPS checked against the registered shop on every web login approval (fake GPS blocked, > 50 km needs a second confirm), OTP web login also needs a phone tap on a new browser, and a "Login with QR code" option scanned from the app | Backend, web, mobile | L | built 1 Nov — migrate `0104` + live test pending | — | [web-login-approval.md](TASKS/web-login-approval.md) |
 | PL-42 | Approve web login from the mobile app — web login waits; trusted phone gets "Approve / Deny" with browser, city, time and a number match; 2-minute expiry; OTP fallback when no trusted phone | Backend, web, mobile | L | built — Firebase ready 1 Nov: project `asanpay-c909b` (Spark, free), Android app `com.asanpay.mobile`, `google-services.json` in `android/app/` (gitignored), Admin SDK key kept off-repo on the owner's Mac. Phase 1 (push in app) built + tested from Firebase console 1 Nov; phase 2 (push tokens + backend sender) built 1 Nov; phase 3a (backend approval API, migration `0103`) built + deployed 1 Nov; 3b web wait screen, 3c mobile popup, 3d enforce (password-only gate, OTP fallback) built 1 Nov — test pending | — | [web-login-approval.md](TASKS/web-login-approval.md) |
 | PL-41 | Admin portal hardening — TOTP 2FA on admin login, office IP allowlist, two-admin approval for large manual credits, alert on repeated failed logins / refresh-token replays | Backend, admin | M | planned | — | — |
 | PL-40 | New-device login limits — first 24 h after login on a new phone: lower transaction limits + settlement hold; agent + upline alerted | Backend, web, mobile, admin | M | planned | — | — |
@@ -49,6 +50,23 @@ One row per feature; details in the section below the table. Newest at the top o
 | PL-03 | Web location via phone QR (AEPS + onboarding) | Backend, web, mobile | M | building (built 26 Oct, migrate `0074` + APK + live test pending) | — | — |
 | PL-02 | Cash Management page (CMS provider cards, in-app CMS, CMS transactions) | Backend, web, mobile | M | building (built 26 Oct, live test pending) | — | — |
 | PL-01 | Linked accounts + role switch (same person, Distributor + Retailer) | Backend, web, mobile, admin | M | building (backend + web + mobile built 26 Oct; migrate `0076` + APK + live test pending; admin card next) | [Figma prompt](PROMPTS/figma-linked-accounts.md) · Figma URL pending | [linked-accounts.md](TASKS/linked-accounts.md) |
+
+---
+
+## PL-43 — Web login location check + Login with QR code
+
+**Problem:** A phone tap proves the agent agreed, not where the computer is. Browser / IP location is too rough (Indian mobile IPs often map to a far-away city).
+
+**Plan**
+- Approve on the phone captures GPS + accuracy + fake-GPS flag; backend compares with the registered shop (`outlet_latitude` / `outlet_longitude`) and the browser's public IP.
+- ≤ 5 km ok · 5–50 km ok (logged) · > 50 km second confirm on the phone ("Approve only if you or your staff are logging in") + risk signal `out_of_zone` · fake GPS → blocked + risk signal `mock_location` (critical) · no shop GPS / accuracy > 1 km → unknown, allowed.
+- OTP login on the agent web also needs the phone tap when the browser is not trusted (1-day trust after approve). Mobile app OTP stays the fallback, never gated.
+- "Login with QR code" on the web login page: app Scan icon (retailer + partner home) → GPS → confirm card (browser, distance, same Wi-Fi) → Approve / Deny. QR expires in 2 minutes and refreshes.
+
+**Open decisions**
+- [ ] Tune 5 km / 50 km after a month of `login_approvals` data.
+- [ ] Hard-block far logins later, or keep the second confirm?
+- [ ] IP → city provider for the web location tile.
 
 ---
 

@@ -303,7 +303,7 @@ async function recordPolicyAcceptance(
   userId: string,
   policyVersion: string,
   channel: "web" | "app",
-  method: "password" | "otp" | "mpin" | "signup" | "switch",
+  method: "password" | "otp" | "mpin" | "signup" | "switch" | "qr",
   context: AuthContext,
 ): Promise<void> {
   await db
@@ -323,7 +323,7 @@ export async function ensurePolicyAccepted(
   row: typeof users.$inferSelect,
   input: PolicyAcceptanceInput,
   context: AuthContext,
-  method: "password" | "otp" | "mpin" | "switch",
+  method: "password" | "otp" | "mpin" | "switch" | "qr",
 ): Promise<void> {
   if (!isAgentPortalRole(row.role)) return;
 
@@ -366,7 +366,7 @@ export async function ensurePolicyAccepted(
 export async function issueSession(
   row: typeof users.$inferSelect,
   context: AuthContext,
-  method: "password" | "otp" | "mpin" | "switch",
+  method: "password" | "otp" | "mpin" | "switch" | "qr",
 ): Promise<{ user: AuthUser; accessToken: string; refreshToken: string }> {
   const healed = await healIncompleteVerifiedKyc(row);
   const accessToken = signAccessToken({ id: healed.id, uid: healed.uid, role: healed.role });
@@ -937,6 +937,7 @@ export async function loginUser(input: LoginInput, context: AuthContext): Promis
   if (isAgentPortalRole(row.role)) {
     const challenge = await startLoginApproval({
       user: row,
+      method: "password",
       supportsLoginApproval: input.supportsLoginApproval,
       trustedBrowserToken: input.trustedBrowserToken,
       deviceId: input.deviceId,
@@ -1097,7 +1098,7 @@ export async function requestLoginOtp(
 export async function verifyLoginOtp(
   input: OtpVerifyInput,
   context: AuthContext,
-): Promise<SessionResult & { isNewDevice?: boolean }> {
+): Promise<(SessionResult & { isNewDevice?: boolean }) | LoginApprovalChallenge> {
   if (input.portal === "admin") {
     throw new HttpError(401, "Invalid credentials", "INVALID_CREDENTIALS");
   }
@@ -1149,6 +1150,17 @@ export async function verifyLoginOtp(
 
   await markOtpConsumed(record.id);
 
+  const challenge = await startLoginApproval({
+    user: row,
+    method: "otp",
+    supportsLoginApproval: input.supportsLoginApproval,
+    trustedBrowserToken: input.trustedBrowserToken,
+    deviceId: input.deviceId,
+    deviceLabel: input.deviceLabel,
+    context,
+  });
+  if (challenge) return challenge;
+
   // deviceId is optional here (older/unwired clients still get a normal OTP login) — trust is
   // simply not established for those, so they'll be asked for OTP again next time too.
   let isNewDevice: boolean | undefined;
@@ -1183,7 +1195,7 @@ export async function verifyLoginOtp(
 }
 
 export type LoginApprovalPollResult =
-  | { status: "pending"; expiresAt: string; expiresInSeconds: number }
+  | { status: "pending"; expiresAt: string; expiresInSeconds: number; scanned: boolean }
   | { status: "denied" }
   | { status: "expired" }
   | (SessionResult & { status: "approved"; trustedBrowserToken: string; trustedBrowserExpiresAt: string });
@@ -1198,11 +1210,14 @@ export async function pollWebLoginApproval(
   if (state.status !== "approved") return state;
 
   const approval = state.approval;
+  if (!approval.userId) return { status: "expired" };
   const [row] = await db.select().from(users).where(eq(users.id, approval.userId));
   if (!row || !row.isActive) {
     throw new HttpError(403, "This account is inactive. Contact support.", "ACCOUNT_INACTIVE");
   }
   assertPortalAccess(row.role, "agent");
+  // QR login skips the login form, so the Terms acceptance must already be on record.
+  if (approval.loginMethod === "qr") await ensurePolicyAccepted(row, {}, context, "qr");
 
   if (approval.deviceId) {
     const prior = await findDevice(row.id, approval.deviceId);
@@ -1226,7 +1241,7 @@ export async function pollWebLoginApproval(
     }
   }
 
-  const method = approval.loginMethod === "otp" ? "otp" : "password";
+  const method = approval.loginMethod === "otp" ? "otp" : approval.loginMethod === "qr" ? "qr" : "password";
   const session = await issueSession(row, context, method);
   const trust = signTrustedBrowserToken(row, approval.deviceId);
   return {

@@ -14,11 +14,12 @@ import Geolocation, { type GeolocationResponse } from "@react-native-community/g
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera, useCameraDevice, useCameraPermission } from "react-native-vision-camera";
 import { useBarcodeScannerOutput, type TargetBarcodeFormat } from "react-native-vision-camera-barcode-scanner";
-import { CheckCircle2, MapPin, X, XCircle } from "lucide-react-native";
+import { CheckCircle2, MapPin, MonitorSmartphone, X, XCircle } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
 import { apiError } from "../../utils/apiError";
 import { detectMockLocation } from "../../lib/geoCapture";
+import { decideLoginApproval, describeDistance, scanQrLogin, type QrScanResult } from "../../lib/loginApproval";
 import { colors } from "../../theme/colors";
 
 /** Module-level so the scanner output is not recreated on every render. */
@@ -26,6 +27,8 @@ const QR_FORMATS: TargetBarcodeFormat[] = ["qr-code"];
 
 /** QR shown on the web "Verify your location" / "Fetch shop location" screens. */
 const GEO_PREFIX = "asanpay:geo:";
+/** QR shown on the web login page ("Login with QR code"). */
+const LOGIN_PREFIX = "asanpay:login:";
 
 type Fix = { latitude: number; longitude: number; accuracyMeters?: number; isMockLocation?: boolean };
 
@@ -71,10 +74,14 @@ async function exactLocation(): Promise<Fix> {
 type Phase =
   | { kind: "scanning" }
   | { kind: "working"; text: string }
-  | { kind: "done"; text: string }
-  | { kind: "error"; text: string };
+  | { kind: "confirmLogin"; scan: QrScanResult }
+  | { kind: "done"; text: string; title?: string }
+  | { kind: "error"; text: string; title?: string };
 
-/** Home "Scan QR": reads the web location QR and sends this phone's GPS for that web session. */
+/**
+ * Home "Scan QR": reads the web location QR and sends this phone's GPS for that web session, or
+ * the web login QR — GPS check, then the agent confirms the computer before it is signed in.
+ */
 export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const device = useCameraDevice("back");
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -88,11 +95,36 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
     if (!hasPermission) void requestPermission();
   }, [visible, hasPermission, requestPermission]);
 
+  const handleLoginCode = useCallback(async (value: string) => {
+    setPhase({ kind: "working", text: "Checking your location for the web login… (up to 20 seconds)" });
+    let geo: Fix;
+    try {
+      geo = await exactLocation();
+    } catch (err) {
+      setPhase({
+        kind: "error",
+        title: "Web login not confirmed",
+        text: err instanceof Error ? err.message : "Could not get your location. Scan again.",
+      });
+      return;
+    }
+    try {
+      const scan = await scanQrLogin(value, geo);
+      setPhase({ kind: "confirmLogin", scan });
+    } catch (err) {
+      setPhase({ kind: "error", title: "Web login not confirmed", text: apiError(err, "Could not read the login QR. Scan again.") });
+    }
+  }, []);
+
   const handleCode = useCallback(async (value: string) => {
     if (handling.current) return;
     handling.current = true;
+    if (value.startsWith(LOGIN_PREFIX)) {
+      await handleLoginCode(value);
+      return;
+    }
     if (!value.startsWith(GEO_PREFIX)) {
-      setPhase({ kind: "error", text: "This is not an AsanPay location QR. Scan the QR shown on the AsanPay web screen." });
+      setPhase({ kind: "error", text: "This is not an AsanPay QR. Scan the QR shown on the AsanPay web screen." });
       return;
     }
     const token = value.slice(GEO_PREFIX.length).trim();
@@ -121,7 +153,29 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
     } catch (err) {
       setPhase({ kind: "error", text: apiError(err, "Could not send the location. Scan the QR again.") });
     }
-  }, []);
+  }, [handleLoginCode]);
+
+  const [deciding, setDeciding] = useState<"approve" | "deny" | null>(null);
+
+  async function decideLogin(scan: QrScanResult, decision: "approve" | "deny") {
+    setDeciding(decision);
+    try {
+      const status = await decideLoginApproval(scan.approvalId, { decision });
+      setPhase(
+        status === "approved"
+          ? { kind: "done", title: "Web login approved", text: "The computer is now signed in. Continue on the web." }
+          : {
+              kind: "done",
+              title: "Web login denied",
+              text: "The computer was not signed in. If this wasn't you, change your password now.",
+            },
+      );
+    } catch (err) {
+      setPhase({ kind: "error", title: "Web login not confirmed", text: apiError(err, "Could not send your answer. Scan the QR again.") });
+    } finally {
+      setDeciding(null);
+    }
+  }
 
   const scannerOutput = useBarcodeScannerOutput({
     barcodeFormats: QR_FORMATS,
@@ -169,6 +223,25 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
               <Camera style={s.camera} device={device} isActive={visible} outputs={[scannerOutput]} />
               <View style={s.frame} pointerEvents="none" />
             </>
+          ) : phase.kind === "confirmLogin" ? (
+            <View style={s.center}>
+              <View style={s.card}>
+                <MonitorSmartphone size={44} color={colors.blue} />
+                <Text style={s.cardTitle}>Log in on this computer?</Text>
+                <View style={s.facts}>
+                  <Text style={s.fact}>Browser: {phase.scan.browser ?? "Web browser"}</Text>
+                  <Text style={s.fact}>Your phone: {describeDistance(phase.scan.distanceKm, phase.scan.locationStatus)}</Text>
+                  {phase.scan.sameNetwork ? <Text style={s.fact}>Same Wi-Fi as the computer</Text> : null}
+                </View>
+                {phase.scan.locationStatus === "far" ? (
+                  <Text style={s.farText}>
+                    You are far from your registered shop. Approve only if you or your staff are logging in on this
+                    computer.
+                  </Text>
+                ) : null}
+                <Text style={s.cardText}>Approve only if this computer is in front of you.</Text>
+              </View>
+            </View>
           ) : (
             <View style={s.center}>
               <View style={s.card}>
@@ -182,9 +255,7 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
                 <Text style={s.cardTitle}>
                   {phase.kind === "working"
                     ? "QR captured"
-                    : phase.kind === "done"
-                      ? "Location sent"
-                      : "Could not verify location"}
+                    : (phase.title ?? (phase.kind === "done" ? "Location sent" : "Could not verify location"))}
                 </Text>
                 <Text style={s.cardText}>{phase.text}</Text>
               </View>
@@ -197,6 +268,23 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
             <View style={s.row}>
               <MapPin size={18} color={colors.blueLight} />
               <Text style={s.hint}>Point the camera at the QR on the AsanPay web screen. Keep GPS ON.</Text>
+            </View>
+          ) : phase.kind === "confirmLogin" ? (
+            <View style={s.btnRow}>
+              <Pressable
+                style={[s.btn, s.btnHalf, s.btnRed, deciding !== null && s.btnOff]}
+                disabled={deciding !== null}
+                onPress={() => void decideLogin(phase.scan, "deny")}
+              >
+                {deciding === "deny" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Deny</Text>}
+              </Pressable>
+              <Pressable
+                style={[s.btn, s.btnHalf, deciding !== null && s.btnOff]}
+                disabled={deciding !== null}
+                onPress={() => void decideLogin(phase.scan, "approve")}
+              >
+                {deciding === "approve" ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Approve</Text>}
+              </Pressable>
             </View>
           ) : phase.kind === "done" ? (
             <Pressable style={s.btn} onPress={onClose}>
@@ -260,4 +348,11 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   btnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  btnRow: { flexDirection: "row", gap: 12 },
+  btnHalf: { flex: 1 },
+  btnRed: { backgroundColor: colors.danger },
+  btnOff: { opacity: 0.5 },
+  facts: { alignSelf: "stretch", gap: 6, backgroundColor: "#F7F9FF", borderRadius: 12, padding: 12 },
+  fact: { fontSize: 13.5, color: "#1F2937", fontWeight: "600" },
+  farText: { fontSize: 13, lineHeight: 19, color: "#92400E", backgroundColor: "#FFFBEB", borderRadius: 10, padding: 10 },
 });

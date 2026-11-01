@@ -39,7 +39,8 @@ export function LoginApprovalWait({
   challenge: LoginApprovalChallenge;
   onApproved: (user: AuthUser) => void;
   onRetry: () => void;
-  onUseOtp: () => void;
+  /** Password login only — OTP login has no further fallback. */
+  onUseOtp?: () => void;
   onCancel: () => void;
 }) {
   const [phase, setPhase] = useState<"waiting" | "denied" | "expired">("waiting");
@@ -127,18 +128,20 @@ export function LoginApprovalWait({
             </div>
             <div className="mt-0.5 text-sm" style={{ color: B.muted }}>
               {denied
-                ? "This browser was not signed in. If it wasn't you, change your password now."
-                : "No one approved this login within 2 minutes. Send a new request or sign in with OTP."}
+                ? "This browser was not signed in — the request was denied, the number did not match, or the phone reported a fake location. If it wasn't you, change your password now."
+                : "No one approved this login within 2 minutes. Send a new request to try again."}
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className={onUseOtp ? "grid grid-cols-2 gap-3" : "grid grid-cols-1"}>
           <PrimaryButton variant="primary" showArrow={false} onClick={onRetry}>
             {denied ? "Try again" : "Resend request"}
           </PrimaryButton>
-          <PrimaryButton variant="secondary" showArrow={false} onClick={onUseOtp}>
-            Use OTP instead
-          </PrimaryButton>
+          {onUseOtp ? (
+            <PrimaryButton variant="secondary" showArrow={false} onClick={onUseOtp}>
+              Use OTP instead
+            </PrimaryButton>
+          ) : null}
         </div>
         <button type="button" className="w-full text-xs font-medium" style={{ color: B.muted }} onClick={onCancel}>
           Back to login
@@ -160,7 +163,8 @@ export function LoginApprovalWait({
           Approve this login on your AsanPay app
         </div>
         <div className="mx-auto mt-1 max-w-[340px] text-sm" style={{ color: B.muted }}>
-          We sent a request to your phone. Open it and tap the number below, then Approve.
+          We sent a request to your phone. Open it and tap the number below, then Approve. Your phone will
+          also check that it is near your registered shop.
         </div>
         <div
           className="mx-auto mt-4 flex h-24 w-32 items-center justify-center rounded-2xl border-2 text-5xl font-extrabold tabular-nums"
@@ -173,13 +177,15 @@ export function LoginApprovalWait({
           Expires in {mm}:{ss}
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={onUseOtp ? "grid grid-cols-2 gap-3" : "grid grid-cols-1"}>
         <PrimaryButton variant="secondary" showArrow={false} onClick={onRetry}>
           Resend request
         </PrimaryButton>
-        <PrimaryButton variant="secondary" showArrow={false} onClick={onUseOtp}>
-          Use OTP instead
-        </PrimaryButton>
+        {onUseOtp ? (
+          <PrimaryButton variant="secondary" showArrow={false} onClick={onUseOtp}>
+            Use OTP instead
+          </PrimaryButton>
+        ) : null}
       </div>
       <button type="button" className="w-full text-xs font-semibold" style={{ color: "#DC2626" }} onClick={onCancel}>
         Cancel

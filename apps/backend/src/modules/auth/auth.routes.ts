@@ -47,6 +47,8 @@ import {
   loginApprovalPoll,
   loginApprovalDecide,
   loginApprovalsPending,
+  qrLoginStart,
+  qrLoginScan,
 } from "./auth.controller";
 import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
@@ -56,6 +58,7 @@ import {
   walletTxnLimiter,
   signupMobileCheckLimiter,
   loginApprovalPollLimiter,
+  qrLoginStartLimiter,
 } from "../../middleware/rateLimiter";
 export const authRouter = Router();
 
@@ -66,6 +69,8 @@ authRouter.post("/login", authLimiter, login);
 authRouter.post("/login-approval/:id/poll", loginApprovalPollLimiter, loginApprovalPoll);
 authRouter.post("/login-approval/:id/decide", requireAuth, authLimiter, loginApprovalDecide);
 authRouter.get("/login-approvals/pending", requireAuth, loginApprovalsPending);
+authRouter.post("/qr-login/start", qrLoginStartLimiter, qrLoginStart);
+authRouter.post("/qr-login/scan", requireAuth, authLimiter, qrLoginScan);
 authRouter.post("/refresh", authLimiter, refresh);
 
 authRouter.post("/admin/totp/verify", authLimiter, adminTotpVerify);

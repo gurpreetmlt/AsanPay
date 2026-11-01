@@ -8,6 +8,8 @@
 - No trusted phone with a push token / push off → **OTP login as today**, flagged `isNewDevice`.
 - Approval expires in **2 minutes**; 2-digit number match (web shows the number, phone shows 3 choices).
 - (1 Nov, later) Approval gates **password login only**. OTP login (WhatsApp / Telegram) is the fallback and is never gated — "Use OTP instead" on the wait screen.
+- (1 Nov, PL-43 — supersedes the line above for the agent web) OTP login on the **agent web** also needs the phone tap on a browser that is not trusted; every approve sends phone GPS. Mobile app OTP is still never gated.
+- PL-43 API: decide body adds `location { latitude, longitude, accuracyMeters, isMockLocation }` (required to approve password / OTP) + `confirmFar`; 409 `LOGIN_APPROVAL_CONFIRM_FAR` (> 50 km), 422 `LOGIN_APPROVAL_MOCK_LOCATION`, 422 `LOGIN_APPROVAL_LOCATION_REQUIRED`. QR: `POST /api/auth/qr-login/start` (public) → `{ approvalId, pollToken, qrValue "asanpay:login:<id>.<secret>", expiresAt }`; web polls the same poll endpoint (`scanned` flag while pending); phone `POST /api/auth/qr-login/scan` `{ qr, deviceId, latitude, longitude, accuracyMeters, isMockLocation }` (trusted device only) → confirm card → decide `{ decision }`.
 - (1 Nov, later) **Enforced for every client**, not opt-in: password login from any device that is not an approval phone (and not a browser approved in the last day) needs a tap. Clients without the wait screen (mobile app, old builds) get 403 `LOGIN_APPROVAL_REQUIRED` "… Use OTP login instead."
 
 ## Phases
@@ -19,6 +21,7 @@
 | 3b | Agent web wait screen (`components/auth/LoginApprovalWait.tsx`, proxy trust cookie `ap_w_tb`) | built 1 Nov — test pending |
 | 3c | Mobile approval popup (`components/LoginApprovalHost.tsx`, `lib/loginApproval.ts`) | built 1 Nov — test pending |
 | 3d | Enforce for every client + password-only gate | built 1 Nov — test pending |
+| 4 (PL-43) | Phone GPS check on approve, OTP web login gated on new browsers, Login with QR code (migration `0104`) | built 1 Nov — migrate + test pending |
 
 ### Phase 2 — push tokens + sender
 - Table `push_tokens`: `user_id`, `device_id` (from mobile `deviceId.ts`), `token`, `platform`, `updated_at`; unique (`user_id`, `device_id`).
