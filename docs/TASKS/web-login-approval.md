@@ -13,8 +13,8 @@
 |---|---|---|
 | 1 | FCM in the mobile app (`src/lib/push.ts`, channel `asanpay_alerts`, `firebase.json`) | done (tested 1 Nov) |
 | 2 | Push tokens + backend sender (`modules/push`, migration `0102`, `npm run push:test`) | done (tested 1 Nov: `push:test` sent=1 to a retailer) |
-| 3a | Backend approval API | **CURRENT** |
-| 3b | Agent web wait screen | todo |
+| 3a | Backend approval API (`login_approvals`, migration `0103`, `loginApproval.service.ts`) | done (built 1 Nov) |
+| 3b | Agent web wait screen | **CURRENT** |
 | 3c | Mobile approval popup | todo |
 
 ### Phase 2 — push tokens + sender
@@ -29,6 +29,16 @@
 - Agent web login (portal `agent`, after password / OTP) → if the user has a trusted device with a push token and the browser is not trusted → return `approval_required` + `approvalId` + `matchNumber` instead of tokens; send data push `{ type: "login_approval", approvalId }`.
 - `GET /api/auth/login-approval/:id` (web polls, returns tokens once approved) · `POST /api/auth/login-approval/:id/decide` (mobile, auth, `approve` | `deny` + chosen number).
 - Deny → audit `auth.web_login_denied` + risk signal; trusted-browser cookie 1 day on approve.
+
+#### 3a as built (API contract for 3b / 3c)
+- Opt-in: `POST /api/auth/login` and `/api/auth/otp/verify` accept `supportsLoginApproval: true` + `trustedBrowserToken`. Without the flag (mobile app, old web) login works as before.
+- Approval required → `data: { approvalRequired: true, approvalId, matchNumber, pollToken, expiresAt, expiresInSeconds: 120 }`, no tokens. No trusted phone / push not delivered → normal session + `isNewDevice` (when `deviceId` sent).
+- Poll is **POST** (portal proxy forwards bodies, not custom headers): `POST /api/auth/login-approval/:id/poll` `{ pollToken }` → `status`: `pending` (+`expiresInSeconds`) | `denied` | `expired` | `approved` (+ `user`, `accessToken`, `refreshToken`, `trustedBrowserToken`, `trustedBrowserExpiresAt`). Session is handed out once (409 `LOGIN_APPROVAL_USED` after). Limiter 60/min per approval + IP.
+- Decide (mobile, Bearer): `POST /api/auth/login-approval/:id/decide` `{ decision: "approve" | "deny", matchNumber, deviceId }`. Wrong number → denied + 422 `LOGIN_APPROVAL_WRONG_NUMBER`. Expired → 410 `LOGIN_APPROVAL_EXPIRED`.
+- Pending (mobile app open): `GET /api/auth/login-approvals/pending` → `approvals[]` with `id, browser, ip, city, loginMethod, choices, createdAt, expiresAt`.
+- Push: notification "Approve web login?" + data `{ type: "login_approval", approvalId }`.
+- Trusted browser = signed `trustedBrowserToken` (1 day, bound to user + browser `deviceId` + current password). **3b:** proxy must keep it in an httpOnly cookie and add it to the login body, and pass `isNewDevice` / `trustedBrowserToken` through (proxy currently strips everything except `user` when tokens are present). Proxy should also forward `User-Agent`; until then the browser label comes from `deviceLabel`.
+- `city` stays null — no IP→city provider wired yet.
 
 ### Phase 3b — agent web
 - Wait screen: "Approve this login on your AsanPay app", big match number, 2:00 countdown, Resend / Use OTP instead; Denied / Expired states with clear English copy.

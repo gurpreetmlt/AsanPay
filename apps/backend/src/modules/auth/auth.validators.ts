@@ -37,6 +37,14 @@ const policyAcceptanceFields = {
   policyChannel: z.enum(["web", "app"]).optional(),
 };
 
+/** Agent web sign-in approval on the trusted phone — see loginApproval.service. */
+const loginApprovalFields = {
+  /** Only clients with the approval wait screen send this; the mobile app never does. */
+  supportsLoginApproval: z.boolean().optional(),
+  /** Issued after a phone approval; skips approval on this browser for 1 day. */
+  trustedBrowserToken: z.string().trim().max(2000).optional(),
+};
+
 /** Agent: 10-digit mobile. Admin: username `admin` only (no OTP, no mobile login). */
 export const loginSchema = z
   .object({
@@ -48,6 +56,7 @@ export const loginSchema = z
     deviceId: deviceIdSchema.optional(),
     deviceLabel: deviceLabelSchema,
     ...policyAcceptanceFields,
+    ...loginApprovalFields,
   })
   .superRefine((data, ctx) => {
     if (data.portal === "admin") {
@@ -140,8 +149,38 @@ export const otpVerifySchema = z.object({
   deviceId: deviceIdSchema.optional(),
   deviceLabel: deviceLabelSchema,
   ...policyAcceptanceFields,
+  ...loginApprovalFields,
 });
 export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;
+
+export const loginApprovalIdParamSchema = z.object({
+  id: z.string().uuid("This login request was not found. Sign in again on the web."),
+});
+
+export const loginApprovalPollSchema = z.object({
+  pollToken: z
+    .string({ message: "This login request was not found. Sign in again on the web." })
+    .trim()
+    .min(20, "This login request was not found. Sign in again on the web.")
+    .max(200),
+});
+
+export const loginApprovalDecideSchema = z
+  .object({
+    decision: z.enum(["approve", "deny"], { message: "Decision must be approve or deny" }),
+    matchNumber: z.number().int().min(10).max(99).optional(),
+    /** The phone deciding (mobile `deviceId.ts`). */
+    deviceId: deviceIdSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.decision === "approve" && data.matchNumber === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Pick the number shown on the web login screen",
+        path: ["matchNumber"],
+      });
+    }
+  });
 
 export const mpinLoginSchema = z.object({
   mobile: mobileSchema,

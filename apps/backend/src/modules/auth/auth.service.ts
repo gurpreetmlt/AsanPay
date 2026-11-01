@@ -66,6 +66,12 @@ import {
   signupPlaceholderName,
 } from "@asanpay/shared-types";
 import { deliverAuthOtp } from "../telegram/link.service";
+import {
+  claimLoginApproval,
+  signTrustedBrowserToken,
+  startWebLoginApproval,
+  type LoginApprovalChallenge,
+} from "./loginApproval.service";
 import { assertInviteForSignup, markInviteAccepted } from "../invites/invite.service";
 import type {
   RegisterInput,
@@ -475,8 +481,9 @@ async function assertAdminNotLockedOut(): Promise<void> {
 type SessionResult = { user: AuthUser; accessToken: string; refreshToken: string };
 
 export type LoginResult =
-  | (SessionResult & { adminTotpSetupRequired?: true })
-  | { totpRequired: true; challengeToken: string; expiresInSeconds: number };
+  | (SessionResult & { adminTotpSetupRequired?: true; isNewDevice?: boolean })
+  | { totpRequired: true; challengeToken: string; expiresInSeconds: number }
+  | LoginApprovalChallenge;
 
 const ADMIN_TOTP_ISSUER = "AsanPay";
 const ADMIN_TOTP_ACCOUNT = "admin";
@@ -927,11 +934,25 @@ export async function loginUser(input: LoginInput, context: AuthContext): Promis
   assertPortalAccess(row.role, input.portal);
   await ensurePolicyAccepted(row, input, context, "password");
 
+  if (isAgentPortalRole(row.role)) {
+    const challenge = await startWebLoginApproval({
+      user: row,
+      supportsLoginApproval: input.supportsLoginApproval,
+      trustedBrowserToken: input.trustedBrowserToken,
+      deviceId: input.deviceId,
+      deviceLabel: input.deviceLabel,
+      method: "password",
+      context,
+    });
+    if (challenge) return challenge;
+  }
+
   // Password login on a known browser should establish the same device trust as OTP,
   // otherwise Welcome-back MPIN always fails until the user does OTP once.
+  let isNewDevice: boolean | undefined;
   if (input.deviceId && isAgentPortalRole(row.role)) {
     const prior = await findDevice(row.id, input.deviceId);
-    const isNewDevice = !prior || Boolean(prior.revokedAt);
+    isNewDevice = !prior || Boolean(prior.revokedAt);
     await trustDevice({
       userId: row.id,
       deviceId: input.deviceId,
@@ -946,7 +967,8 @@ export async function loginUser(input: LoginInput, context: AuthContext): Promis
     }
   }
 
-  return issueSession(row, context, "password");
+  const session = await issueSession(row, context, "password");
+  return isNewDevice === undefined ? session : { ...session, isNewDevice };
 }
 
 /** Signup can span KYC steps on mobile — keep OTP valid long enough. Login OTP uses the same window. */
@@ -1076,7 +1098,7 @@ export async function requestLoginOtp(
 export async function verifyLoginOtp(
   input: OtpVerifyInput,
   context: AuthContext,
-): Promise<{ user: AuthUser; accessToken: string; refreshToken: string }> {
+): Promise<(SessionResult & { isNewDevice?: boolean }) | LoginApprovalChallenge> {
   if (input.portal === "admin") {
     throw new HttpError(401, "Invalid credentials", "INVALID_CREDENTIALS");
   }
@@ -1128,11 +1150,23 @@ export async function verifyLoginOtp(
 
   await markOtpConsumed(record.id);
 
+  const challenge = await startWebLoginApproval({
+    user: row,
+    supportsLoginApproval: input.supportsLoginApproval,
+    trustedBrowserToken: input.trustedBrowserToken,
+    deviceId: input.deviceId,
+    deviceLabel: input.deviceLabel,
+    method: "otp",
+    context,
+  });
+  if (challenge) return challenge;
+
   // deviceId is optional here (older/unwired clients still get a normal OTP login) — trust is
   // simply not established for those, so they'll be asked for OTP again next time too.
+  let isNewDevice: boolean | undefined;
   if (input.deviceId) {
     const prior = await findDevice(row.id, input.deviceId);
-    const isNewDevice = !prior || Boolean(prior.revokedAt);
+    isNewDevice = !prior || Boolean(prior.revokedAt);
     const device = await trustDevice({ userId: row.id, deviceId: input.deviceId, label: input.deviceLabel });
     await insertAuditLog({
       userId: row.id,
@@ -1156,7 +1190,63 @@ export async function verifyLoginOtp(
     );
   }
 
-  return issueSession(row, context, "otp");
+  const session = await issueSession(row, context, "otp");
+  return isNewDevice === undefined ? session : { ...session, isNewDevice };
+}
+
+export type LoginApprovalPollResult =
+  | { status: "pending"; expiresAt: string; expiresInSeconds: number }
+  | { status: "denied" }
+  | { status: "expired" }
+  | (SessionResult & { status: "approved"; trustedBrowserToken: string; trustedBrowserExpiresAt: string });
+
+/** Agent web wait screen poll — returns the session once, right after the phone approved. */
+export async function pollWebLoginApproval(
+  approvalId: string,
+  pollToken: string,
+  context: AuthContext,
+): Promise<LoginApprovalPollResult> {
+  const state = await claimLoginApproval(approvalId, pollToken);
+  if (state.status !== "approved") return state;
+
+  const approval = state.approval;
+  const [row] = await db.select().from(users).where(eq(users.id, approval.userId));
+  if (!row || !row.isActive) {
+    throw new HttpError(403, "This account is inactive. Contact support.", "ACCOUNT_INACTIVE");
+  }
+  assertPortalAccess(row.role, "agent");
+
+  if (approval.deviceId) {
+    const prior = await findDevice(row.id, approval.deviceId);
+    const isNewDevice = !prior || Boolean(prior.revokedAt);
+    const device = await trustDevice({ userId: row.id, deviceId: approval.deviceId, label: approval.browser });
+    await insertAuditLog({
+      userId: row.id,
+      action: "auth.device_trusted",
+      entityType: "device",
+      entityId: device.id,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      metadata: { deviceId: approval.deviceId, label: approval.browser, isNewDevice, viaApproval: approval.id },
+    });
+    if (isNewDevice) {
+      notifyNewDeviceLogin({
+        userId: row.id,
+        deviceLabel: approval.browser ?? "Web",
+        ipAddress: context.ipAddress,
+      });
+    }
+  }
+
+  const method = approval.loginMethod === "otp" ? "otp" : "password";
+  const session = await issueSession(row, context, method);
+  const trust = signTrustedBrowserToken(row, approval.deviceId);
+  return {
+    status: "approved",
+    ...session,
+    trustedBrowserToken: trust.token,
+    trustedBrowserExpiresAt: trust.expiresAt,
+  };
 }
 
 export async function loginWithMpin(

@@ -18,6 +18,8 @@ export const RISK_SIGNAL_TYPES = [
   "possible_vpn",
   /** App reported a rooted / jailbroken phone while capturing a signup location. */
   "rooted_device",
+  /** Agent denied a web sign-in on their phone, or picked the wrong match number. */
+  "web_login_denied",
 ] as const;
 export type RiskSignalType = (typeof RISK_SIGNAL_TYPES)[number];
 

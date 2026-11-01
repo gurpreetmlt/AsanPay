@@ -125,6 +125,7 @@
 - [x] InstantPay merchant outlet Min-KYC + Bio-KYC (web + mobile, RD `wadh`)
 - [ ] InstantPay DMT mobile full parity + BBPS / recharge rails
 - [x] Push tokens (PL-42 phase 2): `push_tokens` (migration `0102`), `POST` / `DELETE /api/push/token`, `firebase-admin` sender (`modules/push/push.sender.ts`, env `FIREBASE_SERVICE_ACCOUNT_B64`), `npm run push:test` (`PUSH_TEST_MOBILE`). Mobile registers after sign-in + on token refresh, deletes on logout
+- [x] Web login approval API (PL-42 phase 3a): `login_approvals` (migration `0103`), password / OTP login returns `approvalRequired` when the client sends `supportsLoginApproval` and a trusted phone got the push; `POST /api/auth/login-approval/:id/poll` · `POST /api/auth/login-approval/:id/decide` · `GET /api/auth/login-approvals/pending`; deny → audit `auth.web_login_denied` + risk signal `web_login_denied`; approve → 1-day `trustedBrowserToken`
 
 ## Ledger engine (double-entry)
 - [x] Chart of accounts (`tenants`, `accounts`, `account_balances`) + 9 system accounts

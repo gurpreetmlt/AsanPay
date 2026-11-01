@@ -44,14 +44,28 @@ import {
   adminTotpEnable,
   adminTotpDisable,
   adminTotpBackupRegenerate,
+  loginApprovalPoll,
+  loginApprovalDecide,
+  loginApprovalsPending,
 } from "./auth.controller";
 import { requireAuth } from "../../middleware/auth.middleware";
 import { requireRole } from "../../middleware/rbac.middleware";
-import { authLimiter, otpRequestLimiter, walletTxnLimiter, signupMobileCheckLimiter } from "../../middleware/rateLimiter";
+import {
+  authLimiter,
+  otpRequestLimiter,
+  walletTxnLimiter,
+  signupMobileCheckLimiter,
+  loginApprovalPollLimiter,
+} from "../../middleware/rateLimiter";
 export const authRouter = Router();
 
 authRouter.post("/register", requireAuth, register);
 authRouter.post("/login", authLimiter, login);
+
+// Agent web sign-in approved from the trusted phone (POST poll: the portal proxy forwards bodies, not custom headers).
+authRouter.post("/login-approval/:id/poll", loginApprovalPollLimiter, loginApprovalPoll);
+authRouter.post("/login-approval/:id/decide", requireAuth, authLimiter, loginApprovalDecide);
+authRouter.get("/login-approvals/pending", requireAuth, loginApprovalsPending);
 authRouter.post("/refresh", authLimiter, refresh);
 
 authRouter.post("/admin/totp/verify", authLimiter, adminTotpVerify);

@@ -31,6 +31,9 @@ import {
   adminTotpEnableSchema,
   adminTotpDisableSchema,
   adminTotpBackupRegenerateSchema,
+  loginApprovalIdParamSchema,
+  loginApprovalPollSchema,
+  loginApprovalDecideSchema,
 } from "./auth.validators";
 import {
   registerUser,
@@ -68,7 +71,10 @@ import {
   enableAdminTotp,
   disableAdminTotp,
   regenerateAdminBackupCodes,
+  pollWebLoginApproval,
 } from "./auth.service";
+import { decideLoginApproval, listPendingLoginApprovals } from "./loginApproval.service";
+import { clientIp } from "../../middleware/rateLimiter";
 import {
   requestEmailVerifyOtp,
   verifyEmailOtp,
@@ -88,17 +94,58 @@ export async function register(req: Request, res: Response): Promise<void> {
   sendSuccess(res, user, "User onboarded successfully", 201);
 }
 
+/** Browser IP when the request came through the portal proxy (web login approval shows it). */
+function browserContext(req: Request): { ipAddress: string | null; userAgent: string | null } {
+  const ip = clientIp(req);
+  return { ipAddress: ip === "unknown" ? null : ip, userAgent: req.headers["user-agent"] ?? null };
+}
+
+const APPROVAL_REQUIRED_MESSAGE = "Approve this login on your AsanPay app";
+
 export async function login(req: Request, res: Response): Promise<void> {
   const input = loginSchema.parse(req.body);
-  const result = await loginUser(input, {
-    ipAddress: req.ip ?? null,
-    userAgent: req.headers["user-agent"] ?? null,
-  });
+  const result = await loginUser(input, browserContext(req));
   if ("totpRequired" in result) {
     sendSuccess(res, result, "Enter the 6-digit code from your authenticator app");
     return;
   }
+  if ("approvalRequired" in result) {
+    sendSuccess(res, result, APPROVAL_REQUIRED_MESSAGE);
+    return;
+  }
   sendSuccess(res, result, "Logged in successfully");
+}
+
+export async function loginApprovalPoll(req: Request, res: Response): Promise<void> {
+  const { id } = loginApprovalIdParamSchema.parse(req.params);
+  const { pollToken } = loginApprovalPollSchema.parse(req.body ?? {});
+  const result = await pollWebLoginApproval(id, pollToken, browserContext(req));
+  const message =
+    result.status === "approved"
+      ? "Logged in successfully"
+      : result.status === "pending"
+        ? "Waiting for approval on your AsanPay app"
+        : result.status === "denied"
+          ? "This login was denied on your AsanPay app. If it wasn't you, change your password."
+          : "This login request expired after 2 minutes. Sign in again to get a new request.";
+  sendSuccess(res, result, message);
+}
+
+export async function loginApprovalDecide(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { id } = loginApprovalIdParamSchema.parse(req.params);
+  const input = loginApprovalDecideSchema.parse(req.body ?? {});
+  const result = await decideLoginApproval(req.auth.sub, id, input, browserContext(req));
+  sendSuccess(
+    res,
+    result,
+    result.status === "approved" ? "Web login approved" : "Web login denied. The browser was not signed in.",
+  );
+}
+
+export async function loginApprovalsPending(req: Request, res: Response): Promise<void> {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  sendSuccess(res, { approvals: await listPendingLoginApprovals(req.auth.sub) }, "OK");
 }
 
 export async function adminTotpVerify(req: Request, res: Response): Promise<void> {
@@ -208,11 +255,8 @@ export async function requestOtp(req: Request, res: Response): Promise<void> {
 
 export async function verifyOtp(req: Request, res: Response): Promise<void> {
   const input = otpVerifySchema.parse(req.body);
-  const result = await verifyLoginOtp(input, {
-    ipAddress: req.ip ?? null,
-    userAgent: req.headers["user-agent"] ?? null,
-  });
-  sendSuccess(res, result, "Logged in successfully");
+  const result = await verifyLoginOtp(input, browserContext(req));
+  sendSuccess(res, result, "approvalRequired" in result ? APPROVAL_REQUIRED_MESSAGE : "Logged in successfully");
 }
 
 export async function mpinLogin(req: Request, res: Response): Promise<void> {

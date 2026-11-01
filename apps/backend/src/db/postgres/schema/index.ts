@@ -42,4 +42,5 @@ export * from "./agentControls";
 export * from "./webhookKeys";
 export * from "./providerSessions";
 export * from "./pushTokens";
+export * from "./loginApprovals";
 export * from "./relations";

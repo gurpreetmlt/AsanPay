@@ -130,6 +130,17 @@ export const nobleCallbackLimiter = rateLimit({
   validate: sharedValidate,
 });
 
+/** Agent web polls one login approval every few seconds for 2 minutes; the poll secret is the credential. */
+export const loginApprovalPollLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: isDev ? 600 : 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Checking too often. Wait a few seconds and try again." },
+  keyGenerator: (req) => `login-approval:${String(req.params?.id ?? "")}:${clientIp(req)}`,
+  validate: sharedValidate,
+});
+
 export const walletTxnLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: isDev ? 200 : 10,

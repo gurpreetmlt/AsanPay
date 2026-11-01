@@ -158,6 +158,15 @@ export async function recordRootedDeviceSignal(userId: string, purposes: string[
   await record(userId, "rooted_device", "warn", { purposes, source: "signup_location" });
 }
 
+/** Web sign-in blocked from the phone — someone else may have this agent's password. */
+export async function recordWebLoginDeniedSignal(
+  userId: string,
+  approvalId: string,
+  details: { reason: "user" | "wrong_number"; ip: string | null; browser: string | null },
+): Promise<void> {
+  await record(userId, "web_login_denied", "warn", details, approvalId);
+}
+
 /**
  * Device serial change frequency. Called after a successful registration in
  * modules/devices/agentDevice.service.ts. Counts registrations in the trailing week and month —

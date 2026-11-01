@@ -722,6 +722,13 @@
       "when": 1795300000000,
       "tag": "0102_push_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1795400000000,
+      "tag": "0103_login_approvals",
+      "breakpoints": true
     }
   ]
 }
