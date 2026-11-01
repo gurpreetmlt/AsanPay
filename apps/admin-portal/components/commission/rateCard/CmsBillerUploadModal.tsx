@@ -3,11 +3,22 @@
 import { useRef, useState, type DragEvent } from "react";
 import { AlertTriangle, ArrowRight, Download, FileSpreadsheet, ListChecks, Upload } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
-import api from "@/lib/api";
 import { B } from "@/lib/brand";
 import { readXlsx } from "@/lib/xlsxWorkbook";
 import { apiErrorMessage, downloadCsv, parseCsv } from "@/lib/taxCommissionUtils";
-import { MARGIN_FIELDS, TYPE_LABEL, issuesCsv, margin, parseBillerSheet, type BillerChange, type BillerPreview, type BillerRow } from "./cmsBillers";
+import {
+  MARGIN_FIELDS,
+  TYPE_LABEL,
+  billerChangeCount,
+  checkBillers,
+  issuesCsv,
+  margin,
+  parseBillerSheet,
+  saveBillers,
+  type BillerChange,
+  type BillerPreview,
+  type BillerRow,
+} from "./cmsBillers";
 import { Btn, Chip } from "./ui";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -23,7 +34,7 @@ const STATUS: Record<BillerChange["status"], { label: string; tone: "green" | "a
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-function ChangeRow({ c, index }: { c: BillerChange; index: number }) {
+export function BillerChangeRow({ c, index }: { c: BillerChange; index: number }) {
   const st = STATUS[c.status];
   const name = c.after?.billerName ?? c.before?.billerName ?? "";
   const renamed = c.status === "changed" && c.before && c.after && c.before.billerName !== c.after.billerName;
@@ -96,7 +107,7 @@ export function CmsBillerUploadModal({
   const [step, setStep] = useState<1 | 2>(1);
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<BillerRow[] | null>(null);
-  const [sheetName, setSheetName] = useState("");
+  const [tabs, setTabs] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -111,14 +122,8 @@ export function CmsBillerUploadModal({
 
   const busy = phase !== null || saving;
   const reasonOk = reason.trim().length >= 3;
-  const changeCount = preview ? preview.counts.new + preview.counts.changed + preview.counts.removed : 0;
+  const changeCount = preview ? billerChangeCount(preview) : 0;
   const blocked = Boolean(preview && preview.issueCount > 0);
-
-  async function check(fileName: string, list: BillerRow[], remove: boolean) {
-    const r = await api.post("/admin/cms/billers/import", { fileName, rows: list, removeMissing: remove, dryRun: true });
-    if (!r.data.success) throw new Error(r.data.message);
-    return r.data.data as BillerPreview;
-  }
 
   async function readFile(f: File) {
     setFile(f);
@@ -143,9 +148,9 @@ export function CmsBillerUploadModal({
         return;
       }
       setPhase("Comparing with the saved billers…");
-      const pv = await check(f.name, parsed.rows, removeMissing);
+      const pv = await checkBillers(f.name, parsed.rows, removeMissing);
       setRows(parsed.rows);
-      setSheetName(parsed.sheet);
+      setTabs(parsed.sheets);
       setPreview(pv);
       setFilter("all");
       setStep(2);
@@ -162,7 +167,7 @@ export function CmsBillerUploadModal({
     setRemoveMissing(next);
     setPhase("Updating the preview…");
     try {
-      setPreview(await check(file.name, rows, next));
+      setPreview(await checkBillers(file.name, rows, next));
     } catch (err) {
       setRemoveMissing(!next);
       setSaveError(apiErrorMessage(err, "Could not update the preview. Check your connection and try again."));
@@ -176,15 +181,7 @@ export function CmsBillerUploadModal({
     setSaving(true);
     setSaveError(null);
     try {
-      const r = await api.post("/admin/cms/billers/import", {
-        fileName: file.name,
-        rows,
-        removeMissing,
-        dryRun: false,
-        reason: reason.trim(),
-      });
-      if (!r.data.success) throw new Error(r.data.message);
-      onSaved((r.data.data as { id: string }).id, changeCount, file.name);
+      onSaved(await saveBillers(file.name, rows, removeMissing, reason.trim()), changeCount, file.name);
     } catch (err) {
       setSaveError(apiErrorMessage(err, "The biller sheet was not saved. Check your connection and try again."));
     } finally {
@@ -207,7 +204,7 @@ export function CmsBillerUploadModal({
       eyebrow={step === 1 ? "Step 1 of 2 · Upload" : "Step 2 of 2 · Review & save"}
       subtitle={
         step === 1
-          ? "Provider Cash Collection sheet with Biller Id, Biller Name and the four margin columns."
+          ? "A one-tab biller sheet or the full workbook — every tab with Biller Id, Biller Name and the four margin columns is read."
           : "Check new, changed and removed billers, add a reason, then save. Applies to new transactions."
       }
       icon={step === 1 ? <Upload size={22} /> : <ListChecks size={22} />}
@@ -297,7 +294,7 @@ export function CmsBillerUploadModal({
       {step === 2 && preview ? (
         <>
           <p className="mb-2 text-[11px]" style={{ color: B.muted }}>
-            {file?.name} · tab “{sheetName}” · {plural(preview.rowsRead, "row")} read
+            {file?.name} · {tabs.length === 1 ? "tab" : "tabs"} {tabs.map((t) => `“${t}”`).join(", ")} · {plural(preview.rowsRead, "row")} read
           </p>
           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(
@@ -390,7 +387,7 @@ export function CmsBillerUploadModal({
           ) : (
             <ul className="max-h-[42vh] space-y-2 overflow-y-auto pr-1">
               {shown.slice(0, MAX_SHOWN).map((c, i) => (
-                <ChangeRow key={`${c.status}-${c.billerId}`} c={c} index={i} />
+                <BillerChangeRow key={`${c.status}-${c.billerId}`} c={c} index={i} />
               ))}
               {shown.length > MAX_SHOWN ? (
                 <li className="text-center text-[11px] font-semibold" style={{ color: B.muted }}>

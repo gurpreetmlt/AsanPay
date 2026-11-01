@@ -1,3 +1,4 @@
+import api from "@/lib/api";
 import type { BrandedReport } from "@/lib/brandedExport";
 import { downloadXlsx, type XlsxCell } from "@/lib/xlsxWorkbook";
 
@@ -33,6 +34,7 @@ export type CmsBillerImport = {
 export type CmsBillerList = { billers: CmsBiller[]; imports: CmsBillerImport[] };
 
 export type BillerRow = {
+  tab?: string;
   row: number;
   billerId: string;
   billerName: string;
@@ -87,11 +89,12 @@ const norm = (v: string) => v.toLowerCase().replace(/[^a-z]/g, "");
 export const margin = (v: string | null | undefined) => (v == null || v === "" ? "—" : String(Number(v)));
 
 /**
- * Finds the first tab whose header row has the biller columns and reads its rows.
- * `row` is the 1-based row number in that tab so errors point at the right line.
+ * Reads every tab whose header row has the biller columns (a one-tab sheet or a full workbook) into one list.
+ * Other tabs are ignored. `row` is the 1-based row in its tab; `tab` is set when billers span several tabs.
  */
-export function parseBillerSheet(sheets: Array<{ name: string; rows: string[][] }>): { sheet: string; rows: BillerRow[] } | { error: string } {
-  let partial: { sheet: string; missing: string[] } | null = null;
+export function parseBillerSheet(sheets: Array<{ name: string; rows: string[][] }>): { sheets: string[]; rows: BillerRow[] } | { error: string } {
+  const partial: Array<{ sheet: string; missing: string[] }> = [];
+  const found: Array<{ sheet: string; rows: BillerRow[] }> = [];
   for (const s of sheets) {
     for (let h = 0; h < Math.min(s.rows.length, 15); h++) {
       const header = s.rows[h]!.map((c) => norm(c ?? ""));
@@ -99,8 +102,8 @@ export function parseBillerSheet(sheets: Array<{ name: string; rows: string[][] 
       const idx = SHEET_COLUMNS.map((c) => header.findIndex(c.match));
       const missing = SHEET_COLUMNS.filter((_, i) => idx[i]! < 0).map((c) => c.header);
       if (missing.length > 0) {
-        partial ??= { sheet: s.name, missing };
-        continue;
+        partial.push({ sheet: s.name, missing });
+        break;
       }
       const rows: BillerRow[] = [];
       s.rows.slice(h + 1).forEach((cells, i) => {
@@ -116,16 +119,29 @@ export function parseBillerSheet(sheets: Array<{ name: string; rows: string[][] 
           superMargin: at(5),
         });
       });
-      if (rows.length === 0) return { error: `Tab "${s.name}" has the biller headers but no biller rows below them.` };
-      return { sheet: s.name, rows };
+      found.push({ sheet: s.name, rows });
+      break;
     }
   }
-  if (partial) {
-    return { error: `Tab "${partial.sheet}" is missing these columns: ${partial.missing.join(", ")}. Keep the provider sheet headers as they are.` };
+  if (partial.length > 0) {
+    const p = partial[0]!;
+    return { error: `Tab "${p.sheet}" is missing these columns: ${p.missing.join(", ")}. Keep the provider sheet headers as they are.` };
   }
-  return {
-    error: `No tab has a "Biller Id" header. The sheet needs these columns: ${SHEET_COLUMNS.map((c) => c.header).join(", ")}.`,
-  };
+  if (found.length === 0) {
+    return {
+      error: `No tab has a "Biller Id" header. The sheet needs these columns: ${SHEET_COLUMNS.map((c) => c.header).join(", ")}.`,
+    };
+  }
+  const rows = found.flatMap((f) => (found.length > 1 ? f.rows.map((r) => ({ ...r, tab: f.sheet })) : f.rows));
+  if (rows.length === 0) {
+    return { error: `${found.map((f) => `Tab "${f.sheet}"`).join(", ")} has the biller headers but no biller rows below them.` };
+  }
+  return { sheets: found.map((f) => f.sheet), rows };
+}
+
+/** True when the workbook has at least one tab with a "Biller Id" header (complete or not). */
+export function hasBillerTab(sheets: Array<{ name: string; rows: string[][] }>): boolean {
+  return sheets.some((s) => s.rows.slice(0, 15).some((r) => r.some((c) => norm(c ?? "") === "billerid")));
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -216,6 +232,22 @@ export function billersReport(billers: CmsBiller[], scope: string): BrandedRepor
     footerNote: "Margins are per transaction, in the same unit as the provider sheet. AsanPay keeps = company margin − retailer − distributor − super.",
   };
 }
+
+/** Dry run of a biller upload: what would be new / changed / removed, plus row errors. */
+export async function checkBillers(fileName: string, rows: BillerRow[], removeMissing: boolean): Promise<BillerPreview> {
+  const r = await api.post("/admin/cms/billers/import", { fileName, rows, removeMissing, dryRun: true });
+  if (!r.data.success) throw new Error(r.data.message);
+  return r.data.data as BillerPreview;
+}
+
+/** Saves a checked biller upload; returns the upload id (for Undo). */
+export async function saveBillers(fileName: string, rows: BillerRow[], removeMissing: boolean, reason: string): Promise<string> {
+  const r = await api.post("/admin/cms/billers/import", { fileName, rows, removeMissing, dryRun: false, reason });
+  if (!r.data.success) throw new Error(r.data.message);
+  return (r.data.data as { id: string }).id;
+}
+
+export const billerChangeCount = (p: BillerPreview) => p.counts.new + p.counts.changed + p.counts.removed;
 
 export function issuesCsv(issues: string[]): string {
   return `\uFEFF${["Error", ...issues].map(csvCell).join("\r\n")}\r\n`;

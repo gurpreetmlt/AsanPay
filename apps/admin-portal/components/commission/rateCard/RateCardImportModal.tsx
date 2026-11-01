@@ -1,14 +1,25 @@
 "use client";
 
 import { useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, ArrowRight, ChevronRight, Download, FileSpreadsheet, ListChecks, ShieldCheck, Upload } from "lucide-react";
+import { AlertTriangle, ArrowRight, ChevronRight, Download, FileSpreadsheet, ListChecks, ShieldCheck, Upload, Users } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Modal } from "@/components/ui/Modal";
 import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { readXlsx } from "@/lib/xlsxWorkbook";
-import { apiErrorMessage, downloadCsv } from "@/lib/taxCommissionUtils";
+import { apiErrorMessage, downloadCsv, parseCsv } from "@/lib/taxCommissionUtils";
 import { CompareTable } from "./SaveConfirmModal";
+import { BillerChangeRow } from "./CmsBillerUploadModal";
+import {
+  billerChangeCount,
+  checkBillers,
+  hasBillerTab,
+  issuesCsv as billerIssuesCsv,
+  parseBillerSheet,
+  saveBillers,
+  type BillerPreview,
+  type BillerRow,
+} from "./cmsBillers";
 import {
   defaultPick,
   importRecordBody,
@@ -42,6 +53,114 @@ const STATUS: Record<SlabStatus, { label: string; tone: "green" | "amber" | "red
 };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+const emptyImport = (fileName: string, kind: ParsedImport["kind"]): ParsedImport => ({
+  fileName,
+  kind,
+  exportedAt: null,
+  dataVersion: null,
+  rows: [],
+  emptyTabs: [],
+  warnings: [],
+});
+
+type BillerPart = { rows: BillerRow[]; sheets: string[]; preview: BillerPreview };
+
+/** Cash Collection biller tab(s) found in the same workbook — saved together with the rate card. */
+function BillerBlock({
+  part,
+  on,
+  open,
+  done,
+  onToggle,
+  onToggleOpen,
+}: {
+  part: BillerPart;
+  on: boolean;
+  open: boolean;
+  done: boolean;
+  onToggle: () => void;
+  onToggleOpen: () => void;
+}) {
+  const p = part.preview;
+  const changes = billerChangeCount(p);
+  const blocked = p.issueCount > 0;
+  return (
+    <div className="mb-3 rounded-2xl border" style={{ borderColor: blocked ? "#FCA5A5" : on ? "#BFDBFE" : B.border, background: "var(--admin-card)" }}>
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+        <Tick
+          checked={on && !blocked && changes > 0}
+          disabled={blocked || changes === 0 || done}
+          label={blocked ? "Fix the biller errors first" : changes === 0 ? "No biller changes" : on ? "Skip the billers" : "Save the billers"}
+          onChange={onToggle}
+        />
+        <button type="button" onClick={onToggleOpen} className="flex min-w-0 flex-1 items-center gap-1.5 text-left" aria-expanded={open}>
+          <ChevronRight size={15} className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`} style={{ color: B.muted }} />
+          <Users size={15} className="shrink-0" style={{ color: B.blueLight }} />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold" style={{ color: B.blue }}>
+              Cash Collection billers
+            </span>
+            <span className="block text-[11px]" style={{ color: B.muted }}>
+              {part.sheets.length === 1 ? "Tab" : "Tabs"} {part.sheets.map((s) => `“${s}”`).join(", ")} · {plural(p.rowsRead, "row")}
+              {done ? " · saved" : ""}
+            </span>
+          </span>
+        </button>
+        <span className="flex flex-wrap items-center gap-1">
+          {blocked ? <Chip tone="red">{plural(p.issueCount, "error")}</Chip> : null}
+          {p.counts.new ? <Chip tone="green">{p.counts.new} new</Chip> : null}
+          {p.counts.changed ? <Chip tone="amber">{p.counts.changed} changed</Chip> : null}
+          {p.counts.unchanged ? <Chip tone="muted">{p.counts.unchanged} same</Chip> : null}
+        </span>
+      </div>
+      {blocked ? (
+        <div className="px-3 pb-3">
+          <ul className="space-y-1 rounded-xl border p-2.5 text-[11px]" style={{ borderColor: "#FCA5A5", background: "#FEF2F2", color: B.danger }}>
+            {p.issues.slice(0, 6).map((i) => (
+              <li key={i} className="flex items-start gap-1.5 font-semibold">
+                <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                {i}
+              </li>
+            ))}
+            {p.issueCount > 6 ? <li className="font-semibold">…and {p.issueCount - 6} more — download the biller error report.</li> : null}
+          </ul>
+          <button
+            type="button"
+            onClick={() => downloadCsv(`cms-biller-errors-${new Date().toISOString().slice(0, 10)}.csv`, billerIssuesCsv(p.issues))}
+            className="mt-2 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-bold"
+            style={{ borderColor: "#FCA5A5", color: B.danger, background: "#FEF2F2" }}
+          >
+            <Download size={13} /> Download biller error report
+          </button>
+        </div>
+      ) : null}
+      {open && !blocked ? (
+        <div className="space-y-2 border-t px-3 py-3" style={{ borderColor: B.border }}>
+          {changes === 0 ? (
+            <p className="text-xs" style={{ color: B.muted }}>
+              Every biller in the file already matches the saved margins.
+            </p>
+          ) : (
+            <ul className="max-h-72 space-y-2 overflow-y-auto pr-1">
+              {p.changes.slice(0, 200).map((c, i) => (
+                <BillerChangeRow key={`${c.status}-${c.billerId}`} c={c} index={i} />
+              ))}
+              {p.changes.length > 200 ? (
+                <li className="text-center text-[11px] font-semibold" style={{ color: B.muted }}>
+                  Showing the first 200 of {p.changes.length}. All of them are saved.
+                </li>
+              ) : null}
+            </ul>
+          )}
+          <p className="text-[11px]" style={{ color: B.muted }}>
+            Billers missing from the file keep their saved margins. To remove them, use Cash Collection → Billers → Upload biller sheet.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function fileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -245,15 +364,24 @@ export function RateCardImportModal({
   runSave,
   onClose,
   onImported,
+  onBillersSaved,
 }: {
   data: RateCardData;
   saving: boolean;
   progress: SaveProgress | null;
   runSave: (reason: string, req: SaveRequest) => Promise<number>;
   onClose: () => void;
-  /** `importId` null when the rates saved but the history record failed (no undo). */
+  /** `importId` null when the rates saved but the history record failed (no undo), or only billers were saved. */
   onImported: (importId: string | null, saved: number, fileName: string) => void;
+  /** Cash Collection billers from the same workbook were saved. */
+  onBillersSaved: (count: number, fileName: string) => void;
 }) {
+  const [billers, setBillers] = useState<BillerPart | null>(null);
+  const [billersOn, setBillersOn] = useState(false);
+  const [billersOpen, setBillersOpen] = useState(false);
+  const [billersDone, setBillersDone] = useState(false);
+  const [billerSaving, setBillerSaving] = useState(false);
+  const [billerError, setBillerError] = useState<string | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -279,11 +407,18 @@ export function RateCardImportModal({
   const blockedCount = previews.filter((p) => p.issues.length > 0).length;
   const reading = phase !== null;
   const reasonOk = reason.trim().length >= 3;
+  const billerCount = billers ? billerChangeCount(billers.preview) : 0;
+  const billerSave = Boolean(billers && billersOn && !billersDone && billers.preview.issueCount === 0 && billerCount > 0);
+  const busy = saving || billerSaving;
+  const nothingToSave = save.pairs.length === 0 && !billerSave;
 
   async function readFile(f: File) {
     setFile(f);
     setFileError(null);
     setParsed(null);
+    setBillers(null);
+    setBillersDone(false);
+    setBillerError(null);
     const isXlsx = /\.xlsx$/i.test(f.name);
     if (!isXlsx && !/\.csv$/i.test(f.name)) {
       setFileError(`“${f.name}” is not an Excel (.xlsx) or CSV file. Use the file from Export → Excel, CSV or Blank template.`);
@@ -295,24 +430,43 @@ export function RateCardImportModal({
     }
     try {
       setPhase("Reading the file…");
-      const res = isXlsx ? parseXlsxImport(f.name, await readXlsx(f), data) : parseCsvImport(f.name, await f.text(), data);
-      if ("error" in res) {
-        setFileError(res.error);
+      const text = isXlsx ? "" : await f.text();
+      const sheets = isXlsx ? await readXlsx(f) : [{ name: f.name, rows: parseCsv(text) }];
+      // Tabs with a "Biller Id" header are Cash Collection billers; every other tab is read as the rate card.
+      const bill = hasBillerTab(sheets) ? parseBillerSheet(sheets) : null;
+      const billTabs = bill && !("error" in bill) ? bill.sheets : [];
+      const parsedRc = isXlsx
+        ? parseXlsxImport(f.name, sheets.filter((s) => !billTabs.includes(s.name)), data)
+        : billTabs.length > 0
+          ? emptyImport(f.name, "csv")
+          : parseCsvImport(f.name, text, data);
+      const hasBillers = billTabs.length > 0;
+      if ("error" in parsedRc && !hasBillers) {
+        setFileError(bill && "error" in bill ? bill.error : parsedRc.error);
         return;
       }
+      const res = "error" in parsedRc ? emptyImport(f.name, isXlsx ? "xlsx" : "csv") : parsedRc;
+      if (bill && "error" in bill) res.warnings.push(`${bill.error} Billers skipped.`);
       setPhase("Comparing with the saved rates…");
       const next = new Map<string, RateCardData>([[data.providerId ?? "", data]]);
       for (const id of providerIdsIn(res, data)) {
         if (!next.has(id ?? "")) next.set(id ?? "", await fetchApi<RateCardData>("/admin/rate-card", id ? { providerId: id } : undefined));
       }
       const pv = planImport(res, data, (id) => next.get(id ?? ""), { removeMissing });
-      if (pv.length === 0) {
+      if (pv.length === 0 && !hasBillers) {
         setFileError(
           res.emptyTabs.length > 0 && res.warnings.length === 0
             ? "Every service tab in this file is empty. Fill at least one slab row and import again."
             : "No service in this file matches a service on the rate card. Check the tab titles, or download the template from Export → Blank template.",
         );
         return;
+      }
+      if (bill && !("error" in bill)) {
+        setPhase("Comparing with the saved billers…");
+        const preview = await checkBillers(f.name, bill.rows, false);
+        setBillers({ rows: bill.rows, sheets: bill.sheets, preview });
+        setBillersOn(preview.issueCount === 0 && billerChangeCount(preview) > 0);
+        setBillersOpen(pv.length === 0);
       }
       setCards(next);
       setParsed(res);
@@ -331,7 +485,7 @@ export function RateCardImportModal({
     e.preventDefault();
     setDragging(false);
     const f = e.dataTransfer.files?.[0];
-    if (f && !reading && !saving) void readFile(f);
+    if (f && !reading && !busy) void readFile(f);
   }
 
   const toggleIn = (set: Set<string>, key: string) => {
@@ -342,7 +496,25 @@ export function RateCardImportModal({
   };
 
   async function confirm() {
-    if (!file || !reasonOk || save.pairs.length === 0) return;
+    if (!file || !reasonOk || nothingToSave) return;
+    if (billerSave && billers) {
+      setBillerSaving(true);
+      setBillerError(null);
+      try {
+        await saveBillers(file.name, billers.rows, false, reason.trim());
+        setBillersDone(true);
+        onBillersSaved(billerCount, file.name);
+      } catch (err) {
+        setBillerError(apiErrorMessage(err, "The billers were not saved and no rates were changed. Try again."));
+        return;
+      } finally {
+        setBillerSaving(false);
+      }
+    }
+    if (save.pairs.length === 0) {
+      onImported(null, 0, file.name);
+      return;
+    }
     const pairs = save.pairs;
     let importId: string | null = null;
     const req: SaveRequest = {
@@ -367,7 +539,7 @@ export function RateCardImportModal({
   const eyebrow = step === 1 ? "Step 1 of 3 · Upload" : step === 2 ? "Step 2 of 3 · Choose services & review" : "Step 3 of 3 · Confirm";
   const subtitle =
     step === 1
-      ? "Excel (.xlsx) from Export → Excel or Blank template, or a CSV from Export → CSV."
+      ? "Excel (.xlsx) from Export → Excel or Blank template, or a CSV from Export → CSV. Tabs with a Biller Id column are saved as Cash Collection billers."
       : step === 2
         ? "Tick the services and changes to save. Blank cells in the file keep what is saved."
         : "Check what changes, add a reason, then save. Applies from now to new transactions.";
@@ -379,7 +551,7 @@ export function RateCardImportModal({
       subtitle={subtitle}
       icon={step === 1 ? <Upload size={22} /> : step === 2 ? <ListChecks size={22} /> : <ShieldCheck size={22} />}
       iconTone="blue"
-      onClose={saving || reading ? () => undefined : onClose}
+      onClose={busy || reading ? () => undefined : onClose}
       wide
     >
       {step === 1 ? (
@@ -440,7 +612,8 @@ export function RateCardImportModal({
                 </div>
               ) : parsed && !fileError ? (
                 <p className="mt-1 text-[11px] font-semibold" style={{ color: B.greenDark }}>
-                  Read {plural(parsed.rows.length, "row")} across {plural(previews.length, "service")}.
+                  Read {plural(parsed.rows.length, "row")} across {plural(previews.length, "service")}
+                  {billers ? ` + ${plural(billers.preview.rowsRead, "biller")} (Cash Collection)` : ""}.
                 </p>
               ) : null}
             </div>
@@ -493,6 +666,19 @@ export function RateCardImportModal({
             </ul>
           ) : null}
 
+          {billers ? (
+            <BillerBlock
+              part={billers}
+              on={billersOn}
+              open={billersOpen}
+              done={billersDone}
+              onToggle={() => setBillersOn((v) => !v)}
+              onToggleOpen={() => setBillersOpen((v) => !v)}
+            />
+          ) : null}
+
+          {previews.length > 0 ? (
+          <>
           <label
             className="mb-3 flex cursor-pointer items-start gap-2 rounded-2xl border px-3 py-2.5 text-xs"
             style={{ borderColor: removeMissing ? "#FCA5A5" : B.border, background: removeMissing ? "#FEF2F2" : "var(--admin-secondary)" }}
@@ -556,15 +742,21 @@ export function RateCardImportModal({
               />
             ))}
           </ul>
+          </>
+          ) : null}
 
-          <p className="mt-3 text-[11px]" style={{ color: save.pairs.length ? B.muted : B.danger }}>
+          <p className="mt-3 text-[11px]" style={{ color: nothingToSave ? B.danger : B.muted }}>
             {save.pairs.length
               ? `${plural(save.slabs, "slab")} in ${plural(save.services, "service")} · ${plural(save.pairs.length, "save")}${
                   blockedCount ? ` · ${plural(blockedCount, "service")} with errors skipped` : ""
-                }`
-              : blockedCount === previews.length
-                ? "Every service has errors. Fix them in the file (download the error report) and import again."
-                : "Nothing to save — tick at least one service with changes."}
+                }${billerSave ? ` · ${plural(billerCount, "biller")}` : ""}`
+              : billerSave
+                ? `${plural(billerCount, "biller")} to save · no rate card slab changes`
+                : previews.length > 0 && blockedCount === previews.length
+                  ? "Every service has errors. Fix them in the file (download the error report) and import again."
+                  : billers && billers.preview.issueCount > 0
+                    ? "The biller tab has errors. Fix them in the file (download the biller error report) and import again."
+                    : "Nothing to save — tick at least one service or the billers with changes."}
           </p>
 
           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -574,11 +766,12 @@ export function RateCardImportModal({
                 setStep(1);
                 setParsed(null);
                 setFile(null);
+                setBillers(null);
               }}
             >
               Choose another file
             </Btn>
-            <Btn variant="primary" disabled={save.pairs.length === 0} onClick={() => setStep(3)}>
+            <Btn variant="primary" disabled={nothingToSave} onClick={() => setStep(3)}>
               Continue
             </Btn>
           </div>
@@ -587,6 +780,21 @@ export function RateCardImportModal({
 
       {step === 3 && parsed ? (
         <>
+          {billers && (billerSave || billersDone) ? (
+            <div
+              className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold"
+              style={{ borderColor: "#86EFAC", background: "rgba(18,183,106,0.08)", color: B.greenDark }}
+            >
+              <Users size={14} />
+              {billersDone ? "Saved: " : ""}Cash Collection billers · {billers.preview.counts.new} new · {billers.preview.counts.changed} changed
+              <span className="ml-auto font-normal" style={{ color: B.muted }}>
+                Undo from Cash Collection → Billers → Upload history
+              </span>
+            </div>
+          ) : null}
+
+          {save.pairs.length > 0 ? (
+          <>
           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
               ["Services", save.services],
@@ -606,6 +814,8 @@ export function RateCardImportModal({
           </div>
 
           <CompareTable rows={save.compare} />
+          </>
+          ) : null}
 
           {(() => {
             const warnings = [
@@ -638,7 +848,7 @@ export function RateCardImportModal({
             <textarea
               rows={2}
               value={reason}
-              disabled={saving}
+              disabled={busy || billersDone}
               onChange={(e) => setReason(e.target.value)}
               onBlur={() => setTouched(true)}
               placeholder="e.g. Provider rate sheet Oct 2026"
@@ -664,12 +874,27 @@ export function RateCardImportModal({
             </div>
           ) : null}
 
+          {billerError ? (
+            <p
+              className="mt-3 flex items-start gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold"
+              style={{ borderColor: "#FCA5A5", background: "#FEF2F2", color: B.danger }}
+            >
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" /> {billerError}
+            </p>
+          ) : null}
+
           <div className="mt-5 grid grid-cols-2 gap-2">
-            <Btn variant="secondary" disabled={saving} onClick={() => setStep(2)}>
+            <Btn variant="secondary" disabled={busy || billersDone} onClick={() => setStep(2)}>
               Back
             </Btn>
-            <Btn variant="primary" disabled={saving || !reasonOk} onClick={() => void confirm()}>
-              {saving ? "Saving…" : `Save ${plural(save.pairs.length, "change")}`}
+            <Btn variant="primary" disabled={busy || !reasonOk || nothingToSave} onClick={() => void confirm()}>
+              {busy
+                ? billerSaving
+                  ? "Saving billers…"
+                  : "Saving…"
+                : `Save ${[save.pairs.length ? plural(save.pairs.length, "change") : null, billerSave ? plural(billerCount, "biller") : null]
+                    .filter(Boolean)
+                    .join(" + ")}`}
             </Btn>
           </div>
         </>

@@ -435,6 +435,7 @@ export function RateCardScreen() {
   }
 
   const [importOpen, setImportOpen] = useState(false);
+  const [billersVersion, setBillersVersion] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [undoTarget, setUndoTarget] = useState<UndoTarget | null>(null);
   const scopeName = providerId ? providerName : "All providers";
@@ -952,7 +953,7 @@ export function RateCardScreen() {
                             {open && row.serviceCode === CMS_SERVICE_CODE ? (
                               <tr className="border-t" style={{ borderColor: B.border, boxShadow: openBlockEdge("middle") }}>
                                 <td colSpan={7} className="px-3 py-2">
-                                  <CmsBillersPanel />
+                                  <CmsBillersPanel key={billersVersion} />
                                 </td>
                               </tr>
                             ) : null}
@@ -1049,6 +1050,12 @@ export function RateCardScreen() {
           runSave={runSave}
           onClose={() => setImportOpen(false)}
           onImported={onImported}
+          onBillersSaved={(count, fileName) => {
+            setBillersVersion((v) => v + 1);
+            toast.success(`${count} Cash Collection biller${count === 1 ? "" : "s"} saved from ${fileName}. Undo from Cash Collection → Billers → Upload history.`, {
+              duration: 10_000,
+            });
+          }}
         />
       ) : null}
 

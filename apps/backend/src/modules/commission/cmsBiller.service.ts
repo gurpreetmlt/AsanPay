@@ -22,6 +22,8 @@ const MARGINS: Array<{ key: MarginKey; label: string }> = [
 ];
 
 export const billerRowSchema = z.object({
+  /** Workbook tab, sent only when billers come from more than one tab. */
+  tab: z.string().max(100).optional(),
   row: z.number().int().min(1).max(1_000_000),
   billerId: z.string().max(100),
   billerName: z.string().max(500),
@@ -62,16 +64,16 @@ function sameRates(a: Rates, b: Rates): boolean {
 export function validateBillerRows(rows: BillerRowInput[]): { valid: Array<Rates & { billerId: string; row: number }>; issues: string[] } {
   const issues: string[] = [];
   const valid: Array<Rates & { billerId: string; row: number }> = [];
-  const seen = new Map<string, number>();
+  const seen = new Map<string, string>();
   for (const r of rows) {
-    const at = `Row ${r.row}`;
+    const at = r.tab ? `Tab “${r.tab}” · Row ${r.row}` : `Row ${r.row}`;
     const before = issues.length;
     const billerId = r.billerId.trim();
     const billerName = r.billerName.trim().replace(/\s+/g, " ");
     if (!billerId) issues.push(`${at} · Biller Id is empty`);
     else if (!/^\d+$/.test(billerId)) issues.push(`${at} · Biller Id must contain digits only (found "${billerId.slice(0, 30)}")`);
     else if (billerId.length > 20) issues.push(`${at} · Biller Id must be at most 20 digits`);
-    else if (seen.has(billerId)) issues.push(`${at} · Biller Id ${billerId} is already on row ${seen.get(billerId)} — keep one row per biller`);
+    else if (seen.has(billerId)) issues.push(`${at} · Biller Id ${billerId} is already on ${seen.get(billerId)} — keep one row per biller`);
     if (!billerName) issues.push(`${at} · Biller Name is empty`);
     else if (billerName.length > 200) issues.push(`${at} · Biller Name must be at most 200 characters`);
 
@@ -103,7 +105,7 @@ export function validateBillerRows(rows: BillerRowInput[]): { valid: Array<Rates
         );
       }
     }
-    if (billerId && /^\d+$/.test(billerId) && !seen.has(billerId)) seen.set(billerId, r.row);
+    if (billerId && /^\d+$/.test(billerId) && !seen.has(billerId)) seen.set(billerId, r.tab ? `tab “${r.tab}” row ${r.row}` : `row ${r.row}`);
     if (issues.length === before) {
       valid.push({
         row: r.row,
