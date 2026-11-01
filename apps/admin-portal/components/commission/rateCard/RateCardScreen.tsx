@@ -100,6 +100,21 @@ function IssueTags({ loss, unset, zeroRoles }: { loss: number; unset: number; ze
 
 function RoleCell({ r }: { r: RoleSplit | undefined }) {
   if (!r) return <span>—</span>;
+  // A saved share pays nothing until Provider pays is set; show it instead of "None".
+  const waitingShare = r.source === "none" && (r.sharePercent != null || r.shareFlat != null);
+  if (waitingShare) {
+    return (
+      <div className="text-right" title="Saved share — pays once Provider pays is set or comes with the transaction">
+        <p className="font-semibold tabular-nums" style={{ color: B.muted }}>
+          {r.shareFlat != null ? inr(r.shareFlat) : `${pct(r.sharePercent)} share`}
+        </p>
+        <p className="text-[11px]" style={{ color: B.muted }}>
+          {r.shareFlat != null ? "Flat" : "Of provider pays"}
+          {r.shareSlab ? " · slab" : ""}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="text-right">
       <p className="font-semibold tabular-nums" style={{ color: r.source === "none" ? B.danger : B.blue }}>

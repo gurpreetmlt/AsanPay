@@ -158,10 +158,12 @@ export function slabSplitOf(s: Slab): SlabSplit {
   for (const role of SCHEME_ROLES) {
     const r = s.roles.find((x) => x.role === role);
     if (!r) continue;
-    if (r.source === "share" && r.shareFlat != null) {
+    // "none" + a saved share = the share is set but Provider pays is not, so nothing pays yet.
+    const hasShare = r.source === "share" || r.source === "none";
+    if (hasShare && r.shareFlat != null) {
       out.modes[role] = "flat";
       out.values[role] = num(r.shareFlat);
-    } else if (r.source === "share" && r.sharePercent != null) {
+    } else if (hasShare && r.sharePercent != null) {
       out.values[role] = num(r.sharePercent);
     } else if (r.source === "rule" && r.ruleType === "flat" && r.ruleValue != null) {
       out.modes[role] = "flat";
