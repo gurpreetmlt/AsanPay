@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { ScrollViewInstance, TextInputInstance } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -674,7 +675,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   const [insertSlot, setInsertSlot] = useState(0);
   /** Slot used for the current non-fav selected bank. */
   const [selectedInsertAt, setSelectedInsertAt] = useState(0);
-  const bankScrollRef = useRef<ScrollView>(null);
+  const bankScrollRef = useRef<ScrollViewInstance>(null);
   const bankViewportW = useRef(280);
   const bankScrollX = useRef(0);
   /** Delay before scroll — longer after View All so modal close finishes first. */
@@ -964,7 +965,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
   }
 
   const showAadhaarPlain = aadhaarFocused || aadhaarVisible;
-  const aadhaarInputRef = useRef<TextInput>(null);
+  const aadhaarInputRef = useRef<TextInputInstance>(null);
 
   const canScan =
     !!selectedBank &&
@@ -1846,7 +1847,7 @@ export function AepsScreen({ onBack, initialTab, serviceCode }: AepsScreenProps)
               />
               {!showAadhaarPlain && aadhaar.length > 0 && (
                 <Pressable
-                  style={StyleSheet.absoluteFillObject}
+                  style={StyleSheet.absoluteFill}
                   onPress={() => {
                     setAadhaarFocused(true);
                     aadhaarInputRef.current?.focus();

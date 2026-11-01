@@ -12,14 +12,8 @@ import {
 } from "react-native";
 import Geolocation, { type GeolocationResponse } from "@react-native-community/geolocation";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  Camera,
-  useCameraDevice,
-  useCameraPermission,
-  useCodeScanner,
-  type CameraDevice,
-  type CodeScanner,
-} from "react-native-vision-camera";
+import { Camera, useCameraDevice, useCameraPermission } from "react-native-vision-camera";
+import { useBarcodeScannerOutput, type TargetBarcodeFormat } from "react-native-vision-camera-barcode-scanner";
 import { CheckCircle2, MapPin, X, XCircle } from "lucide-react-native";
 import type { ApiResponse } from "@asanpay/shared-types";
 import { api } from "../../lib/api";
@@ -27,13 +21,8 @@ import { apiError } from "../../utils/apiError";
 import { detectMockLocation } from "../../lib/geoCapture";
 import { colors } from "../../theme/colors";
 
-// Hoisted React 19 types make the library's class component look invalid to TS; it renders fine.
-const CameraView = Camera as unknown as React.ComponentType<{
-  style?: object;
-  device: CameraDevice;
-  isActive: boolean;
-  codeScanner: CodeScanner;
-}>;
+/** Module-level so the scanner output is not recreated on every render. */
+const QR_FORMATS: TargetBarcodeFormat[] = ["qr-code"];
 
 /** QR shown on the web "Verify your location" / "Fetch shop location" screens. */
 const GEO_PREFIX = "asanpay:geo:";
@@ -134,11 +123,16 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
     }
   }, []);
 
-  const codeScanner = useCodeScanner({
-    codeTypes: ["qr"],
-    onCodeScanned: (codes) => {
-      const value = codes[0]?.value;
+  const scannerOutput = useBarcodeScannerOutput({
+    barcodeFormats: QR_FORMATS,
+    onBarcodeScanned: (barcodes) => {
+      const value = barcodes[0]?.rawValue;
       if (value) void handleCode(value);
+    },
+    onError: () => {
+      if (handling.current) return;
+      handling.current = true;
+      setPhase({ kind: "error", text: "The QR scanner stopped. Tap Scan again to restart the camera." });
     },
   });
 
@@ -172,7 +166,7 @@ export function ScanQrModal({ visible, onClose }: { visible: boolean; onClose: (
           ) : phase.kind === "scanning" ? (
             <>
               {/* Unmounted (not paused) after a read: a paused session leaves a frozen last frame. */}
-              <CameraView style={s.camera} device={device} isActive={visible} codeScanner={codeScanner} />
+              <Camera style={s.camera} device={device} isActive={visible} outputs={[scannerOutput]} />
               <View style={s.frame} pointerEvents="none" />
             </>
           ) : (

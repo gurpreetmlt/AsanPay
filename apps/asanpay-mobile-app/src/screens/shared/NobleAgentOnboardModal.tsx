@@ -13,6 +13,7 @@ import {
   View,
   type TextInputProps,
 } from "react-native";
+import type { ScrollViewInstance } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Geolocation from "@react-native-community/geolocation";
 import { ArrowLeft, Eye, EyeOff, Landmark, Lock, MapPin, Store, UserRound } from "lucide-react-native";
@@ -63,7 +64,7 @@ export function NobleAgentOnboardModal({
   const { tokens } = useTheme();
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);

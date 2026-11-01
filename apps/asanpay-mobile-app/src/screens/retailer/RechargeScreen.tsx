@@ -1286,7 +1286,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   selectModalRoot: { flex: 1, justifyContent: "flex-end" },
-  selectScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.35)" },
+  selectScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.35)" },
   selectSheet: {
     maxHeight: "70%",
     margin: 12,

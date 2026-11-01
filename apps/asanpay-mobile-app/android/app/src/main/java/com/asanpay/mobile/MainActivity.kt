@@ -2,7 +2,6 @@ package com.asanpay.mobile
 
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -40,8 +39,8 @@ class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     // Must run before super — keeps branded splash until first draw (matches React splash blue).
     installSplashScreen()
-    // Android 15+ (targetSdk 35+): draw behind system bars; insets via safe-area-context.
-    enableEdgeToEdge()
+    // Edge-to-edge is applied by ReactActivity (edgeToEdgeEnabled in gradle.properties);
+    // insets via safe-area-context.
     super.onCreate(savedInstanceState)
     if (BuildConfig.ENABLE_SECURE_SCREEN) {
       // Block screenshots / recent-apps thumbnails for Aadhaar, OTP and PIN surfaces.

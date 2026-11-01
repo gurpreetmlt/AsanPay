@@ -13,10 +13,8 @@ for pkg in core native elements routers bottom-tabs; do
   fi
 done
 
-# Zustand must use mobile's React 18, not root React 19
-if [ -d "$ROOT/node_modules/zustand" ] && [ ! -d "$MOBILE/node_modules/zustand" ]; then
-  cp -R "$ROOT/node_modules/zustand" "$MOBILE/node_modules/zustand"
-fi
+# zustand resolves from the root (one React 19 for every workspace); drop any stale app copy.
+rm -rf "$MOBILE/node_modules/zustand"
 
 # Never resolve RN UI libs from root (duplicate native view registration)
 for pkg in react-native-safe-area-context react-native-screens react-native-linear-gradient react-native-svg lucide-react-native @react-native-async-storage/async-storage; do

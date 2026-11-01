@@ -8,8 +8,8 @@ const mobileModules = path.resolve(projectRoot, "node_modules");
 const rootModules = path.resolve(workspaceRoot, "node_modules");
 
 /**
- * Monorepo hoisting loads duplicate RN libs from the repo root (e.g. safe-area-context 5.x
- * while this app uses 4.14.1). Two copies register the same native view → crash after login.
+ * Monorepo hoisting can leave duplicate RN libs at the repo root with a different version than
+ * this app's copy. Two copies register the same native view → crash after login.
  */
 const PINNED_PACKAGES = [
   "react",
@@ -23,20 +23,22 @@ const PINNED_PACKAGES = [
   "@react-native-async-storage/async-storage",
 ];
 
-function mobilePackagePath(moduleName) {
-  if (moduleName.startsWith("react/") || moduleName.startsWith("react-native/")) {
-    return path.join(mobileModules, moduleName);
+function isPinned(moduleName) {
+  if (moduleName.startsWith("react/") || moduleName.startsWith("react-native/")) return true;
+  if (moduleName.startsWith("@react-navigation/") || PINNED_PACKAGES.includes(moduleName)) {
+    return fs.existsSync(path.join(mobileModules, moduleName));
   }
-  if (moduleName.startsWith("@react-navigation/")) {
-    const local = path.join(mobileModules, moduleName);
-    if (fs.existsSync(local)) return local;
-    return null;
-  }
-  if (PINNED_PACKAGES.includes(moduleName)) {
-    const local = path.join(mobileModules, moduleName);
-    if (fs.existsSync(local)) return local;
-  }
-  return null;
+  return false;
+}
+
+// Resolving by name (not by file path) keeps package.json "exports" subpaths working,
+// e.g. react-native/react-private-interface → src/react-private-interface.js.
+const mobileOrigin = path.join(projectRoot, "index.js");
+
+// react / react-native hoist to the repo root once every workspace shares one React version.
+function moduleDir(name) {
+  const local = path.join(mobileModules, name);
+  return fs.existsSync(local) ? local : path.join(rootModules, name);
 }
 
 const config = getDefaultConfig(projectRoot);
@@ -47,25 +49,21 @@ config.resolver.nodeModulesPaths = [mobileModules, rootModules];
 
 config.resolver.extraNodeModules = {
   ...(config.resolver.extraNodeModules || {}),
-  react: path.join(mobileModules, "react"),
-  "react-native": path.join(mobileModules, "react-native"),
-  "react/jsx-runtime": path.join(mobileModules, "react/jsx-runtime"),
-  "react/jsx-dev-runtime": path.join(mobileModules, "react/jsx-dev-runtime"),
-  "react-native-safe-area-context": path.join(mobileModules, "react-native-safe-area-context"),
-  "react-native-screens": path.join(mobileModules, "react-native-screens"),
-  "react-native-linear-gradient": path.join(mobileModules, "react-native-linear-gradient"),
-  "react-native-svg": path.join(mobileModules, "react-native-svg"),
-  "lucide-react-native": path.join(mobileModules, "lucide-react-native"),
-  "@react-native-async-storage/async-storage": path.join(
-    mobileModules,
-    "@react-native-async-storage/async-storage",
-  ),
+  react: moduleDir("react"),
+  "react-native": moduleDir("react-native"),
+  "react/jsx-runtime": path.join(moduleDir("react"), "jsx-runtime"),
+  "react/jsx-dev-runtime": path.join(moduleDir("react"), "jsx-dev-runtime"),
+  "react-native-safe-area-context": moduleDir("react-native-safe-area-context"),
+  "react-native-screens": moduleDir("react-native-screens"),
+  "react-native-linear-gradient": moduleDir("react-native-linear-gradient"),
+  "react-native-svg": moduleDir("react-native-svg"),
+  "lucide-react-native": moduleDir("lucide-react-native"),
+  "@react-native-async-storage/async-storage": moduleDir("@react-native-async-storage/async-storage"),
 };
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  const pinned = mobilePackagePath(moduleName);
-  if (pinned) {
-    return context.resolveRequest(context, pinned, platform);
+  if (isPinned(moduleName)) {
+    return context.resolveRequest({ ...context, originModulePath: mobileOrigin }, moduleName, platform);
   }
   return context.resolveRequest(context, moduleName, platform);
 };

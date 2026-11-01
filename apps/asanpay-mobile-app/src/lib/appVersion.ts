@@ -1,3 +1,3 @@
 /** Must match `versionCode` / `versionName` in android/app/build.gradle — bump both together. */
-export const APP_VERSION_CODE = 9;
-export const APP_VERSION_NAME = "1.0.6";
+export const APP_VERSION_CODE = 10;
+export const APP_VERSION_NAME = "1.0.7";

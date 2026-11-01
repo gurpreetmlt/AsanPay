@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
   headerBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { flex: 1, textAlign: "center", color: colors.white, fontSize: 18, fontWeight: "800" },
   web: { flex: 1 },
-  webLoading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  webLoading: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
   body: { padding: 16, gap: 14 },
   statRow: { flexDirection: "row", gap: 10 },
   stat: { flex: 1, borderWidth: 1, borderRadius: 16, padding: 12, overflow: "hidden" },

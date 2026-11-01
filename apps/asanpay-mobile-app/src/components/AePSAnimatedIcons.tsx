@@ -297,7 +297,7 @@ function Layer({
     <Animated.View
       pointerEvents="none"
       style={[
-        StyleSheet.absoluteFillObject,
+        StyleSheet.absoluteFill,
         {
           opacity: layer.opacity,
           transform: [

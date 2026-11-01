@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   previewImg: { width: "100%", height: "100%" },
   previewInitials: { color: "#fff", fontSize: 32, fontWeight: "800" },
   busyVeil: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.35)",
     alignItems: "center",
     justifyContent: "center",

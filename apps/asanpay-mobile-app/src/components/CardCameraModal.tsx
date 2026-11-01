@@ -1,28 +1,15 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Camera,
+  CommonResolutions,
   useCameraDevice,
-  useCameraFormat,
   useCameraPermission,
-  type CameraDevice,
-  type CameraDeviceFormat,
+  usePhotoOutput,
 } from "react-native-vision-camera";
 import { X } from "lucide-react-native";
 import { colors } from "../theme/colors";
-
-// Hoisted React 19 types make the library's class component look invalid to TS; it renders fine.
-const CameraView = Camera as unknown as React.ComponentType<{
-  ref?: React.Ref<Camera>;
-  style?: object;
-  device: CameraDevice;
-  format?: CameraDeviceFormat;
-  isActive: boolean;
-  photo: boolean;
-  photoQualityBalance?: "speed" | "balanced" | "quality";
-  outputOrientation?: "device" | "preview";
-}>;
 
 /** ID-1 card (PAN / Aadhaar PVC): 85.6 × 54 mm. */
 const CARD_ASPECT = 85.6 / 54;
@@ -43,9 +30,12 @@ export function CardCameraModal({
   onCaptured: (path: string) => void;
 }) {
   const device = useCameraDevice("back");
-  const format = useCameraFormat(device, [{ photoResolution: { width: 1920, height: 1080 } }]);
+  const photoOutput = usePhotoOutput({
+    targetResolution: CommonResolutions.FHD_16_9,
+    containerFormat: "jpeg",
+    qualityPrioritization: "balanced",
+  });
   const { hasPermission, requestPermission } = useCameraPermission();
-  const camera = useRef<Camera>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,12 +47,12 @@ export function CardCameraModal({
   }, [visible, hasPermission, requestPermission]);
 
   async function capture() {
-    if (!camera.current || busy) return;
+    if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      const photo = await camera.current.takePhoto({ flash: "off", enableShutterSound: false });
-      onCaptured(photo.path);
+      const photo = await photoOutput.capturePhotoToFile({ flashMode: "off", enableShutterSound: false }, {});
+      onCaptured(photo.filePath);
     } catch {
       setError("Could not take the photo. Hold the phone steady and try again.");
       setBusy(false);
@@ -93,17 +83,14 @@ export function CardCameraModal({
             </View>
           ) : (
             <>
-              <CameraView
-                ref={camera}
+              <Camera
                 style={s.camera}
                 device={device}
-                format={format}
                 isActive={visible}
-                photo
-                photoQualityBalance="balanced"
+                outputs={[photoOutput]}
                 // Cards are shot with the phone held flat over a table, where the tilt sensor cannot
                 // tell portrait from landscape ("device" then saves the photo turned 90°).
-                outputOrientation="preview"
+                orientationSource="interface"
               />
               <View style={s.frameWrap} pointerEvents="none">
                 <View style={s.frame}>
@@ -153,7 +140,7 @@ const s = StyleSheet.create({
   camera: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24 },
   msg: { color: "#fff", fontSize: 14, textAlign: "center" },
-  frameWrap: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 14 },
+  frameWrap: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", gap: 14 },
   frame: { width: "88%", aspectRatio: CARD_ASPECT, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.45)" },
   corner: { position: "absolute", width: CORNER, height: CORNER, borderColor: "#fff" },
   tl: { top: -2, left: -2, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 },

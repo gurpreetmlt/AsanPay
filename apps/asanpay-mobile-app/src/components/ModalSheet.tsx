@@ -110,7 +110,7 @@ export function ModalSheet({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.55)" },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(15,23,42,0.55)" },
   card: {
     width: "100%",
     maxWidth: 440,
