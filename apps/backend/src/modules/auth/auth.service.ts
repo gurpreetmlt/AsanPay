@@ -69,7 +69,7 @@ import { deliverAuthOtp } from "../telegram/link.service";
 import {
   claimLoginApproval,
   signTrustedBrowserToken,
-  startWebLoginApproval,
+  startLoginApproval,
   type LoginApprovalChallenge,
 } from "./loginApproval.service";
 import { assertInviteForSignup, markInviteAccepted } from "../invites/invite.service";
@@ -935,13 +935,12 @@ export async function loginUser(input: LoginInput, context: AuthContext): Promis
   await ensurePolicyAccepted(row, input, context, "password");
 
   if (isAgentPortalRole(row.role)) {
-    const challenge = await startWebLoginApproval({
+    const challenge = await startLoginApproval({
       user: row,
       supportsLoginApproval: input.supportsLoginApproval,
       trustedBrowserToken: input.trustedBrowserToken,
       deviceId: input.deviceId,
       deviceLabel: input.deviceLabel,
-      method: "password",
       context,
     });
     if (challenge) return challenge;
@@ -1098,7 +1097,7 @@ export async function requestLoginOtp(
 export async function verifyLoginOtp(
   input: OtpVerifyInput,
   context: AuthContext,
-): Promise<(SessionResult & { isNewDevice?: boolean }) | LoginApprovalChallenge> {
+): Promise<SessionResult & { isNewDevice?: boolean }> {
   if (input.portal === "admin") {
     throw new HttpError(401, "Invalid credentials", "INVALID_CREDENTIALS");
   }
@@ -1149,17 +1148,6 @@ export async function verifyLoginOtp(
   await ensurePolicyAccepted(row, input, context, "otp");
 
   await markOtpConsumed(record.id);
-
-  const challenge = await startWebLoginApproval({
-    user: row,
-    supportsLoginApproval: input.supportsLoginApproval,
-    trustedBrowserToken: input.trustedBrowserToken,
-    deviceId: input.deviceId,
-    deviceLabel: input.deviceLabel,
-    method: "otp",
-    context,
-  });
-  if (challenge) return challenge;
 
   // deviceId is optional here (older/unwired clients still get a normal OTP login) — trust is
   // simply not established for those, so they'll be asked for OTP again next time too.

@@ -15,6 +15,7 @@ import {
 import { POLICY_VERSION, type ApiResponse, type AuthUser } from "@asanpay/shared-types";
 import { AsanPayLockup } from "@/components/brand/Logo";
 import { LoginPolicyConsent } from "@/components/auth/LoginPolicyConsent";
+import { LoginApprovalWait, type LoginApprovalChallenge } from "@/components/auth/LoginApprovalWait";
 import { PromoSlider } from "@/components/promos/PromoSlider";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import api from "@/lib/api";
@@ -74,6 +75,7 @@ export default function LoginPage() {
   // full OTP form for a moment before flipping to Welcome-back (or vice versa) right after logout.
   const [checkedRemembered, setCheckedRemembered] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [approval, setApproval] = useState<LoginApprovalChallenge | null>(null);
   const lastOtpSentKey = useRef<string | null>(null);
 
   useEffect(() => {
@@ -195,7 +197,7 @@ export default function LoginPage() {
     if (!mobile || !password || !policyAccepted) return;
     setLoading(true);
     try {
-      const { data } = await api.post<ApiResponse<LoginResponseData>>("/auth/login", {
+      const { data } = await api.post<ApiResponse<LoginResponseData | LoginApprovalChallenge>>("/auth/login", {
         mobile,
         password,
         portal: "agent",
@@ -204,6 +206,10 @@ export default function LoginPage() {
         ...POLICY_PAYLOAD,
       });
       if (!data.success) throw new Error(data.message);
+      if ("approvalRequired" in data.data) {
+        setApproval(data.data);
+        return;
+      }
       finishLogin(data.data);
     } catch (err) {
       if (isPolicyRequiredError(err)) onPolicyRequired();
@@ -323,6 +329,13 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function approvalUseOtp() {
+    setApproval(null);
+    setPassword("");
+    switchMethod("otp");
+    void requestOtp();
   }
 
   function switchMethod(next: "otp" | "password") {
@@ -566,6 +579,30 @@ export default function LoginPage() {
                   </button>
                 </form>
               )}
+            </>
+          ) : approval ? (
+            <>
+              <h2 className="mb-1 text-2xl font-bold" style={{ color: B.blue }}>
+                Check your phone
+              </h2>
+              <p className="mb-7 text-sm" style={{ color: B.muted }}>
+                Password login on a new browser needs approval from your AsanPay app for +91 {mobile}
+              </p>
+              <LoginApprovalWait
+                key={approval.approvalId}
+                challenge={approval}
+                onApproved={(user) => {
+                  setApproval(null);
+                  setPassword("");
+                  finishLogin({ user, accessToken: "cookie", refreshToken: "cookie" });
+                }}
+                onRetry={() => {
+                  setApproval(null);
+                  void handlePasswordLogin();
+                }}
+                onUseOtp={approvalUseOtp}
+                onCancel={() => setApproval(null)}
+              />
             </>
           ) : unlockMode && remembered ? (
             <form onSubmit={unlockWithMpin}>

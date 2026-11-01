@@ -7,6 +7,8 @@
 - Roles: **all agent roles** (Retailer, Distributor, Super Distributor). Admin: no (PL-41).
 - No trusted phone with a push token / push off → **OTP login as today**, flagged `isNewDevice`.
 - Approval expires in **2 minutes**; 2-digit number match (web shows the number, phone shows 3 choices).
+- (1 Nov, later) Approval gates **password login only**. OTP login (WhatsApp / Telegram) is the fallback and is never gated — "Use OTP instead" on the wait screen.
+- (1 Nov, later) **Enforced for every client**, not opt-in: password login from any device that is not an approval phone (and not a browser approved in the last day) needs a tap. Clients without the wait screen (mobile app, old builds) get 403 `LOGIN_APPROVAL_REQUIRED` "… Use OTP login instead."
 
 ## Phases
 | Phase | Scope | Status |
@@ -14,8 +16,9 @@
 | 1 | FCM in the mobile app (`src/lib/push.ts`, channel `asanpay_alerts`, `firebase.json`) | done (tested 1 Nov) |
 | 2 | Push tokens + backend sender (`modules/push`, migration `0102`, `npm run push:test`) | done (tested 1 Nov: `push:test` sent=1 to a retailer) |
 | 3a | Backend approval API (`login_approvals`, migration `0103`, `loginApproval.service.ts`) | done (built 1 Nov) |
-| 3b | Agent web wait screen | **CURRENT** |
-| 3c | Mobile approval popup | todo |
+| 3b | Agent web wait screen (`components/auth/LoginApprovalWait.tsx`, proxy trust cookie `ap_w_tb`) | built 1 Nov — test pending |
+| 3c | Mobile approval popup (`components/LoginApprovalHost.tsx`, `lib/loginApproval.ts`) | built 1 Nov — test pending |
+| 3d | Enforce for every client + password-only gate | built 1 Nov — test pending |
 
 ### Phase 2 — push tokens + sender
 - Table `push_tokens`: `user_id`, `device_id` (from mobile `deviceId.ts`), `token`, `platform`, `updated_at`; unique (`user_id`, `device_id`).
@@ -31,13 +34,13 @@
 - Deny → audit `auth.web_login_denied` + risk signal; trusted-browser cookie 1 day on approve.
 
 #### 3a as built (API contract for 3b / 3c)
-- Opt-in: `POST /api/auth/login` and `/api/auth/otp/verify` accept `supportsLoginApproval: true` + `trustedBrowserToken`. Without the flag (mobile app, old web) login works as before.
-- Approval required → `data: { approvalRequired: true, approvalId, matchNumber, pollToken, expiresAt, expiresInSeconds: 120 }`, no tokens. No trusted phone / push not delivered → normal session + `isNewDevice` (when `deviceId` sent).
+- `POST /api/auth/login` accepts `supportsLoginApproval: true` + `trustedBrowserToken` (the agent-portal proxy adds both). OTP verify is not gated (see Decisions).
+- Approval required → `data: { approvalRequired: true, approvalId, matchNumber, pollToken, expiresAt, expiresInSeconds: 120 }`, no tokens; without `supportsLoginApproval` → 403 `LOGIN_APPROVAL_REQUIRED`. No approval phone / push off / push not delivered / login from the approval phone itself → normal session + `isNewDevice` (when `deviceId` sent).
 - Poll is **POST** (portal proxy forwards bodies, not custom headers): `POST /api/auth/login-approval/:id/poll` `{ pollToken }` → `status`: `pending` (+`expiresInSeconds`) | `denied` | `expired` | `approved` (+ `user`, `accessToken`, `refreshToken`, `trustedBrowserToken`, `trustedBrowserExpiresAt`). Session is handed out once (409 `LOGIN_APPROVAL_USED` after). Limiter 60/min per approval + IP.
 - Decide (mobile, Bearer): `POST /api/auth/login-approval/:id/decide` `{ decision: "approve" | "deny", matchNumber, deviceId }`. Wrong number → denied + 422 `LOGIN_APPROVAL_WRONG_NUMBER`. Expired → 410 `LOGIN_APPROVAL_EXPIRED`.
 - Pending (mobile app open): `GET /api/auth/login-approvals/pending` → `approvals[]` with `id, browser, ip, city, loginMethod, choices, createdAt, expiresAt`.
 - Push: notification "Approve web login?" + data `{ type: "login_approval", approvalId }`.
-- Trusted browser = signed `trustedBrowserToken` (1 day, bound to user + browser `deviceId` + current password). **3b:** proxy must keep it in an httpOnly cookie and add it to the login body, and pass `isNewDevice` / `trustedBrowserToken` through (proxy currently strips everything except `user` when tokens are present). Proxy should also forward `User-Agent`; until then the browser label comes from `deviceLabel`.
+- Trusted browser = signed `trustedBrowserToken` (1 day, bound to user + browser `deviceId` + current password). The proxy stores it in httpOnly cookie `ap_w_tb` (never sent to browser JS), adds it to the login body, and forwards `User-Agent` so the phone shows e.g. "Chrome on macOS".
 - `city` stays null — no IP→city provider wired yet.
 
 ### Phase 3b — agent web

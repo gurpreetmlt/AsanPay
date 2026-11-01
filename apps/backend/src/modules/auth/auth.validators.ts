@@ -149,7 +149,6 @@ export const otpVerifySchema = z.object({
   deviceId: deviceIdSchema.optional(),
   deviceLabel: deviceLabelSchema,
   ...policyAcceptanceFields,
-  ...loginApprovalFields,
 });
 export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;
 

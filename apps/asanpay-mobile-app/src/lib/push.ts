@@ -1,9 +1,11 @@
 import { PermissionsAndroid, Platform } from "react-native";
 import axios from "axios";
 import {
+  getInitialNotification,
   getMessaging,
   getToken,
   onMessage,
+  onNotificationOpenedApp,
   onTokenRefresh,
   setBackgroundMessageHandler,
 } from "@react-native-firebase/messaging";
@@ -11,6 +13,7 @@ import { showAlert } from "../components/AppAlert";
 import { useAuthStore } from "../store/auth";
 import { API_BASE, api } from "./api";
 import { getDeviceId } from "./deviceId";
+import { isLoginApprovalMessage, notifyLoginApprovalPush } from "./loginApproval";
 
 /**
  * Must run at module load (index.js), before AppRegistry. Notification messages are drawn by the
@@ -32,15 +35,28 @@ export async function ensurePushPermission(): Promise<boolean> {
 
 /**
  * FCM does not show a system notification while the app is open, so foreground pushes are shown
- * as an in-app alert. Returns the unsubscribe function.
+ * as an in-app alert. Web login approval pushes (foreground, tapped, or cold start) open the
+ * approval popup instead. Returns the unsubscribe function.
  */
 export function startPushListeners(): () => void {
   const messaging = getMessaging();
   const unsubscribe = onMessage(messaging, (message) => {
+    if (isLoginApprovalMessage(message.data)) {
+      notifyLoginApprovalPush();
+      return;
+    }
     const title = message.notification?.title?.trim() || "AsanPay";
     const body = message.notification?.body?.trim();
     showAlert(title, body);
   });
+  const unsubOpened = onNotificationOpenedApp(messaging, (message) => {
+    if (isLoginApprovalMessage(message.data)) notifyLoginApprovalPush();
+  });
+  getInitialNotification(messaging)
+    .then((message) => {
+      if (message && isLoginApprovalMessage(message.data)) notifyLoginApprovalPush();
+    })
+    .catch(() => {});
 
   if (__DEV__) {
     getToken(messaging)
@@ -48,7 +64,10 @@ export function startPushListeners(): () => void {
       .catch((e) => console.warn("[push] getToken failed", e));
   }
 
-  return unsubscribe;
+  return () => {
+    unsubscribe();
+    unsubOpened();
+  };
 }
 
 /** `${userId}:${token}` last saved on the backend — skips repeat posts for the same session. */

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppAlertHost } from "./src/components/AppAlert";
+import { LoginApprovalHost } from "./src/components/LoginApprovalHost";
 import { ensurePushPermission, startPushListeners, startPushTokenSync } from "./src/lib/push";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { SplashScreen } from "./src/screens/SplashScreen";
@@ -31,6 +32,7 @@ function App(): React.JSX.Element {
       <ThemeProvider>
         <StatusBar barStyle="light-content" />
         {showSplash ? <SplashScreen /> : <RootNavigator />}
+        {showSplash ? null : <LoginApprovalHost />}
         <AppAlertHost />
       </ThemeProvider>
     </SafeAreaProvider>

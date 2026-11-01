@@ -236,7 +236,11 @@ export function LoginScreen({ onSignup }: LoginScreenProps) {
       }
     } catch (err) {
       if (isPolicyRequiredError(err)) onPolicyRequired();
-      showAlert("Login failed", apiError(err, "Incorrect mobile number or password"));
+      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+      showAlert(
+        code === "LOGIN_APPROVAL_REQUIRED" ? "Use OTP login" : "Login failed",
+        apiError(err, "Incorrect mobile number or password"),
+      );
     } finally {
       setLoading(false);
     }

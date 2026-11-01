@@ -256,7 +256,7 @@ export async function requestOtp(req: Request, res: Response): Promise<void> {
 export async function verifyOtp(req: Request, res: Response): Promise<void> {
   const input = otpVerifySchema.parse(req.body);
   const result = await verifyLoginOtp(input, browserContext(req));
-  sendSuccess(res, result, "approvalRequired" in result ? APPROVAL_REQUIRED_MESSAGE : "Logged in successfully");
+  sendSuccess(res, result, "Logged in successfully");
 }
 
 export async function mpinLogin(req: Request, res: Response): Promise<void> {

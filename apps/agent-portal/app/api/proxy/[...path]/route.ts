@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BACKEND_URL, clearAuthCookies, getAuthCookies, setAuthCookies } from "@/lib/serverAuth";
+import {
+  BACKEND_URL,
+  clearAuthCookies,
+  getAuthCookies,
+  getTrustedBrowserCookie,
+  setAuthCookies,
+  setTrustedBrowserCookie,
+} from "@/lib/serverAuth";
 
 // The dashboard (and other pages) fire several API calls in parallel. If the access-token cookie
 // is expired, each of those requests independently hits this 401 branch — without de-duping,
@@ -64,6 +71,7 @@ async function forward(
 
   const idempotencyKey = req.headers.get("idempotency-key");
   const contentType = req.headers.get("content-type");
+  const userAgent = req.headers.get("user-agent");
   const isReceiptPdf = path[path.length - 1] === "pdf" && path[path.length - 2] === "receipt";
   // Aadhaar OTP verify can wait on BestAPI → UIDAI longer than normal JSON calls.
   const isAadhaarOtp =
@@ -76,6 +84,7 @@ async function forward(
       ...(contentType ? { "Content-Type": contentType } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      ...(userAgent ? { "User-Agent": userAgent } : {}),
       ...clientIpHeaders(req),
     },
     body,
@@ -84,12 +93,26 @@ async function forward(
   });
 }
 
-function authSessionPayload(json: { data?: { user?: unknown } }) {
+function authSessionPayload(json: { data?: { user?: unknown; status?: unknown; isNewDevice?: unknown } }) {
   return {
     user: json.data?.user ?? null,
     accessToken: "cookie",
     refreshToken: "cookie",
+    ...(typeof json.data?.status === "string" ? { status: json.data.status } : {}),
+    ...(typeof json.data?.isNewDevice === "boolean" ? { isNewDevice: json.data.isNewDevice } : {}),
   };
+}
+
+/** Password login: this portal has the approval wait screen; add the 1-day trusted-browser token. */
+async function passwordLoginBody(req: NextRequest): Promise<string> {
+  const body = ((await req.json().catch(() => null)) as Record<string, unknown> | null) ?? {};
+  delete body.trustedBrowserToken;
+  const trusted = await getTrustedBrowserCookie();
+  return JSON.stringify({
+    ...body,
+    supportsLoginApproval: true,
+    ...(trusted ? { trustedBrowserToken: trusted } : {}),
+  });
 }
 
 async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }): Promise<NextResponse> {
@@ -110,7 +133,10 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     const switchBodyWith = (token: string | null) =>
       switchBody ? JSON.stringify(token ? { ...switchBody, refreshToken: token } : switchBody) : undefined;
 
-    let upstream = await forward(req, path, accessToken, switchBodyWith(refreshToken));
+    const isPasswordLogin = req.method === "POST" && path.length === 2 && isAuth && path[1] === "login";
+    const loginBody = isPasswordLogin ? await passwordLoginBody(req) : undefined;
+
+    let upstream = await forward(req, path, accessToken, loginBody ?? switchBodyWith(refreshToken));
 
     // Credential-entry endpoints (login/otp/mpin/signup) are always POST and a 401 there means
     // "wrong credentials", not "expired access token" — never retry those. GET auth endpoints
@@ -142,6 +168,9 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
         typeof json?.data?.refreshToken === "string"
       ) {
         await setAuthCookies(json.data.accessToken, json.data.refreshToken);
+        if (typeof json.data.trustedBrowserToken === "string" && typeof json.data.trustedBrowserExpiresAt === "string") {
+          await setTrustedBrowserCookie(json.data.trustedBrowserToken, json.data.trustedBrowserExpiresAt);
+        }
         return NextResponse.json(
           {
             success: true,

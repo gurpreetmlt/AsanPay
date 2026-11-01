@@ -92,23 +92,27 @@ function isTrustedBrowser(
   }
 }
 
-/** A non-revoked trusted device that also has a push token. */
-async function hasApprovalPhone(userId: string): Promise<boolean> {
-  const [hit] = await db
-    .select({ id: pushTokens.id })
+/** Device ids of non-revoked trusted devices that also have a push token. */
+async function listApprovalPhoneIds(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ deviceId: pushTokens.deviceId })
     .from(pushTokens)
     .innerJoin(
       devices,
       and(eq(devices.userId, pushTokens.userId), eq(devices.deviceId, pushTokens.deviceId)),
     )
-    .where(and(eq(pushTokens.userId, userId), isNull(devices.revokedAt)))
-    .limit(1);
-  return Boolean(hit);
+    .where(and(eq(pushTokens.userId, userId), isNull(devices.revokedAt)));
+  return rows.map((r) => r.deviceId);
 }
 
+/** "Chrome on macOS" from the forwarded User-Agent; the client's deviceLabel when the UA is unknown. */
 function browserLabel(deviceLabel: string | undefined, userAgent: string | null): string {
-  if (deviceLabel?.trim()) return deviceLabel.trim().slice(0, 150);
-  const ua = userAgent ?? "";
+  const fromUa = labelFromUserAgent(userAgent ?? "");
+  if (fromUa) return fromUa;
+  return deviceLabel?.trim() ? deviceLabel.trim().slice(0, 150) : "Web browser";
+}
+
+function labelFromUserAgent(ua: string): string | null {
   const browser = /Edg\//.test(ua)
     ? "Edge"
     : /OPR\//.test(ua)
@@ -119,7 +123,8 @@ function browserLabel(deviceLabel: string | undefined, userAgent: string | null)
           ? "Chrome"
           : /Safari\//.test(ua)
             ? "Safari"
-            : "Web browser";
+            : null;
+  if (!browser) return null;
   const os = /Windows/.test(ua)
     ? "Windows"
     : /Android/.test(ua)
@@ -154,22 +159,31 @@ function pollTokenMatches(storedHash: string, candidate: string): boolean {
 }
 
 /**
- * Agent web sign-in gate. Returns a challenge when the user has a trusted phone that received the
- * push; null means "log in as today" (client didn't opt in, browser trusted, no phone, push failed).
+ * Password sign-in gate (OTP login is the fallback and is never gated). Applies to every client:
+ * when the user has a trusted phone with push and this device is neither that phone nor a browser
+ * approved in the last day, the login needs a tap on the phone. Clients without the wait screen
+ * get LOGIN_APPROVAL_REQUIRED. Null means "log in as today" (no phone, push off or not delivered).
  */
-export async function startWebLoginApproval(input: {
+export async function startLoginApproval(input: {
   user: { id: string; passwordHash: string };
   supportsLoginApproval?: boolean;
   trustedBrowserToken?: string;
   deviceId?: string;
   deviceLabel?: string;
-  method: "password" | "otp";
   context: AuthContext;
 }): Promise<LoginApprovalChallenge | null> {
   const { user, context } = input;
-  if (!input.supportsLoginApproval) return null;
   if (isTrustedBrowser(input.trustedBrowserToken, user, input.deviceId)) return null;
-  if (!isPushConfigured() || !(await hasApprovalPhone(user.id))) return null;
+  if (!isPushConfigured()) return null;
+  const phones = await listApprovalPhoneIds(user.id);
+  if (phones.length === 0 || (input.deviceId && phones.includes(input.deviceId))) return null;
+  if (!input.supportsLoginApproval) {
+    throw new HttpError(
+      403,
+      "Password login on a new device needs approval from your AsanPay app. Use OTP login instead.",
+      "LOGIN_APPROVAL_REQUIRED",
+    );
+  }
 
   // Only the newest request can be approved.
   await db
@@ -192,7 +206,7 @@ export async function startWebLoginApproval(input: {
       ip: context.ipAddress?.slice(0, 64) ?? null,
       userAgent: context.userAgent?.slice(0, 300) ?? null,
       deviceId: input.deviceId ?? null,
-      loginMethod: input.method,
+      loginMethod: "password",
       pollTokenHash: hashToken(pollToken),
       expiresAt,
     })
@@ -221,7 +235,7 @@ export async function startWebLoginApproval(input: {
     entityId: created.id,
     ipAddress: context.ipAddress,
     userAgent: context.userAgent,
-    metadata: { method: input.method, browser, pushSent: push.sent },
+    metadata: { method: "password", browser, pushSent: push.sent },
   });
 
   return {
