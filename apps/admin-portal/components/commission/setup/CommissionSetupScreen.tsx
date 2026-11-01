@@ -36,6 +36,10 @@ const ROW_BG = {
   slabOdd: "rgba(42,92,221,0.045)",
 };
 
+/** Same red row as the Rate card screen for a service that needs attention. */
+const ISSUE_BG = { even: "rgba(220,38,38,0.045)", odd: "rgba(220,38,38,0.075)" };
+const ISSUE_EDGE = "inset 3px 0 0 #F87171";
+
 const hasLoss = (row: ServiceRow) => row.slabs.some((s) => s.underwater || s.missingRoles.length > 0);
 const hasUnset = (row: ServiceRow) => row.slabs.some((s) => s.providerIncome == null);
 
@@ -348,14 +352,23 @@ export function CommissionOverviewScreen() {
                       const Icon = getServiceIcon(row.serviceCode);
                       const incomes = row.slabs.filter((s) => s.providerIncome != null).map((s) => Number(s.providerIncome));
                       const keeps = row.slabs.map((s) => Number(s.companyKeeps));
+                      const needsAttention = hasUnset(row) || hasLoss(row);
                       return (
                         <ServiceTable key={row.serviceId} widths={["", "12%", "12%", "12%", "12%", "10%", "12%"]} open={open} head={<>
                           <tr
                             className="cursor-pointer border-t transition hover:brightness-[0.98]"
                             style={{
                               borderColor: B.border,
-                              background: open ? ROW_BG.open : i % 2 ? ROW_BG.odd : ROW_BG.even,
-                              boxShadow: open ? openBlockEdge("top") : undefined,
+                              background: open
+                                ? ROW_BG.open
+                                : needsAttention
+                                  ? i % 2
+                                    ? ISSUE_BG.odd
+                                    : ISSUE_BG.even
+                                  : i % 2
+                                    ? ROW_BG.odd
+                                    : ROW_BG.even,
+                              boxShadow: [open ? openBlockEdge("top") : null, needsAttention ? ISSUE_EDGE : null].filter(Boolean).join(", ") || undefined,
                             }}
                             onClick={() => setExpanded((cur) => (cur === row.serviceId ? null : row.serviceId))}
                             aria-expanded={open}
