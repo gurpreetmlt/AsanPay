@@ -1125,6 +1125,13 @@ adminRouter.post("/cms/billers/import", async (req, res) => {
   sendSuccess(res, result, result.saved ? "Biller sheet saved" : "Biller sheet checked");
 });
 
+adminRouter.patch("/cms/billers/:billerId", async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const { editCmsBiller, billerEditSchema } = await import("../commission/cmsBiller.service");
+  const billerId = z.string().regex(/^\d{1,20}$/, "Biller Id must contain digits only").parse(req.params.billerId);
+  sendSuccess(res, await editCmsBiller(req.auth.sub, billerId, billerEditSchema.parse(req.body)), "Biller margins saved");
+});
+
 adminRouter.post("/cms/billers/imports/:id/undo", async (req, res) => {
   if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
   const { undoCmsBillerImport } = await import("../commission/cmsBiller.service");

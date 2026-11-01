@@ -40,4 +40,4 @@ All 310 rows today: Retailer = 50 %, Distributor = 10 %, Super = 0 of the compan
 - [x] Upload of the provider sheet shows 310 billers in preview and saves them (reference tab parses 310 rows, 0 errors)
 - [x] Cash Collection shows the biller list with search + PDF / Excel / CSV export
 - [x] Re-upload shows only changed rows; Undo restores the previous rates
-- [ ] Migration run on EC2 after deploy (`0101_cms_biller_rates`)
+- [x] Migration run on EC2 after deploy (`0101_cms_biller_rates`) — 1 Nov

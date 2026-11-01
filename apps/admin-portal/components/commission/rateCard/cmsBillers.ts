@@ -76,7 +76,7 @@ export const SHEET_COLUMNS: Array<{ key: keyof Omit<BillerRow, "row">; header: s
   { key: "superMargin", header: "Super Margin", match: (n) => n.startsWith("super") },
 ];
 
-export const MARGIN_FIELDS: Array<{ key: keyof Rates; label: string }> = [
+export const MARGIN_FIELDS: Array<{ key: Exclude<keyof Rates, "billerName">; label: string }> = [
   { key: "companyMargin", label: "Company margin" },
   { key: "retailerMargin", label: "Retailer" },
   { key: "distributorMargin", label: "Distributor" },

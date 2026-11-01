@@ -304,6 +304,33 @@ export async function importCmsBillers(adminId: string, input: BillerImportInput
   return { saved: true as const, id: result.id, counts: result.counts };
 }
 
+export const billerEditSchema = z.object({
+  companyMargin: z.string().trim().max(40),
+  retailerMargin: z.string().trim().max(40),
+  distributorMargin: z.string().trim().max(40),
+  superMargin: z.string().trim().max(40),
+  reason: z.string().max(500),
+});
+
+/** One biller's margins from the admin list; saved like a one-row upload so Undo and Rate audit work the same. */
+export async function editCmsBiller(adminId: string, billerId: string, input: z.infer<typeof billerEditSchema>) {
+  const [saved] = await db.select().from(cmsBillerRates).where(eq(cmsBillerRates.billerId, billerId)).limit(1);
+  if (!saved) throw new HttpError(404, `Biller ${billerId} not found. Refresh the biller list.`, "CMS_BILLER_NOT_FOUND");
+  const row: BillerRowInput = { row: 1, billerId, billerName: saved.billerName, ...input };
+  const { valid, issues } = validateBillerRows([row]);
+  if (issues.length > 0) throw new HttpError(400, issues[0]!.replace(/^Row 1 · /, ""), "CMS_BILLER_ROW_INVALID");
+  if (saved.isActive && sameRates(saved, valid[0]!)) {
+    throw new HttpError(409, "Nothing changed — these margins are already saved for this biller.", "CMS_BILLER_NO_CHANGES");
+  }
+  return importCmsBillers(adminId, {
+    fileName: `Edit · ${saved.billerName.slice(0, 150)} (${billerId})`,
+    rows: [row],
+    removeMissing: false,
+    dryRun: false,
+    reason: input.reason,
+  });
+}
+
 async function cashCollectionServiceId(): Promise<string | null> {
   const [s] = await db.select({ id: servicesTable.id }).from(servicesTable).where(eq(servicesTable.code, CASH_COLLECTION_CODE)).limit(1);
   return s?.id ?? null;
@@ -362,7 +389,7 @@ export async function listCmsBillers(filters: { q?: string; type?: BillerType; i
     imports: imports.map((i) => {
       const blocked =
         undoBlockReason(i, now)?.replace("Edit the rate card or import a corrected file instead.", "Upload a corrected biller sheet instead.") ??
-        (i.id !== newestLive ? "A newer biller upload is in effect — undo that one first." : null);
+        (i.id !== newestLive ? "A newer biller upload or edit is in effect — undo that one first." : null);
       return {
         id: i.id,
         adminName: i.adminName ?? "Deleted admin",
@@ -416,7 +443,7 @@ export async function undoCmsBillerImport(adminId: string, id: string) {
   if (newer) {
     throw new HttpError(
       409,
-      `A newer biller upload (${newer.createdAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}) is in effect. Undo that one first.`,
+      `A newer biller upload or edit (${newer.createdAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}) is in effect. Undo that one first.`,
       "IMPORT_UNDO_NEWER_CHANGES",
     );
   }

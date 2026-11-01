@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronRight, FileSpreadsheet, History, Search, Undo2, Upload, Users } from "lucide-react";
+import { AlertTriangle, ChevronRight, FileSpreadsheet, History, Pencil, Search, Undo2, Upload, Users } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { Modal } from "@/components/ui/Modal";
@@ -9,6 +9,7 @@ import api, { fetchApi } from "@/lib/api";
 import { B } from "@/lib/brand";
 import { openBrandedPdf } from "@/lib/brandedExport";
 import { apiErrorMessage, downloadCsv, formatWhen } from "@/lib/taxCommissionUtils";
+import { CmsBillerEditModal } from "./CmsBillerEditModal";
 import { CmsBillerUploadModal } from "./CmsBillerUploadModal";
 import {
   TYPE_LABEL,
@@ -73,9 +74,9 @@ function UndoUploadModal({ target, onClose, onUndone }: { target: CmsBillerImpor
 
   return (
     <Modal
-      title="Undo this biller upload?"
+      title={target.fileName.startsWith("Edit · ") ? "Undo this biller edit?" : "Undo this biller upload?"}
       eyebrow="Cash Collection billers"
-      subtitle="Puts back the margins this upload replaced and deletes the billers it added. Allowed once, within 24 hours."
+      subtitle="Puts back the margins this change replaced and deletes any billers it added. Allowed once, within 24 hours."
       icon={<Undo2 size={22} />}
       iconTone="amber"
       onClose={busy ? () => undefined : onClose}
@@ -137,6 +138,7 @@ export function CmsBillersPanel() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [undoTarget, setUndoTarget] = useState<CmsBillerImport | null>(null);
+  const [editing, setEditing] = useState<CmsBiller | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -162,13 +164,21 @@ export function CmsBillersPanel() {
 
   function onSaved(importId: string, changes: number, fileName: string) {
     setUploadOpen(false);
+    savedToast(importId, `${changes} biller${changes === 1 ? "" : "s"} saved from ${fileName}.`);
+  }
+
+  function onEdited(importId: string) {
+    const name = editing?.billerName ?? "the biller";
+    setEditing(null);
+    savedToast(importId, `Margins saved for ${name}.`);
+  }
+
+  function savedToast(importId: string, message: string) {
     setVersion((v) => v + 1);
     toast(
       (t) => (
         <span className="flex items-center gap-3 text-sm">
-          <span>
-            {changes} biller{changes === 1 ? "" : "s"} saved from {fileName}.
-          </span>
+          <span>{message}</span>
           <button
             type="button"
             className="shrink-0 font-bold underline"
@@ -290,6 +300,7 @@ export function CmsBillersPanel() {
                 <th className="px-3 py-2 text-right font-bold">Distributor</th>
                 <th className="px-3 py-2 text-right font-bold">Super</th>
                 <th className="px-3 py-2 text-right font-bold">AsanPay keeps</th>
+                <th className="w-12 px-2 py-2 text-right font-bold">Edit</th>
               </tr>
             </thead>
             <tbody>
@@ -317,6 +328,18 @@ export function CmsBillersPanel() {
                   <td className="px-3 py-1.5 text-right font-bold tabular-nums" style={{ color: B.greenDark }}>
                     {margin(b.companyKeeps)}
                   </td>
+                  <td className="px-2 py-1 text-right">
+                    <button
+                      type="button"
+                      title={`Edit margins of ${b.billerName}`}
+                      aria-label={`Edit margins of ${b.billerName}`}
+                      onClick={() => setEditing(b)}
+                      className="rounded-lg p-1.5 transition hover:bg-[rgba(42,92,221,0.10)]"
+                      style={{ color: B.blueLight }}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -333,7 +356,7 @@ export function CmsBillersPanel() {
             className="inline-flex items-center gap-1 text-xs font-bold hover:underline"
             style={{ color: B.blueLight }}
           >
-            <History size={13} /> Upload history ({data.imports.length})
+            <History size={13} /> Upload &amp; edit history ({data.imports.length})
             <ChevronRight size={13} className={`transition-transform ${historyOpen ? "rotate-90" : ""}`} />
           </button>
           {historyOpen ? (
@@ -380,6 +403,7 @@ export function CmsBillersPanel() {
       ) : null}
 
       {uploadOpen ? <CmsBillerUploadModal savedCount={billers.length} onClose={() => setUploadOpen(false)} onSaved={onSaved} /> : null}
+      {editing ? <CmsBillerEditModal biller={editing} onClose={() => setEditing(null)} onSaved={onEdited} /> : null}
       {undoTarget ? (
         <UndoUploadModal
           target={undoTarget}
