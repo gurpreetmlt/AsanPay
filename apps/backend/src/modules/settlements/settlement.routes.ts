@@ -12,6 +12,7 @@ import {
   recheckSettlementBank,
   verifySettlementBank,
   activateSettlementBank,
+  releaseSettlementBankCooling,
   listSettlementBanks,
   revealSettlementBank,
   requestSettlement,
@@ -144,6 +145,21 @@ settlementRouter.post(
     );
   },
 );
+
+settlementRouter.post("/banks/:id/release-cooling", requireRole("admin"), async (req, res) => {
+  if (!req.auth) throw new HttpError(401, "Authentication required", "UNAUTHENTICATED");
+  const tenantId = await resolveTenantId();
+  const result = await releaseSettlementBankCooling({
+    tenantId,
+    settlementAccountId: parseBankRowId(paramId(req.params.id)),
+    adminId: req.auth.sub,
+  });
+  sendSuccess(
+    res,
+    { settlementAccountId: String(result.settlementAccountId) },
+    "Withdrawal hold removed — the agent can withdraw now",
+  );
+});
 
 settlementRouter.post(
   "/banks/:id/activate",

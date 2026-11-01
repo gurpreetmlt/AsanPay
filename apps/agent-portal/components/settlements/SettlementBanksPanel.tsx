@@ -53,6 +53,25 @@ function matchPill(level: string) {
 
 type PlaceMap = Record<string, IfscPlace>;
 
+/** Post-change withdrawal hold, e.g. "Withdrawals paused until 2 Nov, 6:35 pm (23 h 10 min left)". */
+function holdNote(coolingUntil: string | null | undefined, now: number): string | null {
+  if (!coolingUntil) return null;
+  const until = new Date(coolingUntil);
+  const ms = until.getTime() - now;
+  if (!(ms > 0)) return null;
+  const hours = Math.floor(ms / 3_600_000);
+  const mins = Math.max(1, Math.ceil((ms % 3_600_000) / 60_000));
+  const left = hours > 0 ? `${hours} h ${mins} min left` : `${mins} min left`;
+  const at = until.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `Withdrawals paused until ${at} (${left}) — the settlement bank was changed recently`;
+}
+
 /** Compact settlement bank cards + KYC-style IFSC add form. */
 export function SettlementBanksPanel({
   showAddFormDefault = false,
@@ -82,6 +101,13 @@ export function SettlementBanksPanel({
   const [prices, setPrices] = useState<{ standard: string; pennyDrop: string } | null>(null);
 
   const needsOtp = banks.some((b) => b.isActive && b.verified);
+  const [now, setNow] = useState(() => Date.now());
+  const holdActive = banks.some((b) => b.isActive && b.coolingUntil && new Date(b.coolingUntil).getTime() > now);
+  useEffect(() => {
+    if (!holdActive) return;
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, [holdActive]);
 
   useEffect(() => {
     if (!allowAdd) return;
@@ -487,6 +513,7 @@ export function SettlementBanksPanel({
           {banks.map((b) => {
             const place = places[b.id];
             const active = b.verified && b.isActive;
+            const hold = active ? holdNote(b.coolingUntil, now) : null;
             return (
               <BankDetailCard
                 key={b.id}
@@ -518,6 +545,8 @@ export function SettlementBanksPanel({
                         <span className="block text-amber-700">The bank is still confirming this account</span>
                       ) : null}
                     </span>
+                  ) : hold ? (
+                    <span className="block text-[11px] font-semibold text-amber-700">{hold}</span>
                   ) : undefined
                 }
                 onActivate={

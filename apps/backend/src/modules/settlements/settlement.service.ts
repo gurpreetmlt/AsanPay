@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../../db/postgres";
 import {
   accounts,
@@ -32,6 +32,8 @@ import {
 } from "../../db/postgres/repositories/otpRequest";
 import { getTenantSettings } from "../tenants/tenantSettings.service";
 import { normaliseBankUtr } from "../limits/moneyLimits";
+import { insertAuditLog } from "../../db/postgres/repositories/auditLog";
+import { notifySettlementBankChanged } from "../notifications/userEmail.service";
 import { bankNameMatch, type UserRole } from "@asanpay/shared-types";
 import {
   assertAgentCanPay,
@@ -52,6 +54,30 @@ function otpHashesEqual(storedHash: string, candidateOtp: string): boolean {
 }
 
 type SettlementStatus = (typeof settlementRequests.$inferSelect)["status"];
+
+/** "2 Nov, 6:35 pm" in IST — shown to agents, so never the server's UTC ISO string. */
+function formatIst(d: Date): string {
+  return d.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/** Alert agent + upline after the tx commits, only when the switch started a cooling period. */
+function noticeBankChange(row: { userId: string; accountNumberEnc: string; ifsc: string }, coolingUntil: Date | null) {
+  if (!coolingUntil || coolingUntil.getTime() <= Date.now()) return null;
+  let last4 = "????";
+  try {
+    last4 = decryptPII(row.accountNumberEnc).slice(-4);
+  } catch {
+    /* keep placeholder — the alert still matters more than the digits */
+  }
+  return { userId: row.userId, accountLast4: last4, ifsc: row.ifsc, resumesAt: formatIst(coolingUntil) };
+}
 
 /** Pack a bigint id into the uuid-shaped wallet_idempotency.ledger_group_id column. */
 function encodeIdemUuid(id: bigint): string {
@@ -362,7 +388,8 @@ export async function verifySettlementBank(params: {
   verifiedAt: Date;
   coolingUntil: Date | null;
 }> {
-  return db.transaction(async (tx) => {
+  const notices: NonNullable<ReturnType<typeof noticeBankChange>>[] = [];
+  const result = await db.transaction(async (tx) => {
     const [row] = await tx
       .select()
       .from(agentSettlementAccounts)
@@ -447,6 +474,9 @@ export async function verifySettlementBank(params: {
       throw new HttpError(500, "Could not verify settlement bank account", "VERIFY_FAILED");
     }
 
+    const notice = activate ? noticeBankChange(row, coolingUntil) : null;
+    if (notice) notices.push(notice);
+
     return {
       settlementAccountId: updated.id,
       isActive: updated.isActive,
@@ -454,6 +484,8 @@ export async function verifySettlementBank(params: {
       coolingUntil: updated.coolingUntil,
     };
   });
+  for (const n of notices) notifySettlementBankChanged(n);
+  return result;
 }
 
 /**
@@ -469,7 +501,8 @@ export async function activateSettlementBank(params: {
   isActive: boolean;
   coolingUntil: Date | null;
 }> {
-  return db.transaction(async (tx) => {
+  const notices: NonNullable<ReturnType<typeof noticeBankChange>>[] = [];
+  const result = await db.transaction(async (tx) => {
     const [row] = await tx
       .select()
       .from(agentSettlementAccounts)
@@ -542,12 +575,54 @@ export async function activateSettlementBank(params: {
       throw new HttpError(500, "Could not activate settlement bank", "ACTIVATE_FAILED");
     }
 
+    const notice = hadPriorActive ? noticeBankChange(row, coolingUntil) : null;
+    if (notice) notices.push(notice);
+
     return {
       settlementAccountId: updated.id,
       isActive: updated.isActive,
       coolingUntil: updated.coolingUntil,
     };
   });
+  for (const n of notices) notifySettlementBankChanged(n);
+  return result;
+}
+
+/** Admin ends the post-change withdrawal hold early (after a call-back check with the agent). */
+export async function releaseSettlementBankCooling(params: {
+  tenantId: string;
+  settlementAccountId: bigint;
+  adminId: string;
+}): Promise<{ settlementAccountId: bigint }> {
+  const [row] = await db
+    .update(agentSettlementAccounts)
+    .set({ coolingUntil: null })
+    .where(
+      and(
+        eq(agentSettlementAccounts.id, params.settlementAccountId),
+        eq(agentSettlementAccounts.tenantId, params.tenantId),
+        eq(agentSettlementAccounts.isActive, true),
+        gt(agentSettlementAccounts.coolingUntil, new Date()),
+      ),
+    )
+    .returning({ id: agentSettlementAccounts.id, userId: agentSettlementAccounts.userId });
+  if (!row) {
+    throw new HttpError(
+      422,
+      "This bank has no active withdrawal hold. It may have ended already or the bank is not active.",
+      "NO_ACTIVE_HOLD",
+    );
+  }
+  await insertAuditLog({
+    userId: params.adminId,
+    action: "settlement_bank.cooling_released",
+    entityType: "agent_settlement_account",
+    entityId: String(row.id),
+    ipAddress: null,
+    userAgent: null,
+    metadata: { agentUserId: row.userId },
+  });
+  return { settlementAccountId: row.id };
 }
 
 export async function listSettlementBanks(params: {
@@ -776,7 +851,7 @@ export async function requestSettlement(params: {
     if (bank.coolingUntil && bank.coolingUntil.getTime() > Date.now()) {
       throw new HttpError(
         422,
-        `Settlement bank was recently changed. Withdrawals resume after ${bank.coolingUntil.toISOString()}`,
+        `Settlement bank was changed recently. Withdrawals resume after ${formatIst(bank.coolingUntil)} IST.`,
         "BANK_COOLING",
       );
     }

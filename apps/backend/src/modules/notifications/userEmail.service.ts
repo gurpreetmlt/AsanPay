@@ -9,6 +9,7 @@ import {
   notifyUserEmail,
   productUpdateEmailTemplate,
   securityPinChangedEmailTemplate,
+  settlementBankChangedEmailTemplate,
   statementEmailTemplate,
   vanDepositCreditEmailTemplate,
   type SendMailInput,
@@ -44,6 +45,29 @@ export function notifyNewDeviceLogin(input: {
       ipAddress: input.ipAddress,
     }),
   );
+}
+
+/** Email the agent and their upline (not admin) when the payout bank switches to another account. */
+export function notifySettlementBankChanged(input: {
+  userId: string;
+  accountLast4: string;
+  ifsc: string;
+  resumesAt: string;
+}): void {
+  const bank = { accountLast4: input.accountLast4, ifsc: input.ifsc, resumesAt: input.resumesAt };
+  void (async () => {
+    await notifyVerifiedUser(input.userId, ({ name }) => settlementBankChangedEmailTemplate({ name, ...bank }));
+    const [agent] = await db
+      .select({ name: users.name, uid: users.uid, parentId: users.parentId })
+      .from(users)
+      .where(eq(users.id, input.userId));
+    if (!agent?.parentId) return;
+    const [upline] = await db.select({ role: users.role }).from(users).where(eq(users.id, agent.parentId));
+    if (!upline || upline.role === "admin") return;
+    await notifyVerifiedUser(agent.parentId, ({ name }) =>
+      settlementBankChangedEmailTemplate({ name, ...bank, agentLabel: `${agent.name} (${agent.uid})` }),
+    );
+  })().catch((err: unknown) => logger.error({ err, userId: input.userId }, "settlement bank change email failed"));
 }
 
 export function notifyMpinChanged(userId: string): void {

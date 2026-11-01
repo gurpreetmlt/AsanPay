@@ -33,8 +33,28 @@ interface SettlementBank {
   holderName: string;
   isActive: boolean;
   verified: boolean;
+  coolingUntil?: string | null;
   bankCheckStatus?: "verified" | "not_confirmed" | "pending" | "error" | null;
   bankHolderName?: string | null;
+}
+
+/** Post-change withdrawal hold, e.g. "Withdrawals paused until 2 Nov, 6:35 pm (23 h 10 min left)". */
+function holdNote(coolingUntil: string | null | undefined, now: number): string | null {
+  if (!coolingUntil) return null;
+  const until = new Date(coolingUntil);
+  const ms = until.getTime() - now;
+  if (!(ms > 0)) return null;
+  const hours = Math.floor(ms / 3_600_000);
+  const mins = Math.max(1, Math.ceil((ms % 3_600_000) / 60_000));
+  const left = hours > 0 ? `${hours} h ${mins} min left` : `${mins} min left`;
+  const at = until.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `Withdrawals paused until ${at} (${left}) — the settlement bank was changed recently`;
 }
 
 interface BankCheckResult {
@@ -133,6 +153,14 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
   }, [visible, load]);
 
   const hasActiveBank = banks.some((b) => b.isActive && b.verified);
+  const [now, setNow] = useState(() => Date.now());
+  const activeBankRow = banks.find((b) => b.isActive && b.verified);
+  const activeHold = holdNote(activeBankRow?.coolingUntil, now);
+  useEffect(() => {
+    if (!activeHold) return;
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, [activeHold]);
 
   async function sendOtp() {
     if (!/^\d{6,18}$/.test(bankDetails.accountNumber.trim())) {
@@ -417,6 +445,12 @@ export function SettlementsModal({ visible, onClose }: { visible: boolean; onClo
                 );
               })}
             </ScrollView>
+
+            {activeHold ? (
+              <View style={[styles.otpBox, { borderColor: "#FDBA74", backgroundColor: "#FFF7ED" }]}>
+                <Text style={styles.otpHint}>{activeHold}</Text>
+              </View>
+            ) : null}
 
             {showBank ? (
               <View style={{ marginTop: 8 }}>

@@ -771,6 +771,62 @@ export function deviceNewLoginEmailTemplate(input: {
   };
 }
 
+/**
+ * Settlement bank switched to another account. `agentLabel` set = the email goes to the upline
+ * about a downline agent; otherwise it goes to the agent themself.
+ */
+export function settlementBankChangedEmailTemplate(input: {
+  name: string;
+  accountLast4: string;
+  ifsc: string;
+  resumesAt: string;
+  agentLabel?: string;
+}): SendMailInput {
+  const name = input.name.trim() || "there";
+  const account = `****${input.accountLast4} · IFSC ${input.ifsc}`;
+  const lead = input.agentLabel
+    ? `${input.agentLabel} in your network changed their settlement bank.`
+    : `Your settlement bank was changed.`;
+  const action = input.agentLabel
+    ? `If this looks wrong, call the agent and contact AsanPay support before ${input.resumesAt}.`
+    : `If you did not make this change, contact AsanPay support right away and change your password and MPIN.`;
+  const text = [
+    `Hi ${name},`,
+    ``,
+    lead,
+    `New payout bank: ${account}`,
+    `Withdrawals are paused until ${input.resumesAt} IST.`,
+    ``,
+    action,
+    ``,
+    `— Team AsanPay`,
+  ].join("\n");
+
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.amber}">Security</p>
+    <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-0.03em;color:${BRAND.blueDeep}">Settlement bank changed</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.muted}">Hi ${escapeHtml(name)}, ${escapeHtml(lead)}</p>
+    <div style="margin:0 0 16px;padding:18px;border-radius:14px;background:${BRAND.bg};border:1px solid ${BRAND.border}">
+      <p style="margin:0 0 6px;font-size:14px;color:${BRAND.muted}">New payout bank</p>
+      <p style="margin:0;font-size:16px;font-weight:700;color:${BRAND.blueDeep}">${escapeHtml(account)}</p>
+      <p style="margin:10px 0 0;font-size:13px;color:${BRAND.muted}">Withdrawals paused until ${escapeHtml(input.resumesAt)} IST</p>
+    </div>
+    <p style="margin:0;font-size:13px;color:${BRAND.muted}">${escapeHtml(action)}</p>
+  `;
+
+  return {
+    to: "",
+    subject: "AsanPay settlement bank changed",
+    text,
+    html: brandedEmailHtml({
+      preheader: `Withdrawals paused until ${input.resumesAt} IST`,
+      title: "AsanPay settlement bank changed",
+      bodyHtml,
+      accent: "amber",
+    }),
+  };
+}
+
 export function productUpdateEmailTemplate(input: {
   name: string;
   subject: string;

@@ -7,10 +7,11 @@ One row per feature; details in the section below the table. Newest at the top o
 
 | # | Feature | Surfaces | Size | Status | Design | Task file |
 |---|---------|----------|------|--------|--------|-----------|
+| PL-42 | Approve web login from the mobile app — web login waits; trusted phone gets "Approve / Deny" with browser, city, time and a number match; 2-minute expiry; OTP fallback when no trusted phone | Backend, web, mobile | L | planned (needs push notifications — none in the app yet) | — | — |
 | PL-41 | Admin portal hardening — TOTP 2FA on admin login, office IP allowlist, two-admin approval for large manual credits, alert on repeated failed logins / refresh-token replays | Backend, admin | M | planned | — | — |
 | PL-40 | New-device login limits — first 24 h after login on a new phone: lower transaction limits + settlement hold; agent + upline alerted | Backend, web, mobile, admin | M | planned | — | — |
-| PL-39 | Settlement bank change hold — payouts paused 24–48 h after the settlement bank changes; agent + upline alerted on WhatsApp | Backend, web, mobile, admin | S | planned | — | — |
-| PL-38 | RD device match on every AePS txn — device serial from the PID capture must match one of the agent's registered devices, else block | Backend, web, mobile | M | planned | — | — |
+| PL-39 | Settlement bank change hold — payouts paused 24–48 h after the settlement bank changes; agent + upline alerted on WhatsApp | Backend, web, mobile, admin | S | built — 1 Nov: IST time in `BANK_COOLING`, hold + countdown on web + mobile settlement banks, email alert to agent + upline, admin "Remove withdrawal hold" (audit `settlement_bank.cooling_released`); WhatsApp alert waits for an approved template; deploy + APK + live test pending | — | — |
+| PL-38 | RD device match on every AePS txn + new-device flow — serial read from a test capture at registration (not typed), PID serial must match a registered device on every AePS call, else block | Backend, web, mobile | M | planned | — | — |
 | PL-37 | CMS biller commission — upload the provider's Cash Collection sheet (Biller ID, name, company margin, Retailer / Distributor / Super margin) in admin; list all billers under Cash Collection with search + export; each CMS txn pays by its biller | Backend, admin | M | built — 1 Nov (P18 payout hook pending) | — | [cms-biller-commission.md](TASKS/cms-biller-commission.md) |
 | PL-36 | React Native upgrade 0.77 → 0.88 — clears Play Console AGP 9 + edge-to-edge warnings; React 19, native libs, AEPS RD module check | Mobile | XL | building — phases 0–5 done; merged to `main` 1 Nov (tag `pre-rn-0.88` = last 0.77 code); phase 6 device test + phase 7 internal testing pending | — | [rn-upgrade-0-88.md](TASKS/rn-upgrade-0-88.md) |
 | PL-35 | DMT bank rails with priority — Airtel, Jio and Fino money transfer side by side; agent sees the rails in admin priority order on the DMT screen; admin reorders and turns each rail on/off | Backend, agent web, mobile, admin | L | building — phase 1 built 30 Oct (admin order + on/off, agent chips); phase 2 Jio built 30 Oct (pilot for test retailers set in admin, flip live after ₹100 test); Fino Coming soon | — | [dmt-rails.md](TASKS/dmt-rails.md) |
@@ -51,6 +52,24 @@ One row per feature; details in the section below the table. Newest at the top o
 
 ---
 
+## PL-42 — Approve web login from the mobile app
+
+**Problem:** Anyone with the agent's mobile + password / OTP can log in on a browser anywhere.
+
+**Plan**
+- Agent web login (after password / OTP) shows "Approve this login on your AsanPay app" and waits.
+- The agent's trusted phone gets a push: browser, city (from IP), time, and a 2-digit number; agent taps the number shown on web, then Approve or Deny.
+- Expires in 2 minutes; Deny → web login refused + "Not you? Change password" prompt + audit + risk signal.
+- No trusted phone (or app not installed) → OTP login as today, flagged as new device (PL-40 limits apply).
+- Approved browsers stay trusted for a set number of days.
+
+**Prerequisite:** push notifications (Firebase Cloud Messaging) — not in the app or backend yet; needs a Firebase project + `google-services.json`. Without push, the app can only show pending approvals when opened (polling).
+
+**Open decisions**
+- [ ] Trusted browser period (1 day / 7 days / 30 days)
+- [ ] Mandatory for all roles or only Distributor / SD first
+- [ ] Admin portal too (overlaps PL-41 2FA)
+
 ## PL-41 — Admin portal hardening
 
 **Problem:** A leaked admin password opens fund approval, allocation, recon adjustment and agent blocks. The audit log already shows `auth.login_failed` and `auth.stale_refresh_token_denied`, but nobody is alerted.
@@ -70,6 +89,8 @@ One row per feature; details in the section below the table. Newest at the top o
 
 **Problem:** A stolen OTP / MPIN lets someone log in from another phone and move money at full limits.
 
+**Already built (verified 1 Nov):** new phone / browser needs OTP (MPIN / biometric unlock only on a trusted device inside the 12 h window); `isNewDevice` recorded in the audit log; new-device login email (only when the agent has a verified email). No limit or hold after a new-device login.
+
 **Plan**
 - Device trust already records new devices (`isNewDevice` on login); mark the first 24 h after a new device as a probation window.
 - During probation: lower per-txn / daily limits, settlement requests held.
@@ -83,9 +104,12 @@ One row per feature; details in the section below the table. Newest at the top o
 
 **Problem:** Account takeover → change settlement bank → withdraw wallet. Most common payout fraud.
 
-**Plan**
-- On settlement bank add / change, payouts pause for a cooling period; screen shows when payouts reopen.
-- WhatsApp alert to the agent and the upline with the masked new account.
+**Already built (verified 1 Nov):** `agent_settlement_accounts.cooling_until` = 24 h when a bank replaces an already-active one (admin verify path and agent "activate" path); first-ever bank has no hold; withdrawal throws `BANK_COOLING`.
+
+**Plan (left)**
+- `BANK_COOLING` message shows UTC ISO time — show IST ("2 Nov, 6:35 PM").
+- Settlement screen (web + mobile) shows the hold and a countdown.
+- WhatsApp / email alert to the agent and the upline with the masked new account.
 - Admin can release early after a call-back check.
 
 **Open decisions**
@@ -94,7 +118,16 @@ One row per feature; details in the section below the table. Newest at the top o
 
 ## PL-38 — RD device match on every AePS txn
 
-**Problem:** Devices are registered (OTP, one serial per agent, max devices), but the AePS txn path never checks which device captured the fingerprint — an unregistered or borrowed device still works.
+**Problem:** Devices are registered (OTP, one serial per agent, max devices), but the AePS txn path never checks which device captured the fingerprint — an unregistered or borrowed device still works. The serial is also typed by hand at registration, so any serial can be entered.
+
+**Already built (verified 1 Nov):** Biometric devices screen (web Settings + mobile Account); OTP to register; `MAX_AGENT_DEVICES` = 3; one serial active under one agent (`DEVICE_IN_USE` + audit); de-register; device repair requests; RD app allowlist on Android; log-only `device_change_flag` (3+ in a month) / `device_change_investigate` (3+ in a week).
+
+**New device bought — agent flow**
+1. Settings → Biometric devices → Register new device.
+2. Plug in → "Scan finger to read device" → serial, make, model filled from the capture (not typed).
+3. OTP on the registered mobile → invoice number + date → device active at once.
+4. At the limit (3) → de-register the old one in the same screen; broken device → repair request (exists).
+5. Upline gets a WhatsApp note; 3+ changes in a week → services wait for admin approval (turn the existing signal from log-only into a gate).
 
 **Plan**
 - Read the device serial from the PID capture (device info / additional info) on the backend.

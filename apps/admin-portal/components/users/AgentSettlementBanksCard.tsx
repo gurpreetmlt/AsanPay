@@ -63,6 +63,23 @@ export function AgentSettlementBanksCard({ userId }: { userId: string }) {
   const [confirm, setConfirm] = useState<{ bank: SettlementBankRow; activate: boolean } | null>(
     null,
   );
+  const [releaseTarget, setReleaseTarget] = useState<SettlementBankRow | null>(null);
+
+  async function runRelease() {
+    if (!releaseTarget) return;
+    setActing(releaseTarget.id);
+    try {
+      await api.post(`/settlements/banks/${releaseTarget.id}/release-cooling`);
+      toast.success("Withdrawal hold removed — the agent can withdraw now");
+      setReleaseTarget(null);
+      await load();
+    } catch (err) {
+      const ax = err as { response?: { data?: { message?: string } }; message?: string };
+      toast.error(ax?.response?.data?.message || ax?.message || "Could not remove the withdrawal hold");
+    } finally {
+      setActing(null);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -245,6 +262,23 @@ export function AgentSettlementBanksCard({ userId }: { userId: string }) {
                     </div>
                     </div>
 
+                    {bank.isActive && bank.coolingUntil && new Date(bank.coolingUntil).getTime() > Date.now() ? (
+                      <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[200px]">
+                        <button
+                          type="button"
+                          disabled={acting === bank.id}
+                          onClick={() => setReleaseTarget(bank)}
+                          className="rounded-xl border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                          style={{ borderColor: "#FEC84B", color: "#B54708", background: "#FFFAEB" }}
+                        >
+                          Remove withdrawal hold
+                        </button>
+                        <p className="text-[11px] leading-snug" style={{ color: B.muted }}>
+                          Call the agent on their registered mobile first and confirm they changed the bank.
+                        </p>
+                      </div>
+                    ) : null}
+
                     {!bank.verified ? (
                       <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[200px]">
                         {bank.bankCheckStatus === "verified" ? (
@@ -338,6 +372,35 @@ export function AgentSettlementBanksCard({ userId }: { userId: string }) {
             if (!acting) setConfirm(null);
           }}
           onConfirm={() => void runVerify()}
+        />
+      ) : null}
+
+      {releaseTarget ? (
+        <ConfirmModal
+          title="Remove the withdrawal hold?"
+          message={
+            <div className="space-y-2 text-sm" style={{ color: B.muted }}>
+              <p>
+                <span className="font-semibold" style={{ color: B.blue }}>
+                  {releaseTarget.holderName} · ****{releaseTarget.accountNumberLast4}
+                </span>
+                <br />
+                IFSC {releaseTarget.ifsc}
+              </p>
+              <p>
+                The agent can withdraw to this bank right away. Do this only after you have called the agent and they
+                confirmed the bank change. This is saved in the audit log.
+              </p>
+            </div>
+          }
+          confirmLabel="Remove hold"
+          tone="warning"
+          busy={!!acting}
+          busyLabel="Removing…"
+          onClose={() => {
+            if (!acting) setReleaseTarget(null);
+          }}
+          onConfirm={() => void runRelease()}
         />
       ) : null}
     </>
