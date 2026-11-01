@@ -56,21 +56,28 @@ const ROW_BG = {
   slabOdd: "rgba(42,92,221,0.045)",
 };
 
+/** Cash Collection slab with no "Provider pays": the margin comes per biller (Billers panel), so it is not a problem. */
+const isPerBillerSlab = (row: ServiceRow, s: Slab) => row.serviceCode === CMS_SERVICE_CODE && s.providerIncome == null;
+
+/** Slabs that the loss / not-set checks look at. */
+const checkedSlabs = (row: ServiceRow) => row.slabs.filter((s) => !isPerBillerSlab(row, s));
+
 /** Company loses money on a slab, or a role earns ₹0 on it. */
 function hasLossOrMissing(row: ServiceRow): boolean {
-  return row.slabs.some((s) => s.underwater || s.missingRoles.length > 0);
+  return checkedSlabs(row).some((s) => s.underwater || s.missingRoles.length > 0);
 }
 
 /** A slab with no "Provider pays" yet. */
 function hasUnsetIncome(row: ServiceRow): boolean {
-  return row.slabs.some((s) => s.providerIncome == null);
+  return checkedSlabs(row).some((s) => s.providerIncome == null);
 }
 
 /** Problems that tint a row light red and get a tag next to the name (both densities). */
 function rowIssues(row: ServiceRow) {
-  const loss = row.slabs.filter((s) => s.underwater).length;
-  const unset = row.slabs.filter((s) => s.providerIncome == null).length;
-  const zeroRoles = [...new Set(row.slabs.flatMap((s) => s.missingRoles))];
+  const slabs = checkedSlabs(row);
+  const loss = slabs.filter((s) => s.underwater).length;
+  const unset = slabs.filter((s) => s.providerIncome == null).length;
+  const zeroRoles = [...new Set(slabs.flatMap((s) => s.missingRoles))];
   return { loss, unset, zeroRoles, any: loss > 0 || unset > 0 || zeroRoles.length > 0 };
 }
 
@@ -137,8 +144,27 @@ function RoleCell({ r }: { r: RoleSplit | undefined }) {
   );
 }
 
-function SlabCells({ slab, dense = false }: { slab: Slab; dense?: boolean }) {
+function SlabCells({ slab, dense = false, perBiller = false }: { slab: Slab; dense?: boolean; perBiller?: boolean }) {
   const pad = dense ? "px-3 py-1" : "px-3 py-2.5";
+  if (perBiller && slab.providerIncome == null) {
+    return (
+      <>
+        <td className={`${pad} text-right`}>
+          <Chip tone="blue" title="Each biller's company margin comes from the Billers list below">
+            Per biller
+          </Chip>
+        </td>
+        {SCHEME_ROLES.map((role) => (
+          <td key={role} className={pad}>
+            <RoleCell r={slab.roles.find((x) => x.role === role)} />
+          </td>
+        ))}
+        <td className={`${pad} text-right text-xs font-semibold`} style={{ color: B.muted }} title="Company margin − Retailer − Distributor − Super, per biller">
+          Per biller
+        </td>
+      </>
+    );
+  }
   return (
     <>
       <td className={`${pad} text-right`}>
@@ -899,7 +925,8 @@ export function RateCardScreen() {
 </>}>
                             {open
                               ? row.slabs.map((s, slabIndex) => {
-                                  const bad = s.underwater || s.providerIncome == null || s.missingRoles.length > 0;
+                                  const perBiller = isPerBillerSlab(row, s);
+                                  const bad = !perBiller && (s.underwater || s.providerIncome == null || s.missingRoles.length > 0);
                                   return (
                                   <tr
                                     key={slabKey(s)}
@@ -936,15 +963,17 @@ export function RateCardScreen() {
                                         />
                                       </span>
                                       <span className="flex flex-wrap items-center gap-1.5">
-                                        {slabLabel(s.minAmount, s.maxAmount)} · on {inr(s.sampleAmount)}
-                                        <IssueTags
-                                          loss={s.underwater ? 1 : 0}
-                                          unset={s.providerIncome == null ? 1 : 0}
-                                          zeroRoles={s.missingRoles}
-                                        />
+                                        {perBiller ? slabLabel(s.minAmount, s.maxAmount) : `${slabLabel(s.minAmount, s.maxAmount)} · on ${inr(s.sampleAmount)}`}
+                                        {perBiller ? null : (
+                                          <IssueTags
+                                            loss={s.underwater ? 1 : 0}
+                                            unset={s.providerIncome == null ? 1 : 0}
+                                            zeroRoles={s.missingRoles}
+                                          />
+                                        )}
                                       </span>
                                     </td>
-                                    <SlabCells slab={s} dense={dense} />
+                                    <SlabCells slab={s} dense={dense} perBiller={perBiller} />
                                     {slabActions(row, s)}
                                   </tr>
                                   );
