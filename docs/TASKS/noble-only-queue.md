@@ -33,7 +33,7 @@
 | P15 | Live AEPS (135) + Cash Deposit (61) bank lists — `noble/aepsBanks.ts`, refused before the provider call; web + mobile show the live list, Deposit tab only Cash Deposit banks | done (31 Oct) |
 | P16 | CMS: flow = provider wallet debit → our retailer-debit callback → bank; commission from the posting webhook | checked (31 Oct) — `merchantId` = retailer mobile and statuses match; money callbacks still declined → P18 |
 | P17 | Daily recon: after 23:00 IST, max 500 per call, CW / MT / QR / CD, from the first production txn | checked (31 Oct) — `reconJob.ts` already right; MT = Aadhaar Pay in the recon docs |
-| P18 | CMS money flow: debit retailer wallet on `balance_check_debit`, credit commission on `transaction_post` (ledger + idempotency). Provider income = the callback's per-txn `commission` (it differs per biller, 310 billers); role split from the rate card: Retailer 50%, Distributor 10%, SD 0% share (`docs/rate-cards/cms-commission-import.csv`) | blocked — CMS not on the provider's enabled list yet |
+| P18 | CMS money flow: debit retailer wallet on `balance_check_debit`, credit commission on `transaction_post` (ledger + idempotency). Provider income = the callback's per-txn `commission` (it differs per biller, 310 billers); role split from the rate card: Retailer 50%, Distributor 10%, SD 0% share (`docs/rate-cards/cms-commission-import.csv`) | deferred to go-live — test on 1 Nov: provider SendOtp failed and no callback reached us (CMS callback URL not set on provider side); need sample bodies per action + margin unit (% vs ₹) from provider; build plan in [cms-wallet-callbacks.md](cms-wallet-callbacks.md) |
 
 ---
 

@@ -2098,14 +2098,8 @@ export async function requestSignupOtp(
       "MOBILE_TAKEN",
     );
   }
-  if (!input.inviteToken) {
-    throw new HttpError(
-      403,
-      "Signup is by invitation only. Ask your Distributor to send you an invite link.",
-      "SIGNUP_INVITE_REQUIRED",
-    );
-  }
-  await assertInviteForSignup(input.inviteToken, input.mobile);
+  // Retailers may self-sign up; an invite link (when present) must match this mobile before any OTP goes out.
+  if (input.inviteToken) await assertInviteForSignup(input.inviteToken, input.mobile);
 
   const otp = getTestSignupOtpOverride(input.mobile) ?? randomInt(100000, 1000000).toString();
   await insertOtpRequest({
@@ -2265,15 +2259,16 @@ export async function completeSignup(
     throw new HttpError(401, "Too many attempts — verify mobile OTP again", "OTP_LOCKED");
   }
 
-  if (!input.inviteToken) {
+  const invite = input.inviteToken ? await assertInviteForSignup(input.inviteToken, input.mobile) : null;
+  if (invite) {
+    input = { ...input, role: invite.role, sponsorUid: invite.sponsorUid };
+  } else if ((["distributor", "super_distributor"] as string[]).includes(input.role)) {
     throw new HttpError(
       403,
-      "Signup is by invitation only. Ask your Distributor to send you an invite link.",
-      "SIGNUP_INVITE_REQUIRED",
+      "Distributor and Super Distributor accounts need an invite link from your upline. Sign up as a Retailer instead.",
+      "PARTNER_SIGNUP_NEEDS_INVITE",
     );
   }
-  const invite = await assertInviteForSignup(input.inviteToken, input.mobile);
-  input = { ...input, role: invite.role, sponsorUid: invite.sponsorUid };
 
   const isDirectRetailer = input.role === "direct_retailer";
   const isSuperDirect = input.role === "super_distributor";
@@ -2351,7 +2346,7 @@ export async function completeSignup(
     .where(eq(users.id, user.id))
     .returning();
   if (!row) throw new HttpError(500, "User created but not found");
-  await markInviteAccepted(invite.inviteId, row.id);
+  if (invite) await markInviteAccepted(invite.inviteId, row.id);
   try {
     await recordPolicyAcceptance(row.id, SIGNUP_POLICY_VERSION, input.policyChannel ?? "web", "signup", context);
   } catch (err) {
@@ -2370,7 +2365,7 @@ export async function completeSignup(
       sponsorUid,
       method: "otp",
       childRole,
-      invited: true,
+      invited: Boolean(invite),
       latitude,
       longitude,
     },

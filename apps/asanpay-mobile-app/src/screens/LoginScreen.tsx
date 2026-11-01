@@ -35,7 +35,11 @@ interface PendingSession {
   refreshToken: string;
 }
 
-export function LoginScreen() {
+interface LoginScreenProps {
+  onSignup: () => void;
+}
+
+export function LoginScreen({ onSignup }: LoginScreenProps) {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [mobile, setMobile] = useState("");
   const [loading, setLoading] = useState(false);
@@ -762,6 +766,12 @@ export function LoginScreen() {
                 )}
               </>
           </View>
+
+          <Pressable onPress={onSignup} style={styles.signupRow}>
+            <Text style={styles.signupText}>
+              New to AsanPay? <Text style={styles.signupLink}>Sign up as Retailer</Text>
+            </Text>
+          </Pressable>
 
           {__DEV__ ? <Text style={styles.devHint}>Dev API: {API_BASE}</Text> : null}
         </ScrollView>

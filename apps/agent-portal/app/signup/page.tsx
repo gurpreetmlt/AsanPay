@@ -712,8 +712,16 @@ export default function SignupPage() {
   );
 }
 
-/** Public signup is closed — accounts are created only from an upline's email invite link. */
-function InviteOnlyNotice({ reason, onLogin }: { reason: string | null; onLogin: () => void }) {
+/** Shown when an invite link can't be used; retailers can still sign up without one. */
+function InvalidInviteNotice({
+  reason,
+  onRetailerSignup,
+  onLogin,
+}: {
+  reason: string;
+  onRetailerSignup: () => void;
+  onLogin: () => void;
+}) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10" style={{ background: B.bg }}>
       <div
@@ -726,25 +734,26 @@ function InviteOnlyNotice({ reason, onLogin }: { reason: string | null; onLogin:
         <div className="flex items-start gap-3">
           <div
             className="confirm-modal-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
-            style={{ background: reason ? "#FEF2F2" : "#EEF2FF", color: reason ? "#DC2626" : B.blue }}
+            style={{ background: "#FEF2F2", color: "#DC2626" }}
           >
             <MailPlus size={22} />
           </div>
           <div>
             <h1 className="text-xl font-bold" style={{ color: B.blue }}>
-              Signup is by invitation only
+              This invite link can&apos;t be used
             </h1>
             <p className="mt-1 text-sm" style={{ color: B.muted }}>
-              Ask your Distributor to send you an invite link by email, then open that link to create your account.
+              Ask your upline to send a new invite link, or sign up as a Retailer without one.
             </p>
           </div>
         </div>
-        {reason ? (
-          <p className="rounded-xl border px-3 py-2 text-sm font-semibold" style={{ borderColor: "#FCA5A5", background: "#FEF2F2", color: "#B91C1C" }}>
-            {reason}
-          </p>
-        ) : null}
-        <PrimaryButton type="button" variant="primary" onClick={onLogin}>
+        <p className="rounded-xl border px-3 py-2 text-sm font-semibold" style={{ borderColor: "#FCA5A5", background: "#FEF2F2", color: "#B91C1C" }}>
+          {reason}
+        </p>
+        <PrimaryButton type="button" variant="success" onClick={onRetailerSignup}>
+          Sign up as Retailer
+        </PrimaryButton>
+        <PrimaryButton type="button" variant="secondary" showArrow={false} onClick={onLogin}>
           Log in
         </PrimaryButton>
         <p className="text-center text-xs" style={{ color: B.muted }}>
@@ -1530,7 +1539,7 @@ function SignupPageInner() {
       const { data } = await api.post<ApiResponse<{ otp?: string; message: string }>>("/auth/signup/request", {
         mobile: draft.mobile.replace(/\D/g, "").slice(0, 10),
         portal: "agent",
-        inviteToken,
+        ...(inviteToken ? { inviteToken } : {}),
       });
       if (!data.success) throw new Error(data.message);
       setDevOtp(data.data.otp ?? null);
@@ -2070,10 +2079,16 @@ function SignupPageInner() {
   if (!draftReady) return null;
 
   const resuming = draft.accountCreated || loggedInContinue;
-  if (!resuming && (!inviteToken || inviteError)) {
-    return <InviteOnlyNotice reason={inviteError} onLogin={() => router.push("/login")} />;
+  if (!resuming && inviteToken && inviteError) {
+    return (
+      <InvalidInviteNotice
+        reason={inviteError}
+        onRetailerSignup={() => router.replace("/signup?role=retailer")}
+        onLogin={() => router.push("/login")}
+      />
+    );
   }
-  if (!resuming && !invite) return null;
+  if (!resuming && inviteToken && !invite) return null;
 
   const subtitle = SIGNUP_STEPS[stepIndex]?.label ?? "Sign Up";
   const primaryLabel =

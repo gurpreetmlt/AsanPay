@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import {
@@ -827,6 +828,13 @@ export default function LoginPage() {
             <Fingerprint size={20} style={{ color: B.blue }} />
             Biometric Login
           </PrimaryButton>
+
+          <p className="text-center text-xs" style={{ color: B.muted }}>
+            New to AsanPay?{" "}
+            <Link href="/signup?role=retailer" className="font-semibold" style={{ color: B.blue }}>
+              Sign up as Retailer
+            </Link>
+          </p>
           </>
           )}
         </div>

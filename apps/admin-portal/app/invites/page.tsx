@@ -134,8 +134,8 @@ function InvitesBody() {
             Invites
           </h1>
           <p className="mt-1 text-sm" style={{ color: B.muted }}>
-            Signup is by invitation only. Invite Super Distributors and Direct Retailers here — Distributors and
-            Retailers are invited by their upline.
+            Retailers can sign up on their own; Distributors and Super Distributors need an invite. Invite Super
+            Distributors and Direct Retailers here — Distributors and Retailers are invited by their upline.
           </p>
         </div>
         <button
